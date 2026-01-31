@@ -1,0 +1,16 @@
+[package]
+name = "midilab-io"
+description = "I/O handling for midilab-editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+midilab.workspace = true
+midir.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+core-foundation = "0.10"

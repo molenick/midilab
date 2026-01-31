@@ -1,0 +1,21 @@
+[package]
+name = "midilab"
+description = "Sysex deserialization and midi controller programming library"
+categories = ["multimedia::audio", "hardware-support"]
+keywords = ["midi", "sysex", "mpd226", "akai", "music"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bytemuck.workspace = true
+enumeric.workspace = true
+num_enum.workspace = true
+strum_macros.workspace = true
+strum.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+midir.workspace = true
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

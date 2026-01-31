@@ -1,0 +1,22 @@
+[package]
+name = "midilab-editor"
+description = "GUI application for programming midi controllers via Sysex"
+categories = ["multimedia::audio", "hardware-support", "gui"]
+keywords = ["midi", "sysex", "music", "editor", "hardware"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "midilab"
+path = "src/main.rs"
+
+[dependencies]
+midilab.workspace = true
+midilab-gui.workspace = true
+midilab-io.workspace = true
+
+eframe.workspace = true
+midir.workspace = true
+tokio.workspace = true
