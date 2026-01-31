@@ -15,7 +15,7 @@ Software for programming midi controllers via Sysex messages
 ## Crate Overview
 | Crate | Directory | Description |
 |-|-|-|
-| **midilab** | `core` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
+| **midilab** | `midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
 | **midilab-editor** | `editor` | An application for programming MIDI controllers |
 | **midilab-io** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for midilab-editor|
 | **midilab-gui** | `gui` | Graphical user interface library for midilab-editor |
