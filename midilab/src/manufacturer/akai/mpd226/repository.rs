@@ -192,10 +192,10 @@ impl TryFrom<RawDials> for DialRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
     use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
-    use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
     use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
     use crate::manufacturer::akai::mpd226::raw::RawDial;
