@@ -13,6 +13,7 @@ use eframe::egui::Vec2;
 use eframe::egui::vec2;
 use midilab::IntoEnumIterator;
 use midilab::manufacturer::akai::mpd226::ColorPattern;
+use midilab::manufacturer::akai::mpd226::ColorSequence;
 use midilab::manufacturer::akai::mpd226::NotePattern;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::Dial;
@@ -187,14 +188,14 @@ impl Default for NoteMappingState {
 }
 
 pub struct ColorMappingState {
-    pub color: PadColor,
+    pub pattern: ColorPattern,
     pub length: usize,
     pub starting_from_pad: usize,
 }
 impl Default for ColorMappingState {
     fn default() -> Self {
         Self {
-            color: PadColor::Off,
+            pattern: ColorPattern::Contiguous(PadColor::Off),
             length: 64,
             starting_from_pad: 0,
         }
@@ -578,46 +579,44 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
 
 fn render_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
-        ui.label("Color Mapping");
+        ui.label("Off Color Mapping");
 
         ui.horizontal(|ui| {
-            ui.label("Color");
-            ComboBox::from_id_salt("color_mapping_color")
-                .selected_text(ui_state.off_color_mapping.color.to_string())
-                .show_ui(ui, |ui| {
-                    for c in PadColor::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut ui_state.off_color_mapping.color,
-                                c,
-                                c.to_string(),
-                            )
-                            .clicked()
-                        {
-                            ui_state.off_color_mapping.color = c;
-                        }
-                    }
-                });
+            let is_contiguous = matches!(
+                ui_state.off_color_mapping.pattern,
+                ColorPattern::Contiguous(_)
+            );
+            if ui.selectable_label(is_contiguous, "Contiguous").clicked() && !is_contiguous {
+                ui_state.off_color_mapping.pattern = ColorPattern::Contiguous(PadColor::Off);
+            }
+            if ui.selectable_label(!is_contiguous, "Grouped").clicked() && is_contiguous {
+                ui_state.off_color_mapping.pattern = ColorPattern::Grouped(vec![]);
+            }
         });
 
+        ui.add_space(4.0);
+
+        render_color_pattern_editor(ui, "off", &mut ui_state.off_color_mapping.pattern);
+
+        ui.add_space(4.0);
+
         ui.horizontal(|ui| {
-            ui.label("Starting from Pad");
-            ui.add(DragValue::new(&mut ui_state.off_color_mapping.starting_from_pad).range(0..=63))
+            ui.label("Start Pad");
+            ui.add(DragValue::new(&mut ui_state.off_color_mapping.starting_from_pad).range(0..=63));
         });
 
         ui.horizontal(|ui| {
             ui.label("Length");
-            ui.add(DragValue::new(&mut ui_state.off_color_mapping.length).range(1..=64))
+            ui.add(DragValue::new(&mut ui_state.off_color_mapping.length).range(1..=64));
         });
 
-        let resp = ui.button("Set color");
-        if resp.clicked()
+        if ui.button("Apply").clicked()
             && let Some(preset) = ui_state.preset.as_mut()
         {
             preset.pads.set_off_color_pattern(
                 ui_state.off_color_mapping.starting_from_pad,
                 ui_state.off_color_mapping.length,
-                ColorPattern::Contiguous(ui_state.off_color_mapping.color),
+                ui_state.off_color_mapping.pattern.clone(),
             );
         }
     });
@@ -628,46 +627,94 @@ fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
         ui.label("On Color Mapping");
 
         ui.horizontal(|ui| {
-            ui.label("Color");
-            ComboBox::from_id_salt("on_color_mapping_color")
-                .selected_text(ui_state.on_color_mapping.color.to_string())
-                .show_ui(ui, |ui| {
-                    for c in PadColor::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut ui_state.on_color_mapping.color,
-                                c,
-                                c.to_string(),
-                            )
-                            .clicked()
-                        {
-                            ui_state.on_color_mapping.color = c;
-                        }
-                    }
-                });
+            let is_contiguous = matches!(
+                ui_state.on_color_mapping.pattern,
+                ColorPattern::Contiguous(_)
+            );
+            if ui.selectable_label(is_contiguous, "Contiguous").clicked() && !is_contiguous {
+                ui_state.on_color_mapping.pattern = ColorPattern::Contiguous(PadColor::Off);
+            }
+            if ui.selectable_label(!is_contiguous, "Grouped").clicked() && is_contiguous {
+                ui_state.on_color_mapping.pattern = ColorPattern::Grouped(vec![]);
+            }
         });
 
+        ui.add_space(4.0);
+
+        render_color_pattern_editor(ui, "on", &mut ui_state.on_color_mapping.pattern);
+
+        ui.add_space(4.0);
+
         ui.horizontal(|ui| {
-            ui.label("Starting from Pad");
-            ui.add(DragValue::new(&mut ui_state.on_color_mapping.starting_from_pad).range(0..=63))
+            ui.label("Start Pad");
+            ui.add(DragValue::new(&mut ui_state.on_color_mapping.starting_from_pad).range(0..=63));
         });
 
         ui.horizontal(|ui| {
             ui.label("Length");
-            ui.add(DragValue::new(&mut ui_state.on_color_mapping.length).range(1..=64))
+            ui.add(DragValue::new(&mut ui_state.on_color_mapping.length).range(1..=64));
         });
 
-        let resp = ui.button("Set color");
-        if resp.clicked()
+        if ui.button("Apply").clicked()
             && let Some(preset) = ui_state.preset.as_mut()
         {
             preset.pads.set_on_color_pattern(
                 ui_state.on_color_mapping.starting_from_pad,
                 ui_state.on_color_mapping.length,
-                ColorPattern::Contiguous(ui_state.on_color_mapping.color),
+                ui_state.on_color_mapping.pattern.clone(),
             );
         }
     });
+}
+
+fn render_color_pattern_editor(ui: &mut Ui, id_prefix: &str, pattern: &mut ColorPattern) {
+    match pattern {
+        ColorPattern::Contiguous(color) => {
+            ui.horizontal(|ui| {
+                ui.label("Color");
+                ComboBox::from_id_salt(format!("{}_color", id_prefix))
+                    .selected_text(color.to_string())
+                    .show_ui(ui, |ui| {
+                        for c in PadColor::iter() {
+                            ui.selectable_value(color, c, c.to_string());
+                        }
+                    });
+            });
+        }
+        ColorPattern::Grouped(sequences) => {
+            if ui.button("+ Add").clicked() {
+                sequences.push(ColorSequence {
+                    len: 4,
+                    color: PadColor::Off,
+                });
+            }
+
+            let mut to_remove: Option<usize> = None;
+            for (idx, seq) in sequences.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    ComboBox::from_id_salt(format!("{}_{}_color", id_prefix, idx))
+                        .width(80.0)
+                        .selected_text(seq.color.to_string())
+                        .show_ui(ui, |ui| {
+                            for c in PadColor::iter() {
+                                ui.selectable_value(&mut seq.color, c, c.to_string());
+                            }
+                        });
+
+                    ui.label("x");
+                    ui.add(DragValue::new(&mut seq.len).range(1..=64));
+
+                    if ui.button("X").clicked() {
+                        to_remove = Some(idx);
+                    }
+                });
+            }
+
+            if let Some(idx) = to_remove {
+                sequences.remove(idx);
+            }
+        }
+    }
 }
 
 fn render_all_pad_banks(

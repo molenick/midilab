@@ -150,13 +150,177 @@ impl TryFrom<Sysex> for DeviceStatus {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Preset {
     pub global: Global,
     pub pads: PadRepository,
     pub dials: DialRepository,
     pub faders: FaderRepository,
     pub switches: SwitchRepository,
+}
+impl Default for Preset {
+    fn default() -> Self {
+        // CC and Color values from default manufactuer'rs Generic/default Mpd226 Editor preset
+        const GENERIC_DIAL_CC: [u8; 12] = [3, 9, 14, 15, 52, 53, 54, 55, 83, 85, 86, 87];
+        const GENERIC_FADER_CC: [u8; 12] = [20, 21, 22, 23, 61, 62, 63, 70, 92, 93, 94, 95];
+        const GENERIC_SWITCH_CC: [u8; 12] = [28, 29, 30, 31, 75, 76, 77, 78, 106, 107, 108, 109];
+        let global = Global::default();
+
+        let mut pads = PadRepository::default(); // todo: this should get some dressing
+        let dials = DialRepository::with_cc_values(GENERIC_DIAL_CC);
+        let faders = FaderRepository::with_cc_values(GENERIC_FADER_CC);
+        let switches = SwitchRepository::with_cc_values(GENERIC_SWITCH_CC);
+
+        pads.set_off_color_pattern(
+            0,
+            64,
+            ColorPattern::Grouped(vec![
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Red,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Green,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Blue,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightPurple,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Orange,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::GreenBlue,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Purple,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightGreen,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Amber,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Aqua,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Pink,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightPink,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Yellow,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightBlue,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::HotPink,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Grey,
+                },
+            ]),
+        );
+
+        pads.set_on_color_pattern(
+            0,
+            64,
+            ColorPattern::Grouped(vec![
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Green,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Blue,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightPurple,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Orange,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::GreenBlue,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Purple,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightGreen,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Amber,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Aqua,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Pink,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightPink,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Yellow,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::LightBlue,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::HotPink,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Grey,
+                },
+                ColorSequence {
+                    len: 4,
+                    color: PadColor::Yellow,
+                },
+            ]),
+        );
+
+        Preset {
+            global,
+            pads,
+            dials,
+            faders,
+            switches,
+        }
+    }
 }
 
 impl TryFrom<RawPreset> for Preset {
@@ -268,8 +432,46 @@ pub enum NotePattern {
     Scale(ScaleSequence),
 }
 
+#[derive(Clone)]
 pub enum ColorPattern {
     Contiguous(PadColor),
+    Grouped(Vec<ColorSequence>),
+}
+
+impl ColorPattern {
+    pub fn color_at_index(&self, index: usize) -> PadColor {
+        match self {
+            ColorPattern::Contiguous(color) => *color,
+            ColorPattern::Grouped(sequences) => {
+                if sequences.is_empty() {
+                    return PadColor::default();
+                }
+
+                let total_cycle_len: usize = sequences.iter().map(|s| s.len).sum();
+                if total_cycle_len == 0 {
+                    return PadColor::default();
+                }
+
+                let position = index % total_cycle_len;
+                let mut accumulated = 0;
+
+                for seq in sequences {
+                    if position < accumulated + seq.len {
+                        return seq.color;
+                    }
+                    accumulated += seq.len;
+                }
+
+                sequences.last().map(|s| s.color).unwrap_or_default()
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ColorSequence {
+    pub len: usize,
+    pub color: PadColor,
 }
 
 #[cfg(test)]
