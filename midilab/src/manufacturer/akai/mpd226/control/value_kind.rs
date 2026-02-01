@@ -299,7 +299,7 @@ pub enum FaderKind {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter)]
 pub enum DialKind {
     #[default]
     CC = 0,

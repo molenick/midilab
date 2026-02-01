@@ -34,9 +34,9 @@ pub struct Pad {
     pub midi2din: ActiveState,
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
-    pub program: u8,
-    pub msb: u8,
-    pub lsb: u8,
+    pub program: u8, // u4
+    pub msb: u8,     // u4
+    pub lsb: u8,     // u4
     pub off_color: PadColor,
     pub on_color: PadColor,
 }
