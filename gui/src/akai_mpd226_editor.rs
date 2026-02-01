@@ -19,6 +19,7 @@ use midilab::manufacturer::akai::mpd226::control::Pad;
 use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use midilab::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
+use midilab::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
@@ -778,7 +779,7 @@ fn render_pad_compare_grid(ui: &mut Ui, pad: &mut Pad) {
             ui.end_row();
 
             row_edit_pad_kind(ui, "kind", &mut pad.kind);
-            row_edit_u8(ui, "channel", &mut pad.channel);
+            row_edit_channel(ui, "channel", &mut pad.channel);
             row_edit_note(ui, "note", &mut pad.note);
             row_edit_midi2din(ui, "midi2din", &mut pad.midi2din);
             row_edit_trigger_kind(ui, "trigger", &mut pad.trigger);
@@ -817,6 +818,18 @@ fn row_edit_pad_kind(ui: &mut Ui, name: &str, value: &mut PadKind) {
         .selected_text(format!("{}", value))
         .show_ui(ui, |ui| {
             for variant in PadKind::iter() {
+                ui.selectable_value(value, variant, format!("{}", variant));
+            }
+        });
+    ui.end_row();
+}
+
+fn row_edit_channel(ui: &mut Ui, name: &str, value: &mut MidiChannel) {
+    ui.label(name);
+    ComboBox::from_id_salt(name)
+        .selected_text(format!("{}", value))
+        .show_ui(ui, |ui| {
+            for variant in MidiChannel::iter() {
                 ui.selectable_value(value, variant, format!("{}", variant));
             }
         });

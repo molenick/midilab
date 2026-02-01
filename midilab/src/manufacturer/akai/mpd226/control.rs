@@ -3,6 +3,7 @@ use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use crate::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
+use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetName;
@@ -28,7 +29,7 @@ pub mod value_kind;
 pub struct Pad {
     pub id: usize,
     pub kind: PadKind,
-    pub channel: u8,
+    pub channel: MidiChannel,
     pub note: Note,
     pub midi2din: Midi2Din,
     pub trigger: TriggerKind,
@@ -55,7 +56,7 @@ impl Pad {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.note as u8,
             self.midi2din as u8,
             self.trigger as u8,
@@ -78,7 +79,8 @@ impl TryFrom<(usize, RawPad)> for Pad {
         Ok(Pad {
             id: index,
             kind: PadKind::try_from(raw.kind).map_err(PadDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(PadDeserializationError::Channel)?,
             note: Note::try_from(raw.note).map_err(PadDeserializationError::Note)?,
             midi2din: Midi2Din::try_from(raw.midi2din)
                 .map_err(PadDeserializationError::Midi2Din)?,
@@ -352,7 +354,7 @@ mod tests {
             let pad = Pad {
                 id: 0,
                 kind: PadKind::Note,
-                channel: 1,
+                channel: MidiChannel::COMMON,
                 note: Note::N60,
                 midi2din: Midi2Din::Off,
                 trigger: TriggerKind::Momentary,
@@ -367,8 +369,8 @@ mod tests {
             let bytes = pad.as_bytes();
             assert_eq!(bytes.len(), 11);
             assert_eq!(bytes[0], PadKind::Note as u8);
-            assert_eq!(bytes[1], 1); // channel
-            assert_eq!(bytes[2], 60); // note
+            assert_eq!(bytes[1], MidiChannel::COMMON as u8); // channel
+            assert_eq!(bytes[2], Note::N60.into()); // note
             assert_eq!(bytes[9], PadColor::Red as u8);
             assert_eq!(bytes[10], PadColor::Green as u8);
         }
@@ -392,7 +394,7 @@ mod tests {
             let pad = Pad::try_from((3, raw)).unwrap();
             assert_eq!(pad.id, 3);
             assert_eq!(pad.kind, PadKind::Note);
-            assert_eq!(pad.channel, 5);
+            assert_eq!(pad.channel, MidiChannel::A5);
             assert_eq!(pad.note, Note::N72);
             assert_eq!(pad.trigger, TriggerKind::Toggle);
             assert_eq!(pad.aftertouch, AfterTouchKind::Poly);

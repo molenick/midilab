@@ -2,6 +2,8 @@ use std::fmt;
 use std::ops::Deref;
 
 use enumeric::range_enum;
+use num_enum::Default;
+use num_enum::IntoPrimitive;
 use num_enum::TryFromPrimitive;
 use strum_macros::Display;
 use strum_macros::EnumIter;
@@ -10,6 +12,27 @@ use crate::sysex::pack_u14;
 use crate::sysex::unpack_u14;
 
 const DEFAULT_TEMPO: u16 = 120;
+
+#[range_enum]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive, EnumIter, Display)]
+pub enum MidiChannel {
+    COMMON,
+    #[range(1..=16)]
+    A,
+    #[range(1..=16)]
+    B,
+}
+
+#[expect(
+    clippy::derivable_impls,
+    reason = "can't derive default in combination with range_enum"
+)]
+impl Default for MidiChannel {
+    fn default() -> Self {
+        Self::COMMON
+    }
+}
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive)]

@@ -5,6 +5,7 @@ use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use crate::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
+use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
@@ -64,6 +65,8 @@ pub enum GlobalDeserializationError {
 pub enum PadDeserializationError {
     #[error("invalid kind: {0}")]
     Kind(TryFromPrimitiveError<PadKind>),
+    #[error("invalid channel: {0}")]
+    Channel(TryFromPrimitiveError<MidiChannel>),
     #[error("invalid note: {0}")]
     Note(TryFromPrimitiveError<Note>),
     #[error("invalid midi2din: {0}")]
