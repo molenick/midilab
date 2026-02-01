@@ -1,5 +1,4 @@
 use crate::manufacturer::akai::mpd226::ColorPattern;
-use crate::manufacturer::akai::mpd226::ColorSequence;
 use crate::manufacturer::akai::mpd226::NotePattern;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
 use crate::manufacturer::akai::mpd226::control::Dial;
@@ -14,29 +13,6 @@ use crate::manufacturer::akai::mpd226::raw::RawSwitches;
 use crate::midi::Note;
 use crate::scale::PitchClass;
 use crate::scale::ScaleSequence;
-
-fn color_at_index(sequences: &[ColorSequence], index: usize) -> PadColor {
-    if sequences.is_empty() {
-        return PadColor::default();
-    }
-
-    let total_cycle_len: usize = sequences.iter().map(|s| s.len).sum();
-    if total_cycle_len == 0 {
-        return PadColor::default();
-    }
-
-    let position = index % total_cycle_len;
-    let mut accumulated = 0;
-
-    for seq in sequences {
-        if position < accumulated + seq.len {
-            return seq.color;
-        }
-        accumulated += seq.len;
-    }
-
-    sequences.last().map(|s| s.color).unwrap_or_default()
-}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -75,17 +51,8 @@ impl PadRepository {
         let end = (clamped_starting_position + length).min(TOTAL_PADS);
         let changing_pads = &mut self.pads[clamped_starting_position..end];
 
-        match pattern {
-            ColorPattern::Contiguous(color) => {
-                for pad in changing_pads.iter_mut() {
-                    pad.off_color = color;
-                }
-            }
-            ColorPattern::ColorGroups(color_sequences) => {
-                for (i, pad) in changing_pads.iter_mut().enumerate() {
-                    pad.off_color = color_at_index(&color_sequences, i);
-                }
-            }
+        for (i, pad) in changing_pads.iter_mut().enumerate() {
+            pad.off_color = pattern.color_at_index(i);
         }
     }
 
@@ -99,17 +66,8 @@ impl PadRepository {
         let end = (clamped_starting_position + length).min(TOTAL_PADS);
         let changing_pads = &mut self.pads[clamped_starting_position..end];
 
-        match pattern {
-            ColorPattern::Contiguous(color) => {
-                for pad in changing_pads.iter_mut() {
-                    pad.on_color = color;
-                }
-            }
-            ColorPattern::ColorGroups(color_sequences) => {
-                for (i, pad) in changing_pads.iter_mut().enumerate() {
-                    pad.on_color = color_at_index(&color_sequences, i);
-                }
-            }
+        for (i, pad) in changing_pads.iter_mut().enumerate() {
+            pad.on_color = pattern.color_at_index(i);
         }
     }
 
@@ -607,7 +565,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::ColorGroups(vec![
+        let pattern = ColorPattern::Grouped(vec![
             ColorSequence {
                 len: 4,
                 color: PadColor::Red,
@@ -621,35 +579,19 @@ mod tests {
         repo.set_off_color_pattern(0, 16, pattern);
 
         for i in 0..4 {
-            assert_eq!(
-                repo.pads[i].off_color,
-                PadColor::Red,
-                "pad {i} should be red"
-            );
+            assert_eq!(repo.pads[i].off_color, PadColor::Red);
         }
 
         for i in 4..8 {
-            assert_eq!(
-                repo.pads[i].off_color,
-                PadColor::Green,
-                "pad {i} should be green"
-            );
+            assert_eq!(repo.pads[i].off_color, PadColor::Green);
         }
 
         for i in 8..12 {
-            assert_eq!(
-                repo.pads[i].off_color,
-                PadColor::Red,
-                "pad {i} should be red"
-            );
+            assert_eq!(repo.pads[i].off_color, PadColor::Red);
         }
 
         for i in 12..16 {
-            assert_eq!(
-                repo.pads[i].off_color,
-                PadColor::Green,
-                "pad {i} should be green"
-            );
+            assert_eq!(repo.pads[i].off_color, PadColor::Green);
         }
     }
 
@@ -658,7 +600,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::ColorGroups(vec![
+        let pattern = ColorPattern::Grouped(vec![
             ColorSequence {
                 len: 2,
                 color: PadColor::Blue,
@@ -690,7 +632,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::ColorGroups(vec![
+        let pattern = ColorPattern::Grouped(vec![
             ColorSequence {
                 len: 3,
                 color: PadColor::Orange,
@@ -717,7 +659,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::ColorGroups(vec![
+        let pattern = ColorPattern::Grouped(vec![
             ColorSequence {
                 len: 3,
                 color: PadColor::Red,
@@ -752,7 +694,7 @@ mod tests {
     #[test]
     fn test_color_groups_empty_sequences() {
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::ColorGroups(vec![]);
+        let pattern = ColorPattern::Grouped(vec![]);
 
         repo.set_off_color_pattern(0, 4, pattern);
 
@@ -766,7 +708,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::ColorGroups(vec![ColorSequence {
+        let pattern = ColorPattern::Grouped(vec![ColorSequence {
             len: 4,
             color: PadColor::Aqua,
         }]);
