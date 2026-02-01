@@ -194,8 +194,8 @@ mod tests {
     use super::*;
     use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
-    use crate::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
     use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
+    use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
     use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
     use crate::manufacturer::akai::mpd226::raw::RawDial;
@@ -508,7 +508,7 @@ mod tests {
 
         let repo = DialRepository::try_from(RawDials(raw_dials)).unwrap();
         assert_eq!(repo.0[0].kind, DialKind::IncDec1);
-        assert_eq!(repo.0[0].midi2din, Midi2Din::On);
+        assert_eq!(repo.0[0].midi2din, ActiveState::On);
     }
 
     #[test]

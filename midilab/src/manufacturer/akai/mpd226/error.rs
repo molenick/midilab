@@ -1,10 +1,10 @@
 use num_enum::TryFromPrimitiveError;
 
+use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
-use crate::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
 use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
@@ -70,7 +70,7 @@ pub enum PadDeserializationError {
     #[error("invalid note: {0}")]
     Note(TryFromPrimitiveError<Note>),
     #[error("invalid midi2din: {0}")]
-    Midi2Din(TryFromPrimitiveError<Midi2Din>),
+    Midi2Din(TryFromPrimitiveError<ActiveState>),
     #[error("invalid trigger: {0}")]
     Trigger(TryFromPrimitiveError<TriggerKind>),
     #[error("invalid aftertouch: {0}")]
@@ -88,7 +88,7 @@ pub enum DialDeserializationError {
     #[error("invalid channel: {0}")]
     Channel(TryFromPrimitiveError<MidiChannel>),
     #[error("invalid midi2din: {0}")]
-    Midi2Din(TryFromPrimitiveError<Midi2Din>),
+    Midi2Din(TryFromPrimitiveError<ActiveState>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -98,7 +98,7 @@ pub enum FaderDeserializationError {
     #[error("invalid channel: {0}")]
     Channel(TryFromPrimitiveError<MidiChannel>),
     #[error("invalid midi2din: {0}")]
-    Midi2Din(TryFromPrimitiveError<Midi2Din>),
+    Midi2Din(TryFromPrimitiveError<ActiveState>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -110,9 +110,9 @@ pub enum SwitchDeserializationError {
     #[error("invalid mode: {0}")]
     Mode(TryFromPrimitiveError<TriggerKind>),
     #[error("invalid midi2din: {0}")]
-    Midi2Din(TryFromPrimitiveError<Midi2Din>),
+    Midi2Din(TryFromPrimitiveError<ActiveState>),
     #[error("invalid invert: {0}")]
-    Invert(TryFromPrimitiveError<Midi2Din>),
+    Invert(TryFromPrimitiveError<ActiveState>),
     #[error("invalid key2: {0}")]
     Key2(TryFromPrimitiveError<SwitchKey2>),
 }

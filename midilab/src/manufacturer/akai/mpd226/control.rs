@@ -1,8 +1,8 @@
+use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
-use crate::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
 use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
@@ -31,7 +31,7 @@ pub struct Pad {
     pub kind: PadKind,
     pub channel: MidiChannel,
     pub note: Note,
-    pub midi2din: Midi2Din,
+    pub midi2din: ActiveState,
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
     pub program: u8,
@@ -82,7 +82,7 @@ impl TryFrom<(usize, RawPad)> for Pad {
             channel: MidiChannel::try_from(raw.channel)
                 .map_err(PadDeserializationError::Channel)?,
             note: Note::try_from(raw.note).map_err(PadDeserializationError::Note)?,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(PadDeserializationError::Midi2Din)?,
             trigger: TriggerKind::try_from(raw.trigger)
                 .map_err(PadDeserializationError::Trigger)?,
@@ -106,7 +106,7 @@ pub struct Dial {
     pub midicc: u8, // CC and ID2 only
     pub min: u8,    // CC and AT only
     pub max: u8,    // CC and AT only
-    pub midi2din: Midi2Din,
+    pub midi2din: ActiveState,
     pub msb: u8,   // ID1 only
     pub lsb: u8,   // ID1 only
     pub value: u8, // ID1 only
@@ -120,7 +120,7 @@ impl Default for Dial {
             midicc: 0,
             min: 0,
             max: 127,
-            midi2din: Midi2Din::default(),
+            midi2din: ActiveState::default(),
             msb: 0,
             lsb: 0,
             value: 64,
@@ -156,7 +156,7 @@ impl TryFrom<RawDial> for Dial {
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(DialDeserializationError::Midi2Din)?,
             msb: raw.msb,
             lsb: raw.lsb,
@@ -173,7 +173,7 @@ pub struct Fader {
     pub midicc: u8, // cc only
     pub min: u8,    // both cc and aftertouch
     pub max: u8,    // both cc and aftertouch
-    pub midi2din: Midi2Din,
+    pub midi2din: ActiveState,
 }
 
 impl Default for Fader {
@@ -184,7 +184,7 @@ impl Default for Fader {
             midicc: 0,
             min: 0,
             max: 127,
-            midi2din: Midi2Din::default(),
+            midi2din: ActiveState::default(),
         }
     }
 }
@@ -214,7 +214,7 @@ impl TryFrom<RawFader> for Fader {
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(FaderDeserializationError::Midi2Din)?,
         })
     }
@@ -230,10 +230,10 @@ pub struct Switch {
     pub prog: u8,
     pub msb: u8,
     pub lsb: u8,
-    pub midi2din: Midi2Din,
+    pub midi2din: ActiveState,
     pub note: u8,
     pub velo: u8,
-    pub invert: Midi2Din,
+    pub invert: ActiveState,
     pub key1: u8,
     pub key2: SwitchKey2,
 }
@@ -248,10 +248,10 @@ impl Default for Switch {
             prog: 0,
             msb: 0,
             lsb: 0,
-            midi2din: Midi2Din::default(),
+            midi2din: ActiveState::default(),
             note: 0,
             velo: 100,
-            invert: Midi2Din::default(),
+            invert: ActiveState::default(),
             key1: 0,
             key2: SwitchKey2::default(),
         }
@@ -292,11 +292,12 @@ impl TryFrom<RawSwitch> for Switch {
             prog: raw.prog,
             msb: raw.msb,
             lsb: raw.lsb,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(SwitchDeserializationError::Midi2Din)?,
             note: raw.note,
             velo: raw.velo,
-            invert: Midi2Din::try_from(raw.invert).map_err(SwitchDeserializationError::Invert)?,
+            invert: ActiveState::try_from(raw.invert)
+                .map_err(SwitchDeserializationError::Invert)?,
             key1: raw.key1,
             key2: SwitchKey2::try_from(raw.key2).map_err(SwitchDeserializationError::Key2)?,
         })
@@ -359,7 +360,7 @@ mod tests {
                 kind: PadKind::Note,
                 channel: MidiChannel::COMMON,
                 note: Note::N60,
-                midi2din: Midi2Din::Off,
+                midi2din: ActiveState::Off,
                 trigger: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
                 program: 0,
@@ -450,7 +451,7 @@ mod tests {
                 midicc: 74,
                 min: 0,
                 max: 127,
-                midi2din: Midi2Din::On,
+                midi2din: ActiveState::On,
                 msb: 0,
                 lsb: 0,
                 value: 64,
@@ -483,7 +484,7 @@ mod tests {
             assert_eq!(dial.kind, DialKind::IncDec1);
             assert_eq!(dial.channel, MidiChannel::A3);
             assert_eq!(dial.midicc, 50);
-            assert_eq!(dial.midi2din, Midi2Din::On);
+            assert_eq!(dial.midi2din, ActiveState::On);
         }
 
         #[test]
@@ -521,7 +522,7 @@ mod tests {
                 midicc: 7,
                 min: 0,
                 max: 127,
-                midi2din: Midi2Din::Off,
+                midi2din: ActiveState::Off,
             };
 
             let bytes = fader.as_bytes();
@@ -584,10 +585,10 @@ mod tests {
                 prog: 5,
                 msb: 0,
                 lsb: 0,
-                midi2din: Midi2Din::On,
+                midi2din: ActiveState::On,
                 note: 60,
                 velo: 100,
-                invert: Midi2Din::Off,
+                invert: ActiveState::Off,
                 key1: 0,
                 key2: SwitchKey2::CTRL,
             };

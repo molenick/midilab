@@ -310,7 +310,7 @@ pub enum DialKind {
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter, Display)]
-pub enum Midi2Din {
+pub enum ActiveState {
     #[default]
     Off = 0,
     On = 1,

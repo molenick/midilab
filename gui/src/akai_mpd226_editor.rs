@@ -18,8 +18,8 @@ use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::Pad;
 use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::GateValue;
-use midilab::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
 use midilab::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
+use midilab::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
@@ -872,12 +872,12 @@ fn row_edit_pad_color(ui: &mut Ui, name: &str, value: &mut PadColor) {
     ui.end_row();
 }
 
-fn row_edit_midi2din(ui: &mut Ui, name: &str, value: &mut Midi2Din) {
+fn row_edit_midi2din(ui: &mut Ui, name: &str, value: &mut ActiveState) {
     ui.label(name);
     ComboBox::from_id_salt(name)
         .selected_text(format!("{}", value))
         .show_ui(ui, |ui| {
-            for variant in Midi2Din::iter() {
+            for variant in ActiveState::iter() {
                 ui.selectable_value(value, variant, format!("{}", variant));
             }
         });
