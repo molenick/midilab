@@ -291,6 +291,12 @@ pub enum NotePattern {
 
 pub enum ColorPattern {
     Contiguous(PadColor),
+    ColorGroups(Vec<ColorSequence>),
+}
+
+pub struct ColorSequence {
+    pub len: usize,
+    pub color: PadColor,
 }
 
 #[cfg(test)]

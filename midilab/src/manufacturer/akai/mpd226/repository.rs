@@ -57,6 +57,11 @@ impl PadRepository {
                     pad.off_color = color;
                 }
             }
+            ColorPattern::ColorGroups(color_sequences) => {
+                for (i, pad) in changing_pads.iter_mut().enumerate() {
+                    pad.off_color = color;
+                }
+            }
         }
     }
 
@@ -76,6 +81,7 @@ impl PadRepository {
                     pad.on_color = color;
                 }
             }
+            ColorPattern::ColorGroups(color_sequences) => todo!(),
         }
     }
 
