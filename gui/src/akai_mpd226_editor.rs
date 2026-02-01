@@ -348,7 +348,7 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
 
     ui.horizontal(|ui| {
         if let Some(preset) = &ui_state.preset
-            && ui.button("Load from Device").clicked()
+            && ui.button("Load from device").clicked()
         {
             ui_state.user_error = None;
             outbox.push(AppMsg::Ui(UiEffect::RequestPresetFromDevice(
