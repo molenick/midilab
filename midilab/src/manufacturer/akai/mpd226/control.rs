@@ -1,14 +1,15 @@
+use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
-use crate::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
+use crate::manufacturer::akai::mpd226::control::value_kind::KeyModifier;
+use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetName;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
 use crate::manufacturer::akai::mpd226::control::value_kind::SwingKind;
-use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKey2;
 use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::Tempo;
 use crate::manufacturer::akai::mpd226::control::value_kind::TimeDivision;
@@ -28,9 +29,9 @@ pub mod value_kind;
 pub struct Pad {
     pub id: usize,
     pub kind: PadKind,
-    pub channel: u8,
+    pub channel: MidiChannel,
     pub note: Note,
-    pub midi2din: Midi2Din,
+    pub midi2din: ActiveState,
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
     pub program: u8,
@@ -55,7 +56,7 @@ impl Pad {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.note as u8,
             self.midi2din as u8,
             self.trigger as u8,
@@ -78,9 +79,10 @@ impl TryFrom<(usize, RawPad)> for Pad {
         Ok(Pad {
             id: index,
             kind: PadKind::try_from(raw.kind).map_err(PadDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(PadDeserializationError::Channel)?,
             note: Note::try_from(raw.note).map_err(PadDeserializationError::Note)?,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(PadDeserializationError::Midi2Din)?,
             trigger: TriggerKind::try_from(raw.trigger)
                 .map_err(PadDeserializationError::Trigger)?,
@@ -100,11 +102,11 @@ impl TryFrom<(usize, RawPad)> for Pad {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dial {
     pub kind: DialKind,
-    pub channel: u8, // 0 = Common, A1..16, B1..16
-    pub midicc: u8,  // CC and ID2 only
-    pub min: u8,     // CC and AT only
-    pub max: u8,     // CC and AT only
-    pub midi2din: Midi2Din,
+    pub channel: MidiChannel,
+    pub midicc: u8, // CC and ID2 only
+    pub min: u8,    // CC and AT only
+    pub max: u8,    // CC and AT only
+    pub midi2din: ActiveState,
     pub msb: u8,   // ID1 only
     pub lsb: u8,   // ID1 only
     pub value: u8, // ID1 only
@@ -114,11 +116,11 @@ impl Default for Dial {
     fn default() -> Self {
         Self {
             kind: DialKind::default(),
-            channel: 0,
+            channel: MidiChannel::default(),
             midicc: 0,
             min: 0,
             max: 127,
-            midi2din: Midi2Din::default(),
+            midi2din: ActiveState::default(),
             msb: 0,
             lsb: 0,
             value: 64,
@@ -130,7 +132,7 @@ impl Dial {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.midicc,
             self.min,
             self.max,
@@ -149,11 +151,12 @@ impl TryFrom<RawDial> for Dial {
         use super::error::DialDeserializationError;
         Ok(Dial {
             kind: DialKind::try_from(raw.kind).map_err(DialDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(DialDeserializationError::Channel)?,
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(DialDeserializationError::Midi2Din)?,
             msb: raw.msb,
             lsb: raw.lsb,
@@ -166,22 +169,22 @@ impl TryFrom<RawDial> for Dial {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fader {
     pub kind: FaderKind,
-    pub channel: u8,
+    pub channel: MidiChannel,
     pub midicc: u8, // cc only
     pub min: u8,    // both cc and aftertouch
     pub max: u8,    // both cc and aftertouch
-    pub midi2din: Midi2Din,
+    pub midi2din: ActiveState,
 }
 
 impl Default for Fader {
     fn default() -> Self {
         Self {
             kind: FaderKind::default(),
-            channel: 0,
+            channel: MidiChannel::default(),
             midicc: 0,
             min: 0,
             max: 127,
-            midi2din: Midi2Din::default(),
+            midi2din: ActiveState::default(),
         }
     }
 }
@@ -190,7 +193,7 @@ impl Fader {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.midicc,
             self.min,
             self.max,
@@ -206,11 +209,12 @@ impl TryFrom<RawFader> for Fader {
         use super::error::FaderDeserializationError;
         Ok(Fader {
             kind: FaderKind::try_from(raw.kind).map_err(FaderDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(FaderDeserializationError::Channel)?,
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(FaderDeserializationError::Midi2Din)?,
         })
     }
@@ -220,36 +224,36 @@ impl TryFrom<RawFader> for Fader {
 #[derive(Clone, Copy, Debug)]
 pub struct Switch {
     pub kind: SwitchKind,
-    pub channel: u8, // all but keystroke
-    pub midicc: u8,  // cc only
+    pub channel: MidiChannel, // all but keystroke
+    pub midicc: u8,           // cc only
     pub mode: TriggerKind,
     pub prog: u8,
     pub msb: u8,
     pub lsb: u8,
-    pub midi2din: Midi2Din,
+    pub midi2din: ActiveState,
     pub note: u8,
     pub velo: u8,
-    pub invert: Midi2Din,
-    pub key1: u8,
-    pub key2: SwitchKey2,
+    pub invert: ActiveState,
+    pub key1: u8, // todo: support properly. can be used today if you know the corresponding key value - i would bet on the lower side of u4 :)
+    pub key2: KeyModifier,
 }
 
 impl Default for Switch {
     fn default() -> Self {
         Self {
             kind: SwitchKind::default(),
-            channel: 0,
+            channel: MidiChannel::default(),
             midicc: 0,
             mode: TriggerKind::default(),
             prog: 0,
             msb: 0,
             lsb: 0,
-            midi2din: Midi2Din::default(),
+            midi2din: ActiveState::default(),
             note: 0,
             velo: 100,
-            invert: Midi2Din::default(),
+            invert: ActiveState::default(),
             key1: 0,
-            key2: SwitchKey2::default(),
+            key2: KeyModifier::default(),
         }
     }
 }
@@ -258,7 +262,7 @@ impl Switch {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.midicc,
             self.mode as u8,
             self.prog,
@@ -281,19 +285,21 @@ impl TryFrom<RawSwitch> for Switch {
         use super::error::SwitchDeserializationError;
         Ok(Switch {
             kind: SwitchKind::try_from(raw.kind).map_err(SwitchDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(SwitchDeserializationError::Channel)?,
             midicc: raw.midicc,
             mode: TriggerKind::try_from(raw.mode).map_err(SwitchDeserializationError::Mode)?,
             prog: raw.prog,
             msb: raw.msb,
             lsb: raw.lsb,
-            midi2din: Midi2Din::try_from(raw.midi2din)
+            midi2din: ActiveState::try_from(raw.midi2din)
                 .map_err(SwitchDeserializationError::Midi2Din)?,
             note: raw.note,
             velo: raw.velo,
-            invert: Midi2Din::try_from(raw.invert).map_err(SwitchDeserializationError::Invert)?,
+            invert: ActiveState::try_from(raw.invert)
+                .map_err(SwitchDeserializationError::Invert)?,
             key1: raw.key1,
-            key2: SwitchKey2::try_from(raw.key2).map_err(SwitchDeserializationError::Key2)?,
+            key2: KeyModifier::try_from(raw.key2).map_err(SwitchDeserializationError::Key2)?,
         })
     }
 }
@@ -352,9 +358,9 @@ mod tests {
             let pad = Pad {
                 id: 0,
                 kind: PadKind::Note,
-                channel: 1,
+                channel: MidiChannel::COMMON,
                 note: Note::N60,
-                midi2din: Midi2Din::Off,
+                midi2din: ActiveState::Off,
                 trigger: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
                 program: 0,
@@ -367,8 +373,8 @@ mod tests {
             let bytes = pad.as_bytes();
             assert_eq!(bytes.len(), 11);
             assert_eq!(bytes[0], PadKind::Note as u8);
-            assert_eq!(bytes[1], 1); // channel
-            assert_eq!(bytes[2], 60); // note
+            assert_eq!(bytes[1], MidiChannel::COMMON as u8); // channel
+            assert_eq!(bytes[2], Note::N60.into()); // note
             assert_eq!(bytes[9], PadColor::Red as u8);
             assert_eq!(bytes[10], PadColor::Green as u8);
         }
@@ -392,7 +398,7 @@ mod tests {
             let pad = Pad::try_from((3, raw)).unwrap();
             assert_eq!(pad.id, 3);
             assert_eq!(pad.kind, PadKind::Note);
-            assert_eq!(pad.channel, 5);
+            assert_eq!(pad.channel, MidiChannel::A5);
             assert_eq!(pad.note, Note::N72);
             assert_eq!(pad.trigger, TriggerKind::Toggle);
             assert_eq!(pad.aftertouch, AfterTouchKind::Poly);
@@ -434,18 +440,18 @@ mod tests {
         fn test_dial_default() {
             let dial = Dial::default();
             assert_eq!(dial.kind, DialKind::CC);
-            assert_eq!(dial.channel, 0);
+            assert_eq!(dial.channel, MidiChannel::COMMON);
         }
 
         #[test]
         fn test_dial_as_bytes() {
             let dial = Dial {
                 kind: DialKind::CC,
-                channel: 1,
+                channel: MidiChannel::A1,
                 midicc: 74,
                 min: 0,
                 max: 127,
-                midi2din: Midi2Din::On,
+                midi2din: ActiveState::On,
                 msb: 0,
                 lsb: 0,
                 value: 64,
@@ -476,9 +482,9 @@ mod tests {
 
             let dial = Dial::try_from(raw).unwrap();
             assert_eq!(dial.kind, DialKind::IncDec1);
-            assert_eq!(dial.channel, 3);
+            assert_eq!(dial.channel, MidiChannel::A3);
             assert_eq!(dial.midicc, 50);
-            assert_eq!(dial.midi2din, Midi2Din::On);
+            assert_eq!(dial.midi2din, ActiveState::On);
         }
 
         #[test]
@@ -512,17 +518,17 @@ mod tests {
         fn test_fader_as_bytes() {
             let fader = Fader {
                 kind: FaderKind::Aftertouch,
-                channel: 2,
+                channel: MidiChannel::A2,
                 midicc: 7,
                 min: 0,
                 max: 127,
-                midi2din: Midi2Din::Off,
+                midi2din: ActiveState::Off,
             };
 
             let bytes = fader.as_bytes();
             assert_eq!(bytes.len(), 6);
             assert_eq!(bytes[0], FaderKind::Aftertouch as u8);
-            assert_eq!(bytes[1], 2); // channel
+            assert_eq!(bytes[1], MidiChannel::A2 as u8); // channel
             assert_eq!(bytes[2], 7); // midicc
         }
 
@@ -539,7 +545,7 @@ mod tests {
 
             let fader = Fader::try_from(raw).unwrap();
             assert_eq!(fader.kind, FaderKind::Aftertouch);
-            assert_eq!(fader.channel, 5);
+            assert_eq!(fader.channel, MidiChannel::A5);
             assert_eq!(fader.midicc, 11);
             assert_eq!(fader.min, 20);
             assert_eq!(fader.max, 100);
@@ -573,25 +579,25 @@ mod tests {
         fn test_switch_as_bytes() {
             let switch = Switch {
                 kind: SwitchKind::Program,
-                channel: 1,
+                channel: MidiChannel::A1,
                 midicc: 64,
                 mode: TriggerKind::Toggle,
                 prog: 5,
                 msb: 0,
                 lsb: 0,
-                midi2din: Midi2Din::On,
+                midi2din: ActiveState::On,
                 note: 60,
                 velo: 100,
-                invert: Midi2Din::Off,
+                invert: ActiveState::Off,
                 key1: 0,
-                key2: SwitchKey2::CTRL,
+                key2: KeyModifier::CTRL,
             };
 
             let bytes = switch.as_bytes();
             assert_eq!(bytes.len(), 13);
             assert_eq!(bytes[0], SwitchKind::Program as u8);
             assert_eq!(bytes[3], TriggerKind::Toggle as u8);
-            assert_eq!(bytes[12], SwitchKey2::CTRL as u8);
+            assert_eq!(bytes[12], KeyModifier::CTRL as u8);
         }
 
         #[test]
@@ -615,7 +621,7 @@ mod tests {
             let switch = Switch::try_from(raw).unwrap();
             assert_eq!(switch.kind, SwitchKind::Program);
             assert_eq!(switch.mode, TriggerKind::Toggle);
-            assert_eq!(switch.key2, SwitchKey2::CTRL_SHIFT);
+            assert_eq!(switch.key2, KeyModifier::CTRL_SHIFT);
         }
 
         #[test]
