@@ -15,11 +15,11 @@ Software for programming midi controllers via Sysex messages
 ## Crate Overview
 | Crate | Directory | Description |
 |-|-|-|
-| **[midilab](https://github.com/molenick/midilab/midilab)** | `midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
-| **[midilab-editor](https://github.com/molenick/midilab/editor)** | `editor` | An application for programming MIDI controllers |
-| **[midilab-io](https://github.com/molenick/midilab/io)** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for midilab-editor|
-| **[midilab-gui](https://github.com/molenick/midilab/gui)** | `gui` | Graphical user interface library for midilab-editor |
-| **[midilab-sim](https://github.com/molenick/midilab/sim)** | `sim` | Hardware device simulations for midilab-editor |
+| **[midilab](./midilab)** | `midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
+| **[midilab-editor](./editor)** | `editor` | An application for programming MIDI controllers |
+| **[midilab-io](./io)** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for midilab-editor|
+| **[midilab-gui](./gui)** | `gui` | Graphical user interface library for midilab-editor |
+| **[midilab-sim](./sim)** | `sim` | Hardware device simulations for midilab-editor |
 
 
 ## Supported devices
