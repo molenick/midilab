@@ -14,8 +14,10 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
       - uses: actions/checkout@v4
+      - uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libasound2-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
@@ -24,8 +26,10 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
       - uses: actions/checkout@v4
+      - uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libasound2-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
