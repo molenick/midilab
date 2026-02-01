@@ -1054,7 +1054,7 @@ fn render_pad_compare_grid(ui: &mut Ui, pad: &mut Pad) {
             row_edit_pad_kind(ui, "kind", &mut pad.kind);
             row_edit_channel(ui, "channel", &mut pad.channel);
             row_edit_note(ui, "note", &mut pad.note);
-            row_edit_midi2din(ui, "midi2din", &mut pad.midi2din);
+            row_edit_midi2din(ui, "midi to din", &mut pad.midi2din);
             row_edit_trigger_kind(ui, "trigger", &mut pad.trigger);
             row_edit_aftertouch_kind(ui, "aftertouch", &mut pad.aftertouch);
             row_edit_u8(ui, "program", &mut pad.program);
@@ -1074,12 +1074,12 @@ fn render_dial_compare_grid(ui: &mut Ui, dial: &mut Dial) {
             ui.label("Value");
             ui.end_row();
 
-            row_edit_dial_kind(ui, "dial_kind", &mut dial.kind);
+            row_edit_dial_kind(ui, "kind", &mut dial.kind);
             row_edit_channel(ui, "channel", &mut dial.channel);
             row_edit_u8(ui, "midicc", &mut dial.midicc);
             row_edit_u8(ui, "min", &mut dial.min);
             row_edit_u8(ui, "max", &mut dial.max);
-            row_edit_midi2din(ui, "dial_midi2din", &mut dial.midi2din);
+            row_edit_midi2din(ui, "midi to din", &mut dial.midi2din);
             row_edit_u8(ui, "msb", &mut dial.msb);
             row_edit_u8(ui, "lsb", &mut dial.lsb);
             row_edit_u8(ui, "value", &mut dial.value);
@@ -1095,12 +1095,12 @@ fn render_fader_compare_grid(ui: &mut Ui, fader: &mut Fader) {
             ui.label("Value");
             ui.end_row();
 
-            row_edit_fader_kind(ui, "fader_kind", &mut fader.kind);
-            row_edit_channel(ui, "fader_channel", &mut fader.channel);
+            row_edit_fader_kind(ui, "kind", &mut fader.kind);
+            row_edit_channel(ui, "channel", &mut fader.channel);
             row_edit_u8(ui, "midicc", &mut fader.midicc);
             row_edit_u8(ui, "min", &mut fader.min);
             row_edit_u8(ui, "max", &mut fader.max);
-            row_edit_midi2din(ui, "fader_midi2din", &mut fader.midi2din);
+            row_edit_midi2din(ui, "midi to din", &mut fader.midi2din);
         });
 }
 
@@ -1113,14 +1113,14 @@ fn render_switch_compare_grid(ui: &mut Ui, switch: &mut Switch) {
             ui.label("Value");
             ui.end_row();
 
-            row_edit_switch_kind(ui, "switch_kind", &mut switch.kind);
-            row_edit_channel(ui, "switch_channel", &mut switch.channel);
+            row_edit_switch_kind(ui, "kind", &mut switch.kind);
+            row_edit_channel(ui, "channel", &mut switch.channel);
             row_edit_u8(ui, "midicc", &mut switch.midicc);
             row_edit_trigger_kind(ui, "mode", &mut switch.mode);
             row_edit_u8(ui, "prog", &mut switch.prog);
             row_edit_u8(ui, "msb", &mut switch.msb);
             row_edit_u8(ui, "lsb", &mut switch.lsb);
-            row_edit_midi2din(ui, "switch_midi2din", &mut switch.midi2din);
+            row_edit_midi2din(ui, "midi to din", &mut switch.midi2din);
             row_edit_u8(ui, "note", &mut switch.note);
             row_edit_u8(ui, "velo", &mut switch.velo);
             row_edit_midi2din(ui, "invert", &mut switch.invert);
