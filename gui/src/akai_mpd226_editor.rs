@@ -194,8 +194,13 @@ pub struct ColorMappingState {
 }
 impl Default for ColorMappingState {
     fn default() -> Self {
+        let pattern = ColorPattern::Repeating(vec![ColorSequence {
+            len: 64,
+            color: PadColor::Off,
+        }]);
+
         Self {
-            pattern: ColorPattern::Contiguous(PadColor::Off),
+            pattern,
             length: 64,
             starting_from_pad: 0,
         }
@@ -417,7 +422,7 @@ fn render_pad_patterns(ui: &mut Ui, ui_state: &mut UiState) {
 
         ui.add_space(32.0);
 
-        render_color_mapping(ui, ui_state);
+        render_off_color_mapping(ui, ui_state);
 
         ui.add_space(32.0);
 
@@ -577,24 +582,9 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     });
 }
 
-fn render_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
+fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
         ui.label("Off Color Mapping");
-
-        ui.horizontal(|ui| {
-            let is_contiguous = matches!(
-                ui_state.off_color_mapping.pattern,
-                ColorPattern::Contiguous(_)
-            );
-            if ui.selectable_label(is_contiguous, "Contiguous").clicked() && !is_contiguous {
-                ui_state.off_color_mapping.pattern = ColorPattern::Contiguous(PadColor::Off);
-            }
-            if ui.selectable_label(!is_contiguous, "Grouped").clicked() && is_contiguous {
-                ui_state.off_color_mapping.pattern = ColorPattern::Grouped(vec![]);
-            }
-        });
-
-        ui.add_space(4.0);
 
         render_color_pattern_editor(ui, "off", &mut ui_state.off_color_mapping.pattern);
 
@@ -626,19 +616,6 @@ fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
         ui.label("On Color Mapping");
 
-        ui.horizontal(|ui| {
-            let is_contiguous = matches!(
-                ui_state.on_color_mapping.pattern,
-                ColorPattern::Contiguous(_)
-            );
-            if ui.selectable_label(is_contiguous, "Contiguous").clicked() && !is_contiguous {
-                ui_state.on_color_mapping.pattern = ColorPattern::Contiguous(PadColor::Off);
-            }
-            if ui.selectable_label(!is_contiguous, "Grouped").clicked() && is_contiguous {
-                ui_state.on_color_mapping.pattern = ColorPattern::Grouped(vec![]);
-            }
-        });
-
         ui.add_space(4.0);
 
         render_color_pattern_editor(ui, "on", &mut ui_state.on_color_mapping.pattern);
@@ -669,19 +646,7 @@ fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
 
 fn render_color_pattern_editor(ui: &mut Ui, id_prefix: &str, pattern: &mut ColorPattern) {
     match pattern {
-        ColorPattern::Contiguous(color) => {
-            ui.horizontal(|ui| {
-                ui.label("Color");
-                ComboBox::from_id_salt(format!("{}_color", id_prefix))
-                    .selected_text(color.to_string())
-                    .show_ui(ui, |ui| {
-                        for c in PadColor::iter() {
-                            ui.selectable_value(color, c, c.to_string());
-                        }
-                    });
-            });
-        }
-        ColorPattern::Grouped(sequences) => {
+        ColorPattern::Repeating(sequences) => {
             if ui.button("+ Add").clicked() {
                 sequences.push(ColorSequence {
                     len: 4,

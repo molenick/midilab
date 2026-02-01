@@ -174,7 +174,7 @@ impl Default for Preset {
         pads.set_off_color_pattern(
             0,
             64,
-            ColorPattern::Grouped(vec![
+            ColorPattern::Repeating(vec![
                 ColorSequence {
                     len: 4,
                     color: PadColor::Red,
@@ -245,7 +245,7 @@ impl Default for Preset {
         pads.set_on_color_pattern(
             0,
             64,
-            ColorPattern::Grouped(vec![
+            ColorPattern::Repeating(vec![
                 ColorSequence {
                     len: 4,
                     color: PadColor::Green,
@@ -434,15 +434,13 @@ pub enum NotePattern {
 
 #[derive(Clone)]
 pub enum ColorPattern {
-    Contiguous(PadColor),
-    Grouped(Vec<ColorSequence>),
+    Repeating(Vec<ColorSequence>),
 }
 
 impl ColorPattern {
     pub fn color_at_index(&self, index: usize) -> PadColor {
         match self {
-            ColorPattern::Contiguous(color) => *color,
-            ColorPattern::Grouped(sequences) => {
+            ColorPattern::Repeating(sequences) => {
                 if sequences.is_empty() {
                     return PadColor::default();
                 }

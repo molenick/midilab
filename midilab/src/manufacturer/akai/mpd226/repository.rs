@@ -47,7 +47,7 @@ impl PadRepository {
         length: usize,
         pattern: ColorPattern,
     ) {
-        if matches!(&pattern, ColorPattern::Grouped(seqs) if seqs.is_empty()) {
+        if matches!(&pattern, ColorPattern::Repeating(seqs) if seqs.is_empty()) {
             return;
         }
 
@@ -66,7 +66,7 @@ impl PadRepository {
         length: usize,
         pattern: ColorPattern,
     ) {
-        if matches!(&pattern, ColorPattern::Grouped(seqs) if seqs.is_empty()) {
+        if matches!(&pattern, ColorPattern::Repeating(seqs) if seqs.is_empty()) {
             return;
         }
 
@@ -229,6 +229,7 @@ impl TryFrom<RawDials> for DialRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manufacturer::akai::mpd226::ColorSequence;
     use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
     use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
@@ -314,7 +315,14 @@ mod tests {
     fn test_pad_repository_set_off_color_pattern() {
         let mut repo = PadRepository::default();
 
-        repo.set_off_color_pattern(0, 16, ColorPattern::Contiguous(PadColor::Blue));
+        repo.set_off_color_pattern(
+            0,
+            16,
+            ColorPattern::Repeating(vec![ColorSequence {
+                len: 16,
+                color: PadColor::Blue,
+            }]),
+        );
 
         for i in 0..16 {
             assert_eq!(repo.pads[i].off_color, PadColor::Blue);
@@ -327,7 +335,14 @@ mod tests {
     fn test_pad_repository_set_off_color_pattern_with_offset() {
         let mut repo = PadRepository::default();
 
-        repo.set_off_color_pattern(8, 8, ColorPattern::Contiguous(PadColor::Red));
+        repo.set_off_color_pattern(
+            8,
+            8,
+            ColorPattern::Repeating(vec![ColorSequence {
+                len: 8,
+                color: PadColor::Red,
+            }]),
+        );
 
         for i in 0..8 {
             assert_eq!(repo.pads[i].off_color, PadColor::default());
@@ -342,7 +357,14 @@ mod tests {
     fn test_pad_repository_set_on_color_pattern() {
         let mut repo = PadRepository::default();
 
-        repo.set_on_color_pattern(0, 8, ColorPattern::Contiguous(PadColor::Green));
+        repo.set_on_color_pattern(
+            0,
+            8,
+            ColorPattern::Repeating(vec![ColorSequence {
+                len: 8,
+                color: PadColor::Green,
+            }]),
+        );
 
         for i in 0..8 {
             assert_eq!(repo.pads[i].on_color, PadColor::Green);
@@ -354,7 +376,14 @@ mod tests {
     fn test_pad_repository_apply_color_pattern_exceeds_total() {
         let mut repo = PadRepository::default();
 
-        repo.set_off_color_pattern(60, 10, ColorPattern::Contiguous(PadColor::Yellow));
+        repo.set_off_color_pattern(
+            60,
+            10,
+            ColorPattern::Repeating(vec![ColorSequence {
+                len: 10,
+                color: PadColor::Yellow,
+            }]),
+        );
 
         for i in 60..TOTAL_PADS {
             assert_eq!(repo.pads[i].off_color, PadColor::Yellow);
@@ -573,7 +602,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::Grouped(vec![
+        let pattern = ColorPattern::Repeating(vec![
             ColorSequence {
                 len: 4,
                 color: PadColor::Red,
@@ -608,7 +637,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::Grouped(vec![
+        let pattern = ColorPattern::Repeating(vec![
             ColorSequence {
                 len: 2,
                 color: PadColor::Blue,
@@ -640,7 +669,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::Grouped(vec![
+        let pattern = ColorPattern::Repeating(vec![
             ColorSequence {
                 len: 3,
                 color: PadColor::Orange,
@@ -667,7 +696,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::Grouped(vec![
+        let pattern = ColorPattern::Repeating(vec![
             ColorSequence {
                 len: 3,
                 color: PadColor::Red,
@@ -702,7 +731,7 @@ mod tests {
     #[test]
     fn test_color_groups_empty_sequences() {
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::Grouped(vec![]);
+        let pattern = ColorPattern::Repeating(vec![]);
 
         repo.set_off_color_pattern(0, 4, pattern);
 
@@ -716,7 +745,7 @@ mod tests {
         use crate::manufacturer::akai::mpd226::ColorSequence;
 
         let mut repo = PadRepository::default();
-        let pattern = ColorPattern::Grouped(vec![ColorSequence {
+        let pattern = ColorPattern::Repeating(vec![ColorSequence {
             len: 4,
             color: PadColor::Aqua,
         }]);
