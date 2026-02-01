@@ -29,13 +29,13 @@ Software for programming midi controllers via Sysex messages
     - Sysex deserialization into domain types
     - Pad Mapping
     - Global Mapping
+    - Dial mapping
     - Preset dump
     - Preset send
-    - Basic note mapping
-    - Basic LED color mapping
+    - Basic note pattern mapping
+    - Basic LED color pattern mapping
 
 #### Feature roadmap:
-    - Dial mapping
     - Fader mapping
     - Switch mapping
     - Additional note/led pattern mapping options
