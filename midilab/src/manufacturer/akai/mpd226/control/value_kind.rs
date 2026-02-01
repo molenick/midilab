@@ -35,7 +35,7 @@ impl Default for MidiChannel {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter)]
 pub enum SwitchKind {
     #[default]
     CC = 0,
@@ -46,7 +46,7 @@ pub enum SwitchKind {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter)]
 #[expect(non_camel_case_types, reason = "annoying to camelcase and little-used")]
 #[allow(clippy::upper_case_acronyms)]
 pub enum KeyModifier {
@@ -291,7 +291,7 @@ impl Deref for RGBColor {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter)]
 pub enum FaderKind {
     #[default]
     CC = 0,

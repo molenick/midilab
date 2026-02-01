@@ -16,10 +16,13 @@ use midilab::manufacturer::akai::mpd226::ColorPattern;
 use midilab::manufacturer::akai::mpd226::NotePattern;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::Dial;
+use midilab::manufacturer::akai::mpd226::control::Fader;
 use midilab::manufacturer::akai::mpd226::control::Pad;
+use midilab::manufacturer::akai::mpd226::control::Switch;
 use midilab::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::DialKind;
+use midilab::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use midilab::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
@@ -27,12 +30,15 @@ use midilab::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
 use midilab::manufacturer::akai::mpd226::control::value_kind::SwingKind;
+use midilab::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::Tempo;
 use midilab::manufacturer::akai::mpd226::control::value_kind::TimeDivision;
 use midilab::manufacturer::akai::mpd226::control::value_kind::TransportKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
 use midilab::manufacturer::akai::mpd226::repository::DialRepository;
+use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
+use midilab::manufacturer::akai::mpd226::repository::SwitchRepository;
 use midilab::message::AppMsg;
 use midilab::message::UiEffect;
 use midilab::message::UiMsg;
@@ -116,13 +122,29 @@ const DIAL_DIMENSIONS: Vec2 = Vec2 {
     y: DIAL_Y,
 };
 
+const FADER_X: f32 = 48.;
+const FADER_Y: f32 = 80.;
+const FADER_DIMENSIONS: Vec2 = Vec2 {
+    x: FADER_X,
+    y: FADER_Y,
+};
+
+const SWITCH_X: f32 = 48.;
+const SWITCH_Y: f32 = 24.;
+const SWITCH_DIMENSIONS: Vec2 = Vec2 {
+    x: SWITCH_X,
+    y: SWITCH_Y,
+};
+
 const BANKS: [&str; 4] = ["A", "B", "C", "D"];
-const DIAL_BANKS: [&str; 3] = ["A", "B", "C"];
+const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UserSelection {
     Pad { id: usize },
     Dial { id: usize },
+    Fader { id: usize },
+    Switch { id: usize },
 }
 
 pub struct MidiStatus {
@@ -752,7 +774,13 @@ fn render_editor(ui: &mut Ui, ui_state: &mut UiState) {
     if let Some(preset) = &mut ui_state.preset {
         render_all_pad_banks(ui, &mut ui_state.selected_item, &mut preset.pads);
         ui.add_space(16.0);
-        render_all_dial_banks(ui, &mut ui_state.selected_item, &mut preset.dials);
+        render_all_control_banks(
+            ui,
+            &mut ui_state.selected_item,
+            &mut preset.dials,
+            &mut preset.faders,
+            &mut preset.switches,
+        );
     } else {
         ui.label("no pad repo");
     }
@@ -766,32 +794,74 @@ fn click_pad(id: usize, selected_item: &mut Option<UserSelection>) {
     }
 }
 
-fn render_all_dial_banks(
+fn render_all_control_banks(
     ui: &mut Ui,
     selected_item: &mut Option<UserSelection>,
     dial_repo: &mut DialRepository,
+    fader_repo: &mut FaderRepository,
+    switch_repo: &mut SwitchRepository,
 ) {
-    // 12 dials total: 3 banks (A, B, C) x 4 dials each
-    // Arranged in a 5-column grid: label + 4 dials per row
-    // A on top, B middle, C bottom
     ui.add_space(16.0);
     ui.horizontal(|ui| {
         ui.add_space(16.0);
-        Grid::new("dial_banks_grid")
-            .num_columns(5)
-            .spacing([8.0, 8.0])
-            .show(ui, |ui| {
-                for (bank_idx, bank_label) in DIAL_BANKS.iter().enumerate() {
-                    ui.label(format!("Control Bank {}", bank_label));
-                    // Each bank has 4 dials
-                    for dial_offset in 0..4 {
-                        let dial_id = bank_idx * 4 + dial_offset;
-                        let dial = dial_repo.0[dial_id];
-                        render_dial(ui, selected_item, dial, dial_id);
-                    }
-                    ui.end_row();
-                }
-            });
+        for (bank_idx, bank_label) in CONTROL_BANKS.iter().enumerate() {
+            render_control_bank(
+                ui,
+                selected_item,
+                dial_repo,
+                fader_repo,
+                switch_repo,
+                bank_idx,
+                bank_label,
+            );
+            ui.add_space(32.0);
+        }
+    });
+}
+
+fn render_control_bank(
+    ui: &mut Ui,
+    selected_item: &mut Option<UserSelection>,
+    dial_repo: &mut DialRepository,
+    fader_repo: &mut FaderRepository,
+    switch_repo: &mut SwitchRepository,
+    bank_idx: usize,
+    bank_label: &str,
+) {
+    ui.vertical(|ui| {
+        ui.label(format!("Control Bank {}", bank_label));
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            for dial_offset in 0..4 {
+                let dial_id = bank_idx * 4 + dial_offset;
+                let dial = dial_repo.0[dial_id];
+                render_dial(ui, selected_item, dial, dial_id);
+                ui.add_space(4.0);
+            }
+        });
+
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            for fader_offset in 0..4 {
+                let fader_id = bank_idx * 4 + fader_offset;
+                let fader = fader_repo.0[fader_id];
+                render_fader(ui, selected_item, fader, fader_id);
+                ui.add_space(4.0);
+            }
+        });
+
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            for switch_offset in 0..4 {
+                let switch_id = bank_idx * 4 + switch_offset;
+                let switch = switch_repo.0[switch_id];
+                render_switch(ui, selected_item, switch, switch_id);
+                ui.add_space(4.0);
+            }
+        });
     });
 }
 
@@ -837,14 +907,108 @@ fn click_dial(id: usize, selected_item: &mut Option<UserSelection>) {
     }
 }
 
+fn render_fader(
+    ui: &mut Ui,
+    selected_item: &mut Option<UserSelection>,
+    _fader: Fader,
+    fader_id: usize,
+) {
+    let (rect, resp) = ui.allocate_exact_size(FADER_DIMENSIONS, egui::Sense::click());
+
+    ui.painter().rect_filled(rect, 4.0, Color32::DARK_GRAY);
+
+    if let Some(UserSelection::Fader { id }) = selected_item
+        && fader_id == *id
+    {
+        ui.painter().rect_stroke(
+            rect,
+            4.0,
+            egui::Stroke::new(1.5, Color32::WHITE),
+            egui::StrokeKind::Outside,
+        );
+    }
+
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        fader_id.to_string(),
+        egui::FontId::proportional(10.0),
+        Color32::WHITE,
+    );
+
+    if resp.clicked() {
+        click_fader(fader_id, selected_item);
+    }
+}
+
+fn click_fader(id: usize, selected_item: &mut Option<UserSelection>) {
+    if *selected_item == Some(UserSelection::Fader { id }) {
+        *selected_item = None;
+    } else {
+        *selected_item = Some(UserSelection::Fader { id });
+    }
+}
+
+fn render_switch(
+    ui: &mut Ui,
+    selected_item: &mut Option<UserSelection>,
+    _switch: Switch,
+    switch_id: usize,
+) {
+    let (rect, resp) = ui.allocate_exact_size(SWITCH_DIMENSIONS, egui::Sense::click());
+
+    ui.painter().rect_filled(rect, 4.0, Color32::DARK_GRAY);
+
+    if let Some(UserSelection::Switch { id }) = selected_item
+        && switch_id == *id
+    {
+        ui.painter().rect_stroke(
+            rect,
+            4.0,
+            egui::Stroke::new(1.5, Color32::WHITE),
+            egui::StrokeKind::Outside,
+        );
+    }
+
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        switch_id.to_string(),
+        egui::FontId::proportional(10.0),
+        Color32::WHITE,
+    );
+
+    if resp.clicked() {
+        click_switch(switch_id, selected_item);
+    }
+}
+
+fn click_switch(id: usize, selected_item: &mut Option<UserSelection>) {
+    if *selected_item == Some(UserSelection::Switch { id }) {
+        *selected_item = None;
+    } else {
+        *selected_item = Some(UserSelection::Switch { id });
+    }
+}
+
 fn selection_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
         let selection_label = match ui_state.selected_item {
             Some(UserSelection::Pad { id }) => format!("Pad {}", id),
             Some(UserSelection::Dial { id }) => {
-                let bank = DIAL_BANKS[id / 4];
+                let bank = CONTROL_BANKS[id / 4];
                 let num = (id % 4) + 1;
                 format!("Dial {}{}", bank, num)
+            }
+            Some(UserSelection::Fader { id }) => {
+                let bank = CONTROL_BANKS[id / 4];
+                let num = (id % 4) + 1;
+                format!("Fader {}{}", bank, num)
+            }
+            Some(UserSelection::Switch { id }) => {
+                let bank = CONTROL_BANKS[id / 4];
+                let num = (id % 4) + 1;
+                format!("Switch {}{}", bank, num)
             }
             None => "None".to_string(),
         };
@@ -860,6 +1024,16 @@ fn selection_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
                 Some(UserSelection::Dial { id: index }) => {
                     if let Some(dial) = preset.dials.0.get_mut(index) {
                         render_dial_compare_grid(ui, dial);
+                    }
+                }
+                Some(UserSelection::Fader { id: index }) => {
+                    if let Some(fader) = preset.faders.0.get_mut(index) {
+                        render_fader_compare_grid(ui, fader);
+                    }
+                }
+                Some(UserSelection::Switch { id: index }) => {
+                    if let Some(switch) = preset.switches.0.get_mut(index) {
+                        render_switch_compare_grid(ui, switch);
                     }
                 }
                 None => {}
@@ -909,6 +1083,47 @@ fn render_dial_compare_grid(ui: &mut Ui, dial: &mut Dial) {
             row_edit_u8(ui, "msb", &mut dial.msb);
             row_edit_u8(ui, "lsb", &mut dial.lsb);
             row_edit_u8(ui, "value", &mut dial.value);
+        });
+}
+
+fn render_fader_compare_grid(ui: &mut Ui, fader: &mut Fader) {
+    Grid::new("fader_compare_grid")
+        .striped(true)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Field");
+            ui.label("Value");
+            ui.end_row();
+
+            row_edit_fader_kind(ui, "fader_kind", &mut fader.kind);
+            row_edit_channel(ui, "fader_channel", &mut fader.channel);
+            row_edit_u8(ui, "midicc", &mut fader.midicc);
+            row_edit_u8(ui, "min", &mut fader.min);
+            row_edit_u8(ui, "max", &mut fader.max);
+            row_edit_midi2din(ui, "fader_midi2din", &mut fader.midi2din);
+        });
+}
+
+fn render_switch_compare_grid(ui: &mut Ui, switch: &mut Switch) {
+    Grid::new("switch_compare_grid")
+        .striped(true)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Field");
+            ui.label("Value");
+            ui.end_row();
+
+            row_edit_switch_kind(ui, "switch_kind", &mut switch.kind);
+            row_edit_channel(ui, "switch_channel", &mut switch.channel);
+            row_edit_u8(ui, "midicc", &mut switch.midicc);
+            row_edit_trigger_kind(ui, "mode", &mut switch.mode);
+            row_edit_u8(ui, "prog", &mut switch.prog);
+            row_edit_u8(ui, "msb", &mut switch.msb);
+            row_edit_u8(ui, "lsb", &mut switch.lsb);
+            row_edit_midi2din(ui, "switch_midi2din", &mut switch.midi2din);
+            row_edit_u8(ui, "note", &mut switch.note);
+            row_edit_u8(ui, "velo", &mut switch.velo);
+            row_edit_midi2din(ui, "invert", &mut switch.invert);
         });
 }
 
@@ -962,6 +1177,30 @@ fn row_edit_dial_kind(ui: &mut Ui, name: &str, value: &mut DialKind) {
         .selected_text(format!("{:?}", value))
         .show_ui(ui, |ui| {
             for variant in DialKind::iter() {
+                ui.selectable_value(value, variant, format!("{:?}", variant));
+            }
+        });
+    ui.end_row();
+}
+
+fn row_edit_fader_kind(ui: &mut Ui, name: &str, value: &mut FaderKind) {
+    ui.label(name);
+    ComboBox::from_id_salt(name)
+        .selected_text(format!("{:?}", value))
+        .show_ui(ui, |ui| {
+            for variant in FaderKind::iter() {
+                ui.selectable_value(value, variant, format!("{:?}", variant));
+            }
+        });
+    ui.end_row();
+}
+
+fn row_edit_switch_kind(ui: &mut Ui, name: &str, value: &mut SwitchKind) {
+    ui.label(name);
+    ComboBox::from_id_salt(name)
+        .selected_text(format!("{:?}", value))
+        .show_ui(ui, |ui| {
+            for variant in SwitchKind::iter() {
                 ui.selectable_value(value, variant, format!("{:?}", variant));
             }
         });
