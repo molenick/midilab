@@ -3,10 +3,10 @@ set -euo pipefail
 
 CRATES=(
     "midilab"
-    "midilab_gui"
-    "midilab_io"
-    "midilab_sim"
-    "midilab_editor"
+    "midilab-gui"
+    "midilab-io"
+    "midilab-sim"
+    "midilab-editor"
 )
 
 DRY_RUN=true
