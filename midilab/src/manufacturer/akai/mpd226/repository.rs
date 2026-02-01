@@ -195,6 +195,7 @@ mod tests {
     use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::Midi2Din;
+    use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
     use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
     use crate::manufacturer::akai::mpd226::raw::RawDial;
@@ -411,7 +412,7 @@ mod tests {
 
         let repo = FaderRepository::try_from(RawFaders(raw_faders)).unwrap();
         assert_eq!(repo.0[0].kind, FaderKind::CC);
-        assert_eq!(repo.0[0].channel, 1);
+        assert_eq!(repo.0[0].channel, MidiChannel::A1);
         assert_eq!(repo.0[0].midicc, 7);
     }
 

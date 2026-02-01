@@ -95,6 +95,8 @@ pub enum DialDeserializationError {
 pub enum FaderDeserializationError {
     #[error("invalid kind: {0}")]
     Kind(TryFromPrimitiveError<FaderKind>),
+    #[error("invalid kind: {0}")]
+    Channel(TryFromPrimitiveError<MidiChannel>),
     #[error("invalid midi2din: {0}")]
     Midi2Din(TryFromPrimitiveError<Midi2Din>),
 }

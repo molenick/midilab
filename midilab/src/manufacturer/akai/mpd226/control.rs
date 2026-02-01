@@ -169,7 +169,7 @@ impl TryFrom<RawDial> for Dial {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fader {
     pub kind: FaderKind,
-    pub channel: u8,
+    pub channel: MidiChannel,
     pub midicc: u8, // cc only
     pub min: u8,    // both cc and aftertouch
     pub max: u8,    // both cc and aftertouch
@@ -180,7 +180,7 @@ impl Default for Fader {
     fn default() -> Self {
         Self {
             kind: FaderKind::default(),
-            channel: 0,
+            channel: MidiChannel::default(),
             midicc: 0,
             min: 0,
             max: 127,
@@ -193,7 +193,7 @@ impl Fader {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.midicc,
             self.min,
             self.max,
@@ -209,7 +209,8 @@ impl TryFrom<RawFader> for Fader {
         use super::error::FaderDeserializationError;
         Ok(Fader {
             kind: FaderKind::try_from(raw.kind).map_err(FaderDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(FaderDeserializationError::Channel)?,
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
@@ -515,7 +516,7 @@ mod tests {
         fn test_fader_as_bytes() {
             let fader = Fader {
                 kind: FaderKind::Aftertouch,
-                channel: 2,
+                channel: MidiChannel::A2,
                 midicc: 7,
                 min: 0,
                 max: 127,
@@ -525,7 +526,7 @@ mod tests {
             let bytes = fader.as_bytes();
             assert_eq!(bytes.len(), 6);
             assert_eq!(bytes[0], FaderKind::Aftertouch as u8);
-            assert_eq!(bytes[1], 2); // channel
+            assert_eq!(bytes[1], MidiChannel::A2 as u8); // channel
             assert_eq!(bytes[2], 7); // midicc
         }
 
@@ -542,7 +543,7 @@ mod tests {
 
             let fader = Fader::try_from(raw).unwrap();
             assert_eq!(fader.kind, FaderKind::Aftertouch);
-            assert_eq!(fader.channel, 5);
+            assert_eq!(fader.channel, MidiChannel::A5);
             assert_eq!(fader.midicc, 11);
             assert_eq!(fader.min, 20);
             assert_eq!(fader.max, 100);
