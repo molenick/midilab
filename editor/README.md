@@ -1,6 +1,8 @@
 # midilab-editor
 An application for programming MIDI controllers
 
+![MidiLab Editor Screenshot](https://github.com/user-attachments/assets/a904970c-bfa3-400a-b637-9d6f32e0c58b)
+
 ## Editor usage
 Install and run midilab-editor:
 
