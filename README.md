@@ -15,11 +15,11 @@ Software for programming midi controllers via Sysex messages
 ## Crate Overview
 | Crate | Directory | Description |
 |-|-|-|
-| **midilab** | `midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
-| **midilab-editor** | `editor` | An application for programming MIDI controllers |
-| **midilab-io** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for midilab-editor|
-| **midilab-gui** | `gui` | Graphical user interface library for midilab-editor |
-| **midilab-sim** | `sim` | Hardware device simulations for midilab-editor |
+| **[midilab](https://github.com/molenick/midilab/midilab)** | `midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
+| **[midilab-editor](https://github.com/molenick/midilab/editor)** | `editor` | An application for programming MIDI controllers |
+| **[midilab-io](https://github.com/molenick/midilab/io)** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for midilab-editor|
+| **[midilab-gui](https://github.com/molenick/midilab/gui)** | `gui` | Graphical user interface library for midilab-editor |
+| **[midilab-sim](https://github.com/molenick/midilab/sim)** | `sim` | Hardware device simulations for midilab-editor |
 
 
 ## Supported devices
@@ -40,36 +40,6 @@ Software for programming midi controllers via Sysex messages
     - Switch mapping
     - Additional note/led pattern mapping options
     - Local persistence of presets
-
-## Editor usage
-
-Install and run midilab-editor:
-
-```bash
-cargo install midilab-editor
-midilab
-```
-
-Optionally, you use a device simulator if you want to try the editor without real hardware:
-```bash
-cargo install midilab-sim
-akai_mpd226_sim
-```
-
-With both running, you can merrily send data back and forth between the editor and simulator.
-
-## Library usage:
-
-Add midilab to your Cargo.toml:
-
-```bash
-cargo add midilab
-```
-
-### Re-exports
-
-midilab re-exports `strum::IntoEnumIterator` as `midilab::IntoEnumIterator` so consumers of this
-library can take advantage of derived EnumIter features in many of midilab's enums.
 
 ## License
 
