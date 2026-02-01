@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 /// High-level crate error enums
 pub mod error;
 /// Device integrations organized by Manufacturer and Device
