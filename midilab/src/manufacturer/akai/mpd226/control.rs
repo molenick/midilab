@@ -102,10 +102,10 @@ impl TryFrom<(usize, RawPad)> for Pad {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dial {
     pub kind: DialKind,
-    pub channel: u8, // 0 = Common, A1..16, B1..16
-    pub midicc: u8,  // CC and ID2 only
-    pub min: u8,     // CC and AT only
-    pub max: u8,     // CC and AT only
+    pub channel: MidiChannel,
+    pub midicc: u8, // CC and ID2 only
+    pub min: u8,    // CC and AT only
+    pub max: u8,    // CC and AT only
     pub midi2din: Midi2Din,
     pub msb: u8,   // ID1 only
     pub lsb: u8,   // ID1 only
@@ -116,7 +116,7 @@ impl Default for Dial {
     fn default() -> Self {
         Self {
             kind: DialKind::default(),
-            channel: 0,
+            channel: MidiChannel::default(),
             midicc: 0,
             min: 0,
             max: 127,
@@ -132,7 +132,7 @@ impl Dial {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.midicc,
             self.min,
             self.max,
@@ -151,7 +151,8 @@ impl TryFrom<RawDial> for Dial {
         use super::error::DialDeserializationError;
         Ok(Dial {
             kind: DialKind::try_from(raw.kind).map_err(DialDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(DialDeserializationError::Channel)?,
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
@@ -436,14 +437,14 @@ mod tests {
         fn test_dial_default() {
             let dial = Dial::default();
             assert_eq!(dial.kind, DialKind::CC);
-            assert_eq!(dial.channel, 0);
+            assert_eq!(dial.channel, MidiChannel::COMMON);
         }
 
         #[test]
         fn test_dial_as_bytes() {
             let dial = Dial {
                 kind: DialKind::CC,
-                channel: 1,
+                channel: MidiChannel::A1,
                 midicc: 74,
                 min: 0,
                 max: 127,
@@ -478,7 +479,7 @@ mod tests {
 
             let dial = Dial::try_from(raw).unwrap();
             assert_eq!(dial.kind, DialKind::IncDec1);
-            assert_eq!(dial.channel, 3);
+            assert_eq!(dial.channel, MidiChannel::A3);
             assert_eq!(dial.midicc, 50);
             assert_eq!(dial.midi2din, Midi2Din::On);
         }
