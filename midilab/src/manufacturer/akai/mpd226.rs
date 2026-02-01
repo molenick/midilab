@@ -150,7 +150,7 @@ impl TryFrom<Sysex> for DeviceStatus {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Preset {
     pub global: Global,
     pub pads: PadRepository,
@@ -158,10 +158,9 @@ pub struct Preset {
     pub faders: FaderRepository,
     pub switches: SwitchRepository,
 }
-
-impl Preset {
-    pub fn generic_preset() -> Self {
-        // todo: these may be a form of default
+impl Default for Preset {
+    fn default() -> Self {
+        // these CC values are from the mfg default editor preset
         const GENERIC_DIAL_CC: [u8; 12] = [3, 9, 14, 15, 52, 53, 54, 55, 83, 85, 86, 87];
         const GENERIC_FADER_CC: [u8; 12] = [20, 21, 22, 23, 61, 62, 63, 70, 92, 93, 94, 95];
         const GENERIC_SWITCH_CC: [u8; 12] = [28, 29, 30, 31, 75, 76, 77, 78, 106, 107, 108, 109];
