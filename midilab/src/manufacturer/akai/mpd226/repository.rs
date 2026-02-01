@@ -1,4 +1,5 @@
 use crate::manufacturer::akai::mpd226::ColorPattern;
+use crate::manufacturer::akai::mpd226::ColorSequence;
 use crate::manufacturer::akai::mpd226::NotePattern;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
 use crate::manufacturer::akai::mpd226::control::Dial;
@@ -13,6 +14,29 @@ use crate::manufacturer::akai::mpd226::raw::RawSwitches;
 use crate::midi::Note;
 use crate::scale::PitchClass;
 use crate::scale::ScaleSequence;
+
+fn color_at_index(sequences: &[ColorSequence], index: usize) -> PadColor {
+    if sequences.is_empty() {
+        return PadColor::default();
+    }
+
+    let total_cycle_len: usize = sequences.iter().map(|s| s.len).sum();
+    if total_cycle_len == 0 {
+        return PadColor::default();
+    }
+
+    let position = index % total_cycle_len;
+    let mut accumulated = 0;
+
+    for seq in sequences {
+        if position < accumulated + seq.len {
+            return seq.color;
+        }
+        accumulated += seq.len;
+    }
+
+    sequences.last().map(|s| s.color).unwrap_or_default()
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -59,7 +83,7 @@ impl PadRepository {
             }
             ColorPattern::ColorGroups(color_sequences) => {
                 for (i, pad) in changing_pads.iter_mut().enumerate() {
-                    pad.off_color = color;
+                    pad.off_color = color_at_index(&color_sequences, i);
                 }
             }
         }
@@ -81,7 +105,11 @@ impl PadRepository {
                     pad.on_color = color;
                 }
             }
-            ColorPattern::ColorGroups(color_sequences) => todo!(),
+            ColorPattern::ColorGroups(color_sequences) => {
+                for (i, pad) in changing_pads.iter_mut().enumerate() {
+                    pad.on_color = color_at_index(&color_sequences, i);
+                }
+            }
         }
     }
 
@@ -296,8 +324,11 @@ mod tests {
     fn test_pad_repository_set_note_pattern_with_offset() {
         let mut repo = PadRepository::default();
 
+        assert_eq!(repo.pads[0].note, Note::N60);
+        assert_eq!(repo.pads[15].note, Note::N75);
+
         let scale_seq = ScaleSequence {
-            tonic: PitchClass::C,
+            tonic: PitchClass::D,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
             octave: Octave::O4,
@@ -306,12 +337,11 @@ mod tests {
 
         repo.set_note_pattern(16, NotePattern::Scale(scale_seq));
 
-        // Unchanged pads keep default note
-        assert_eq!(repo.pads[0].note, Note::default());
-        assert_eq!(repo.pads[15].note, Note::default());
+        assert_eq!(repo.pads[0].note, Note::N60);
+        assert_eq!(repo.pads[15].note, Note::N75);
 
-        assert_eq!(repo.pads[16].note, Note::N60);
-        assert_eq!(repo.pads[17].note, Note::N61);
+        assert_eq!(repo.pads[16].note, Note::N62);
+        assert_eq!(repo.pads[17].note, Note::N63);
     }
 
     #[test]
@@ -324,7 +354,6 @@ mod tests {
             assert_eq!(repo.pads[i].off_color, PadColor::Blue);
         }
 
-        // Unchanged pad keeps default
         assert_eq!(repo.pads[16].off_color, PadColor::default());
     }
 
@@ -384,7 +413,6 @@ mod tests {
         assert_eq!(repo.pads[0].off_color, PadColor::Red);
         assert_eq!(repo.pads[12].off_color, PadColor::Red);
 
-        // Non-tonic pads keep default color
         assert_eq!(repo.pads[1].off_color, PadColor::default());
         assert_eq!(repo.pads[5].off_color, PadColor::default());
     }
@@ -572,5 +600,181 @@ mod tests {
 
         let result = DialRepository::try_from(RawDials(raw_dials));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_color_groups_basic() {
+        use crate::manufacturer::akai::mpd226::ColorSequence;
+
+        let mut repo = PadRepository::default();
+        let pattern = ColorPattern::ColorGroups(vec![
+            ColorSequence {
+                len: 4,
+                color: PadColor::Red,
+            },
+            ColorSequence {
+                len: 4,
+                color: PadColor::Green,
+            },
+        ]);
+
+        repo.set_off_color_pattern(0, 16, pattern);
+
+        for i in 0..4 {
+            assert_eq!(
+                repo.pads[i].off_color,
+                PadColor::Red,
+                "pad {i} should be red"
+            );
+        }
+
+        for i in 4..8 {
+            assert_eq!(
+                repo.pads[i].off_color,
+                PadColor::Green,
+                "pad {i} should be green"
+            );
+        }
+
+        for i in 8..12 {
+            assert_eq!(
+                repo.pads[i].off_color,
+                PadColor::Red,
+                "pad {i} should be red"
+            );
+        }
+
+        for i in 12..16 {
+            assert_eq!(
+                repo.pads[i].off_color,
+                PadColor::Green,
+                "pad {i} should be green"
+            );
+        }
+    }
+
+    #[test]
+    fn test_color_groups_with_offset() {
+        use crate::manufacturer::akai::mpd226::ColorSequence;
+
+        let mut repo = PadRepository::default();
+        let pattern = ColorPattern::ColorGroups(vec![
+            ColorSequence {
+                len: 2,
+                color: PadColor::Blue,
+            },
+            ColorSequence {
+                len: 2,
+                color: PadColor::Yellow,
+            },
+        ]);
+
+        repo.set_off_color_pattern(4, 8, pattern);
+
+        for i in 0..4 {
+            assert_eq!(repo.pads[i].off_color, PadColor::default());
+        }
+
+        assert_eq!(repo.pads[4].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[5].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[6].off_color, PadColor::Yellow);
+        assert_eq!(repo.pads[7].off_color, PadColor::Yellow);
+        assert_eq!(repo.pads[8].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[9].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[10].off_color, PadColor::Yellow);
+        assert_eq!(repo.pads[11].off_color, PadColor::Yellow);
+    }
+
+    #[test]
+    fn test_color_groups_on_color() {
+        use crate::manufacturer::akai::mpd226::ColorSequence;
+
+        let mut repo = PadRepository::default();
+        let pattern = ColorPattern::ColorGroups(vec![
+            ColorSequence {
+                len: 3,
+                color: PadColor::Orange,
+            },
+            ColorSequence {
+                len: 3,
+                color: PadColor::Purple,
+            },
+        ]);
+
+        repo.set_on_color_pattern(0, 6, pattern);
+
+        for i in 0..3 {
+            assert_eq!(repo.pads[i].on_color, PadColor::Orange);
+        }
+
+        for i in 3..6 {
+            assert_eq!(repo.pads[i].on_color, PadColor::Purple);
+        }
+    }
+
+    #[test]
+    fn test_color_groups_uneven_lengths() {
+        use crate::manufacturer::akai::mpd226::ColorSequence;
+
+        let mut repo = PadRepository::default();
+        let pattern = ColorPattern::ColorGroups(vec![
+            ColorSequence {
+                len: 3,
+                color: PadColor::Red,
+            },
+            ColorSequence {
+                len: 5,
+                color: PadColor::Blue,
+            },
+        ]);
+
+        repo.set_off_color_pattern(0, 16, pattern);
+
+        assert_eq!(repo.pads[0].off_color, PadColor::Red);
+        assert_eq!(repo.pads[1].off_color, PadColor::Red);
+        assert_eq!(repo.pads[2].off_color, PadColor::Red);
+        assert_eq!(repo.pads[3].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[4].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[5].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[6].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[7].off_color, PadColor::Blue);
+
+        assert_eq!(repo.pads[8].off_color, PadColor::Red);
+        assert_eq!(repo.pads[9].off_color, PadColor::Red);
+        assert_eq!(repo.pads[10].off_color, PadColor::Red);
+        assert_eq!(repo.pads[11].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[12].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[13].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[14].off_color, PadColor::Blue);
+        assert_eq!(repo.pads[15].off_color, PadColor::Blue);
+    }
+
+    #[test]
+    fn test_color_groups_empty_sequences() {
+        let mut repo = PadRepository::default();
+        let pattern = ColorPattern::ColorGroups(vec![]);
+
+        repo.set_off_color_pattern(0, 4, pattern);
+
+        for i in 0..4 {
+            assert_eq!(repo.pads[i].off_color, PadColor::default());
+        }
+    }
+
+    #[test]
+    fn test_color_groups_single_sequence() {
+        use crate::manufacturer::akai::mpd226::ColorSequence;
+
+        let mut repo = PadRepository::default();
+        let pattern = ColorPattern::ColorGroups(vec![ColorSequence {
+            len: 4,
+            color: PadColor::Aqua,
+        }]);
+
+        repo.set_off_color_pattern(0, 8, pattern);
+
+        for i in 0..8 {
+            assert_eq!(repo.pads[i].off_color, PadColor::Aqua);
+        }
     }
 }
