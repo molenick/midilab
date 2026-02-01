@@ -12,6 +12,7 @@ use crate::manufacturer::akai::mpd226::raw::RawPads;
 use crate::manufacturer::akai::mpd226::raw::RawSwitches;
 use crate::midi::Note;
 use crate::scale::PitchClass;
+use crate::scale::ScaleSequence;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -106,7 +107,10 @@ impl Default for PadRepository {
             ..Default::default()
         });
 
-        Self { pads }
+        let mut repo = PadRepository { pads };
+        repo.set_note_pattern(0, NotePattern::Scale(ScaleSequence::default()));
+
+        repo
     }
 }
 
