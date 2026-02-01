@@ -224,8 +224,8 @@ impl TryFrom<RawFader> for Fader {
 #[derive(Clone, Copy, Debug)]
 pub struct Switch {
     pub kind: SwitchKind,
-    pub channel: u8, // all but keystroke
-    pub midicc: u8,  // cc only
+    pub channel: MidiChannel, // all but keystroke
+    pub midicc: u8,           // cc only
     pub mode: TriggerKind,
     pub prog: u8,
     pub msb: u8,
@@ -242,7 +242,7 @@ impl Default for Switch {
     fn default() -> Self {
         Self {
             kind: SwitchKind::default(),
-            channel: 0,
+            channel: MidiChannel::default(),
             midicc: 0,
             mode: TriggerKind::default(),
             prog: 0,
@@ -262,7 +262,7 @@ impl Switch {
     pub fn as_bytes(&self) -> Vec<u8> {
         vec![
             self.kind as u8,
-            self.channel,
+            self.channel as u8,
             self.midicc,
             self.mode as u8,
             self.prog,
@@ -285,7 +285,8 @@ impl TryFrom<RawSwitch> for Switch {
         use super::error::SwitchDeserializationError;
         Ok(Switch {
             kind: SwitchKind::try_from(raw.kind).map_err(SwitchDeserializationError::Kind)?,
-            channel: raw.channel,
+            channel: MidiChannel::try_from(raw.channel)
+                .map_err(SwitchDeserializationError::Channel)?,
             midicc: raw.midicc,
             mode: TriggerKind::try_from(raw.mode).map_err(SwitchDeserializationError::Mode)?,
             prog: raw.prog,
@@ -577,7 +578,7 @@ mod tests {
         fn test_switch_as_bytes() {
             let switch = Switch {
                 kind: SwitchKind::Program,
-                channel: 1,
+                channel: MidiChannel::A1,
                 midicc: 64,
                 mode: TriggerKind::Toggle,
                 prog: 5,
