@@ -3,7 +3,7 @@ members = ["midilab", "editor", "gui", "io", "sim"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/molenick/midilab"
@@ -13,10 +13,10 @@ shared-version = true
 tag-name = "v{{version}}"
 
 [workspace.dependencies]
-midilab = { version = "0.1.5", path = "midilab" }
-midilab-gui = { version = "0.1.5", path = "gui" }
-midilab-io = { version = "0.1.5", path = "io" }
-midilab-sim = { version = "0.1.5", path = "sim" }
+midilab = { version = "0.1.6", path = "midilab" }
+midilab-gui = { version = "0.1.6", path = "gui" }
+midilab-io = { version = "0.1.6", path = "io" }
+midilab-sim = { version = "0.1.6", path = "sim" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
 eframe = "0.33.3"
 enumeric = "0.1.2"
