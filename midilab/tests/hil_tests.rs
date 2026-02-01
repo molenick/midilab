@@ -113,7 +113,7 @@ fn test_construction_and_transmission_to_device() {
         );
     };
 
-    let default = Preset::default();
+    let default = Preset::generic_preset();
     send_and_verify(&mut conn, &rx, &default, "default");
 
     let hello = Preset {

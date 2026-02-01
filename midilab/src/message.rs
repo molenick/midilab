@@ -56,9 +56,15 @@ pub enum UserMsgKind {
     Error,
 }
 
-#[derive(Default)]
 pub struct AppState {
     pub preset: Preset,
+}
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            preset: Preset::generic_preset(),
+        }
+    }
 }
 
 impl AppState {

@@ -129,14 +129,47 @@ impl TryFrom<RawPads> for PadRepository {
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct FaderRepository(pub [Fader; 12]);
+impl FaderRepository {
+    pub fn with_cc_values(values: [u8; 12]) -> Self {
+        let mut repo = Self::default();
+
+        for (i, fader) in repo.0.iter_mut().enumerate() {
+            fader.midicc = values[i];
+        }
+
+        repo
+    }
+}
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct SwitchRepository(pub [Switch; 12]);
+impl SwitchRepository {
+    pub fn with_cc_values(values: [u8; 12]) -> Self {
+        let mut repo = Self::default();
+
+        for (i, switch) in repo.0.iter_mut().enumerate() {
+            switch.midicc = values[i];
+        }
+
+        repo
+    }
+}
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct DialRepository(pub [Dial; 12]);
+impl DialRepository {
+    pub fn with_cc_values(values: [u8; 12]) -> Self {
+        let mut repo = Self::default();
+
+        for (i, dial) in repo.0.iter_mut().enumerate() {
+            dial.midicc = values[i];
+        }
+
+        repo
+    }
+}
 
 impl TryFrom<RawFaders> for FaderRepository {
     type Error = super::error::PresetDeserializationError;
