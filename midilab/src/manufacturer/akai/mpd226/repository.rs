@@ -47,6 +47,10 @@ impl PadRepository {
         length: usize,
         pattern: ColorPattern,
     ) {
+        if matches!(&pattern, ColorPattern::Grouped(seqs) if seqs.is_empty()) {
+            return;
+        }
+
         let clamped_starting_position = starting_position.min(TOTAL_PADS);
         let end = (clamped_starting_position + length).min(TOTAL_PADS);
         let changing_pads = &mut self.pads[clamped_starting_position..end];
@@ -62,6 +66,10 @@ impl PadRepository {
         length: usize,
         pattern: ColorPattern,
     ) {
+        if matches!(&pattern, ColorPattern::Grouped(seqs) if seqs.is_empty()) {
+            return;
+        }
+
         let clamped_starting_position = starting_position.min(TOTAL_PADS);
         let end = (clamped_starting_position + length).min(TOTAL_PADS);
         let changing_pads = &mut self.pads[clamped_starting_position..end];

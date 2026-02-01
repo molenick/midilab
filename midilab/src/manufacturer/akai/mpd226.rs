@@ -432,6 +432,7 @@ pub enum NotePattern {
     Scale(ScaleSequence),
 }
 
+#[derive(Clone)]
 pub enum ColorPattern {
     Contiguous(PadColor),
     Grouped(Vec<ColorSequence>),
@@ -467,6 +468,7 @@ impl ColorPattern {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct ColorSequence {
     pub len: usize,
     pub color: PadColor,
