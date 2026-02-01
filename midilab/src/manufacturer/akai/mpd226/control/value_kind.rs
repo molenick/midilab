@@ -49,7 +49,7 @@ pub enum SwitchKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive)]
 #[expect(non_camel_case_types, reason = "annoying to camelcase and little-used")]
 #[allow(clippy::upper_case_acronyms)]
-pub enum SwitchKey2 {
+pub enum KeyModifier {
     #[default]
     NONE = 0,
     CTRL = 1,

@@ -3,13 +3,13 @@ use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
+use crate::manufacturer::akai::mpd226::control::value_kind::KeyModifier;
 use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetName;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
 use crate::manufacturer::akai::mpd226::control::value_kind::SwingKind;
-use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKey2;
 use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::Tempo;
 use crate::manufacturer::akai::mpd226::control::value_kind::TimeDivision;
@@ -234,8 +234,8 @@ pub struct Switch {
     pub note: u8,
     pub velo: u8,
     pub invert: ActiveState,
-    pub key1: u8,
-    pub key2: SwitchKey2,
+    pub key1: u8, // todo: support properly. can be used today if you know the corresponding key value - i would bet on the lower side of u4 :)
+    pub key2: KeyModifier,
 }
 
 impl Default for Switch {
@@ -253,7 +253,7 @@ impl Default for Switch {
             velo: 100,
             invert: ActiveState::default(),
             key1: 0,
-            key2: SwitchKey2::default(),
+            key2: KeyModifier::default(),
         }
     }
 }
@@ -299,7 +299,7 @@ impl TryFrom<RawSwitch> for Switch {
             invert: ActiveState::try_from(raw.invert)
                 .map_err(SwitchDeserializationError::Invert)?,
             key1: raw.key1,
-            key2: SwitchKey2::try_from(raw.key2).map_err(SwitchDeserializationError::Key2)?,
+            key2: KeyModifier::try_from(raw.key2).map_err(SwitchDeserializationError::Key2)?,
         })
     }
 }
@@ -590,14 +590,14 @@ mod tests {
                 velo: 100,
                 invert: ActiveState::Off,
                 key1: 0,
-                key2: SwitchKey2::CTRL,
+                key2: KeyModifier::CTRL,
             };
 
             let bytes = switch.as_bytes();
             assert_eq!(bytes.len(), 13);
             assert_eq!(bytes[0], SwitchKind::Program as u8);
             assert_eq!(bytes[3], TriggerKind::Toggle as u8);
-            assert_eq!(bytes[12], SwitchKey2::CTRL as u8);
+            assert_eq!(bytes[12], KeyModifier::CTRL as u8);
         }
 
         #[test]
@@ -621,7 +621,7 @@ mod tests {
             let switch = Switch::try_from(raw).unwrap();
             assert_eq!(switch.kind, SwitchKind::Program);
             assert_eq!(switch.mode, TriggerKind::Toggle);
-            assert_eq!(switch.key2, SwitchKey2::CTRL_SHIFT);
+            assert_eq!(switch.key2, KeyModifier::CTRL_SHIFT);
         }
 
         #[test]

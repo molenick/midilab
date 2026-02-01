@@ -10,7 +10,7 @@ use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
 use crate::manufacturer::akai::mpd226::control::value_kind::SwingKind;
-use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKey2;
+use crate::manufacturer::akai::mpd226::control::value_kind::KeyModifier;
 use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::TimeDivision;
 use crate::manufacturer::akai::mpd226::control::value_kind::TransportKind;
@@ -114,5 +114,5 @@ pub enum SwitchDeserializationError {
     #[error("invalid invert: {0}")]
     Invert(TryFromPrimitiveError<ActiveState>),
     #[error("invalid key2: {0}")]
-    Key2(TryFromPrimitiveError<SwitchKey2>),
+    Key2(TryFromPrimitiveError<KeyModifier>),
 }
