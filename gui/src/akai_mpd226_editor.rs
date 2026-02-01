@@ -15,9 +15,11 @@ use midilab::IntoEnumIterator;
 use midilab::manufacturer::akai::mpd226::ColorPattern;
 use midilab::manufacturer::akai::mpd226::NotePattern;
 use midilab::manufacturer::akai::mpd226::Preset;
+use midilab::manufacturer::akai::mpd226::control::Dial;
 use midilab::manufacturer::akai::mpd226::control::Pad;
 use midilab::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
+use midilab::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use midilab::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
@@ -29,6 +31,7 @@ use midilab::manufacturer::akai::mpd226::control::value_kind::Tempo;
 use midilab::manufacturer::akai::mpd226::control::value_kind::TimeDivision;
 use midilab::manufacturer::akai::mpd226::control::value_kind::TransportKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
+use midilab::manufacturer::akai::mpd226::repository::DialRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
 use midilab::message::AppMsg;
 use midilab::message::UiEffect;
@@ -106,11 +109,20 @@ const PAD_X: f32 = 64.;
 const PAD_Y: f32 = 64.;
 const PAD_DIMENSIONS: Vec2 = Vec2 { x: PAD_X, y: PAD_Y };
 
+const DIAL_X: f32 = 48.;
+const DIAL_Y: f32 = 48.;
+const DIAL_DIMENSIONS: Vec2 = Vec2 {
+    x: DIAL_X,
+    y: DIAL_Y,
+};
+
 const BANKS: [&str; 4] = ["A", "B", "C", "D"];
+const DIAL_BANKS: [&str; 3] = ["A", "B", "C"];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UserSelection {
     Pad { id: usize },
+    Dial { id: usize },
 }
 
 pub struct MidiStatus {
@@ -390,7 +402,7 @@ fn render_pad_patterns(ui: &mut Ui, ui_state: &mut UiState) {
 
         ui.add_space(32.0);
 
-        pad_compare_table(ui, ui_state);
+        selection_compare_table(ui, ui_state);
     });
 }
 
@@ -638,7 +650,7 @@ fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
 
 fn render_all_pad_banks(
     ui: &mut Ui,
-    selected_pad: &mut Option<UserSelection>,
+    selected_item: &mut Option<UserSelection>,
     pad_repo: &mut PadRepository,
 ) {
     let banks: Vec<Vec<Pad>> = pad_repo
@@ -652,7 +664,7 @@ fn render_all_pad_banks(
         ui.add_space(16.0);
         for (bank_id, bank) in banks.into_iter().enumerate() {
             let bank_label = BANKS[bank_id].to_string();
-            render_pad_bank(ui, selected_pad, bank, bank_label);
+            render_pad_bank(ui, selected_item, bank, bank_label);
             ui.add_space(32.0);
         }
     });
@@ -660,7 +672,7 @@ fn render_all_pad_banks(
 
 fn render_pad_bank(
     ui: &mut Ui,
-    selected_pad: &mut Option<UserSelection>,
+    selected_item: &mut Option<UserSelection>,
     pads: Vec<Pad>,
     label: String,
 ) {
@@ -674,7 +686,7 @@ fn render_pad_bank(
             .spacing([8.0, 8.0])
             .show(ui, |ui| {
                 for (i, pad) in reordered.into_iter().enumerate() {
-                    render_pad(ui, selected_pad, pad);
+                    render_pad(ui, selected_item, pad);
                     if (i + 1) % 4 == 0 {
                         ui.end_row();
                     }
@@ -683,12 +695,12 @@ fn render_pad_bank(
     });
 }
 
-fn render_pad(ui: &mut Ui, selected_pad: &mut Option<UserSelection>, pad: Pad) {
+fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) {
     let (rect, resp) = ui.allocate_exact_size(PAD_DIMENSIONS, egui::Sense::click());
 
     ui.painter().rect_filled(rect, 4.0, Color32::DARK_GRAY);
 
-    if let Some(UserSelection::Pad { id }) = selected_pad
+    if let Some(UserSelection::Pad { id }) = selected_item
         && pad.id == *id
     {
         ui.painter().rect_stroke(
@@ -732,39 +744,126 @@ fn render_pad(ui: &mut Ui, selected_pad: &mut Option<UserSelection>, pad: Pad) {
     ui.painter().rect_filled(br.shrink(4.0), 4.0, on_color);
 
     if resp.clicked() {
-        click_pad(pad.id, selected_pad);
+        click_pad(pad.id, selected_item);
     }
 }
 
 fn render_editor(ui: &mut Ui, ui_state: &mut UiState) {
     if let Some(preset) = &mut ui_state.preset {
         render_all_pad_banks(ui, &mut ui_state.selected_item, &mut preset.pads);
+        ui.add_space(16.0);
+        render_all_dial_banks(ui, &mut ui_state.selected_item, &mut preset.dials);
     } else {
         ui.label("no pad repo");
     }
 }
 
-fn click_pad(id: usize, selected_pad: &mut Option<UserSelection>) {
-    if *selected_pad == Some(UserSelection::Pad { id }) {
-        *selected_pad = None;
+fn click_pad(id: usize, selected_item: &mut Option<UserSelection>) {
+    if *selected_item == Some(UserSelection::Pad { id }) {
+        *selected_item = None;
     } else {
-        *selected_pad = Some(UserSelection::Pad { id });
+        *selected_item = Some(UserSelection::Pad { id });
     }
 }
 
-fn pad_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
+fn render_all_dial_banks(
+    ui: &mut Ui,
+    selected_item: &mut Option<UserSelection>,
+    dial_repo: &mut DialRepository,
+) {
+    // 12 dials total: 3 banks (A, B, C) x 4 dials each
+    // Arranged in a 5-column grid: label + 4 dials per row
+    // A on top, B middle, C bottom
+    ui.add_space(16.0);
+    ui.horizontal(|ui| {
+        ui.add_space(16.0);
+        Grid::new("dial_banks_grid")
+            .num_columns(5)
+            .spacing([8.0, 8.0])
+            .show(ui, |ui| {
+                for (bank_idx, bank_label) in DIAL_BANKS.iter().enumerate() {
+                    ui.label(format!("Control Bank {}", bank_label));
+                    // Each bank has 4 dials
+                    for dial_offset in 0..4 {
+                        let dial_id = bank_idx * 4 + dial_offset;
+                        let dial = dial_repo.0[dial_id];
+                        render_dial(ui, selected_item, dial, dial_id);
+                    }
+                    ui.end_row();
+                }
+            });
+    });
+}
+
+fn render_dial(
+    ui: &mut Ui,
+    selected_item: &mut Option<UserSelection>,
+    _dial: Dial,
+    dial_id: usize,
+) {
+    let (rect, resp) = ui.allocate_exact_size(DIAL_DIMENSIONS, egui::Sense::click());
+
+    ui.painter().rect_filled(rect, 24.0, Color32::DARK_GRAY);
+
+    if let Some(UserSelection::Dial { id }) = selected_item
+        && dial_id == *id
+    {
+        ui.painter().rect_stroke(
+            rect,
+            24.0,
+            egui::Stroke::new(1.5, Color32::WHITE),
+            egui::StrokeKind::Outside,
+        );
+    }
+
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        dial_id.to_string(),
+        egui::FontId::proportional(12.0),
+        Color32::WHITE,
+    );
+
+    if resp.clicked() {
+        click_dial(dial_id, selected_item);
+    }
+}
+
+fn click_dial(id: usize, selected_item: &mut Option<UserSelection>) {
+    if *selected_item == Some(UserSelection::Dial { id }) {
+        *selected_item = None;
+    } else {
+        *selected_item = Some(UserSelection::Dial { id });
+    }
+}
+
+fn selection_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
-        let idx_label = match ui_state.selected_item {
-            Some(UserSelection::Pad { id }) => id.to_string(),
+        let selection_label = match ui_state.selected_item {
+            Some(UserSelection::Pad { id }) => format!("Pad {}", id),
+            Some(UserSelection::Dial { id }) => {
+                let bank = DIAL_BANKS[id / 4];
+                let num = (id % 4) + 1;
+                format!("Dial {}{}", bank, num)
+            }
             None => "None".to_string(),
         };
-        ui.label(format!("Selected Pad: {}", idx_label));
+        ui.label(format!("Selected: {}", selection_label));
 
-        if let Some(UserSelection::Pad { id: index }) = ui_state.selected_item
-            && let Some(preset) = &mut ui_state.preset
-            && let Some(pad) = preset.pads.pads.iter_mut().find(|p| p.id == index)
-        {
-            render_pad_compare_grid(ui, pad);
+        if let Some(preset) = &mut ui_state.preset {
+            match ui_state.selected_item {
+                Some(UserSelection::Pad { id: index }) => {
+                    if let Some(pad) = preset.pads.pads.iter_mut().find(|p| p.id == index) {
+                        render_pad_compare_grid(ui, pad);
+                    }
+                }
+                Some(UserSelection::Dial { id: index }) => {
+                    if let Some(dial) = preset.dials.0.get_mut(index) {
+                        render_dial_compare_grid(ui, dial);
+                    }
+                }
+                None => {}
+            }
         }
     });
 }
@@ -789,6 +888,27 @@ fn render_pad_compare_grid(ui: &mut Ui, pad: &mut Pad) {
             row_edit_u8(ui, "lsb", &mut pad.lsb);
             row_edit_pad_color(ui, "off color", &mut pad.off_color);
             row_edit_pad_color(ui, "on color", &mut pad.on_color);
+        });
+}
+
+fn render_dial_compare_grid(ui: &mut Ui, dial: &mut Dial) {
+    Grid::new("dial_compare_grid")
+        .striped(true)
+        .spacing([16.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Field");
+            ui.label("Value");
+            ui.end_row();
+
+            row_edit_dial_kind(ui, "dial_kind", &mut dial.kind);
+            row_edit_channel(ui, "channel", &mut dial.channel);
+            row_edit_u8(ui, "midicc", &mut dial.midicc);
+            row_edit_u8(ui, "min", &mut dial.min);
+            row_edit_u8(ui, "max", &mut dial.max);
+            row_edit_midi2din(ui, "dial_midi2din", &mut dial.midi2din);
+            row_edit_u8(ui, "msb", &mut dial.msb);
+            row_edit_u8(ui, "lsb", &mut dial.lsb);
+            row_edit_u8(ui, "value", &mut dial.value);
         });
 }
 
@@ -831,6 +951,18 @@ fn row_edit_channel(ui: &mut Ui, name: &str, value: &mut MidiChannel) {
         .show_ui(ui, |ui| {
             for variant in MidiChannel::iter() {
                 ui.selectable_value(value, variant, format!("{}", variant));
+            }
+        });
+    ui.end_row();
+}
+
+fn row_edit_dial_kind(ui: &mut Ui, name: &str, value: &mut DialKind) {
+    ui.label(name);
+    ComboBox::from_id_salt(name)
+        .selected_text(format!("{:?}", value))
+        .show_ui(ui, |ui| {
+            for variant in DialKind::iter() {
+                ui.selectable_value(value, variant, format!("{:?}", variant));
             }
         });
     ui.end_row();
