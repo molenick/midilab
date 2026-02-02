@@ -306,7 +306,7 @@ impl TryFrom<RawSwitch> for Switch {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Global {
+pub struct PresetSettings {
     pub preset_slot: PresetSlot,
     pub preset_name: PresetName,
     pub tempo: Tempo,
@@ -318,7 +318,7 @@ pub struct Global {
     pub transport: TransportKind,
 }
 
-impl Default for Global {
+impl Default for PresetSettings {
     fn default() -> Self {
         Self {
             preset_slot: PresetSlot::default(),
@@ -647,25 +647,25 @@ mod tests {
         }
     }
 
-    mod global {
+    mod preset_settings {
         use super::*;
 
         #[test]
-        fn test_global_default() {
-            let global = Global::default();
-            assert_eq!(global.preset_slot, PresetSlot::RAM);
-            assert_eq!(global.tempo, Tempo(120));
-            assert_eq!(global.time_division, TimeDivision::Div1_16);
-            assert_eq!(global.gate, GateValue::try_from(50).unwrap());
+        fn test_preset_settings_default() {
+            let preset_settings = PresetSettings::default();
+            assert_eq!(preset_settings.preset_slot, PresetSlot::RAM);
+            assert_eq!(preset_settings.tempo, Tempo(120));
+            assert_eq!(preset_settings.time_division, TimeDivision::Div1_16);
+            assert_eq!(preset_settings.gate, GateValue::try_from(50).unwrap());
         }
 
         #[test]
-        fn test_global_direct_mutation() {
-            let mut global = Global::default();
-            assert_eq!(global.tempo, Tempo(120));
+        fn test_preset_settings_direct_mutation() {
+            let mut preset_settings = PresetSettings::default();
+            assert_eq!(preset_settings.tempo, Tempo(120));
 
-            global.tempo = Tempo(140);
-            assert_eq!(global.tempo, Tempo(140));
+            preset_settings.tempo = Tempo(140);
+            assert_eq!(preset_settings.tempo, Tempo(140));
         }
     }
 }

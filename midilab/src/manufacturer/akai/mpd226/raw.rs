@@ -8,7 +8,7 @@ use crate::sysex::Sysex;
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct RawPreset {
-    pub global: RawGlobal,
+    pub settings: RawPresetSettings,
     pub pads: [RawPad; TOTAL_PADS],
     pub dials: [RawDial; 12],
     pub faders: [RawFader; 12],
@@ -41,7 +41,7 @@ pub struct RawHeader {
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-pub struct RawGlobal {
+pub struct RawPresetSettings {
     pub preset: u8,
     pub name: [u8; 8],
     pub un1: u8,
@@ -146,8 +146,8 @@ mod tests {
     }
 
     #[test]
-    fn test_raw_global_data_size() {
-        assert_eq!(std::mem::size_of::<RawGlobal>(), 23);
+    fn test_raw_preset_settings_data_size() {
+        assert_eq!(std::mem::size_of::<RawPresetSettings>(), 23);
     }
 
     #[test]
@@ -212,8 +212,8 @@ mod tests {
     }
 
     #[test]
-    fn test_raw_global_data_fields() {
-        let global = RawGlobal {
+    fn test_raw_preset_settings_data_fields() {
+        let preset_settings = RawPresetSettings {
             preset: 5,
             name: *b"MyPreset",
             un1: 0,
@@ -231,10 +231,10 @@ mod tests {
             transport: 2,
         };
 
-        assert_eq!(global.preset, 5);
-        assert_eq!(&global.name, b"MyPreset");
-        assert_eq!(global.gate, 75);
-        assert_eq!(global.swing, 56);
+        assert_eq!(preset_settings.preset, 5);
+        assert_eq!(&preset_settings.name, b"MyPreset");
+        assert_eq!(preset_settings.gate, 75);
+        assert_eq!(preset_settings.swing, 56);
     }
 
     #[test]

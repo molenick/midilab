@@ -3,7 +3,7 @@ use num_enum::TryFromPrimitive;
 
 use crate::error::DeviceStatusDeserializationError;
 use crate::manufacturer::akai::SYSEX_MANUFACTURER_ID;
-use crate::manufacturer::akai::mpd226::control::Global;
+use crate::manufacturer::akai::mpd226::control::PresetSettings;
 use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetName;
@@ -15,10 +15,10 @@ use crate::manufacturer::akai::mpd226::control::value_kind::TransportKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
 use crate::manufacturer::akai::mpd226::raw::RawDials;
 use crate::manufacturer::akai::mpd226::raw::RawFaders;
-use crate::manufacturer::akai::mpd226::raw::RawGlobal;
 use crate::manufacturer::akai::mpd226::raw::RawHeader;
 use crate::manufacturer::akai::mpd226::raw::RawPads;
 use crate::manufacturer::akai::mpd226::raw::RawPreset;
+use crate::manufacturer::akai::mpd226::raw::RawPresetSettings;
 use crate::manufacturer::akai::mpd226::raw::RawSwitches;
 use crate::manufacturer::akai::mpd226::repository::DialRepository;
 use crate::manufacturer::akai::mpd226::repository::FaderRepository;
@@ -152,7 +152,7 @@ impl TryFrom<Sysex> for DeviceStatus {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Preset {
-    pub global: Global,
+    pub settings: PresetSettings,
     pub pads: PadRepository,
     pub dials: DialRepository,
     pub faders: FaderRepository,
@@ -164,7 +164,7 @@ impl Default for Preset {
         const GENERIC_DIAL_CC: [u8; 12] = [3, 9, 14, 15, 52, 53, 54, 55, 83, 85, 86, 87];
         const GENERIC_FADER_CC: [u8; 12] = [20, 21, 22, 23, 61, 62, 63, 70, 92, 93, 94, 95];
         const GENERIC_SWITCH_CC: [u8; 12] = [28, 29, 30, 31, 75, 76, 77, 78, 106, 107, 108, 109];
-        let global = Global::default();
+        let settings = PresetSettings::default();
 
         let mut pads = PadRepository::default(); // todo: this should get some dressing
         let dials = DialRepository::with_cc_values(GENERIC_DIAL_CC);
@@ -314,7 +314,7 @@ impl Default for Preset {
         );
 
         Preset {
-            global,
+            settings,
             pads,
             dials,
             faders,
@@ -327,14 +327,14 @@ impl TryFrom<RawPreset> for Preset {
     type Error = error::PresetDeserializationError;
 
     fn try_from(raw: RawPreset) -> Result<Self, Self::Error> {
-        let global = Global::try_from(raw.global)?;
+        let settings = PresetSettings::try_from(raw.settings)?;
         let pads = PadRepository::try_from(RawPads(raw.pads))?;
         let dials = DialRepository::try_from(RawDials(raw.dials))?;
         let faders = FaderRepository::try_from(RawFaders(raw.faders))?;
         let switches = SwitchRepository::try_from(RawSwitches(raw.switches))?;
 
         Ok(Preset {
-            global,
+            settings,
             pads,
             dials,
             faders,
@@ -345,7 +345,7 @@ impl TryFrom<RawPreset> for Preset {
 
 impl From<&Preset> for RawPreset {
     fn from(preset: &Preset) -> Self {
-        let global = RawGlobal::from(&preset.global);
+        let settings = RawPresetSettings::from(&preset.settings);
 
         let mut pads = [[0u8; 11]; TOTAL_PADS];
         for (i, pad) in preset.pads.pads.iter().enumerate() {
@@ -372,7 +372,7 @@ impl From<&Preset> for RawPreset {
         }
 
         RawPreset {
-            global,
+            settings,
             pads: bytemuck::cast(pads),
             dials: bytemuck::cast(dials),
             faders: bytemuck::cast(faders),
@@ -382,48 +382,50 @@ impl From<&Preset> for RawPreset {
     }
 }
 
-impl TryFrom<RawGlobal> for Global {
-    type Error = error::GlobalDeserializationError;
+impl TryFrom<RawPresetSettings> for PresetSettings {
+    type Error = error::PresetSettingsDeserializationError;
 
-    fn try_from(raw: RawGlobal) -> Result<Self, Self::Error> {
-        use error::GlobalDeserializationError;
-        Ok(Global {
+    fn try_from(raw: RawPresetSettings) -> Result<Self, Self::Error> {
+        use error::PresetSettingsDeserializationError;
+        Ok(PresetSettings {
             preset_slot: PresetSlot::try_from(raw.preset)
-                .map_err(GlobalDeserializationError::PresetSlot)?,
+                .map_err(PresetSettingsDeserializationError::PresetSlot)?,
             preset_name: PresetName(raw.name),
             tempo: Tempo::from_packed_bytes(raw.tempo),
             time_division_switch: TriggerKind::try_from(raw.time_division_switch)
-                .map_err(GlobalDeserializationError::TimeDivisionSwitch)?,
+                .map_err(PresetSettingsDeserializationError::TimeDivisionSwitch)?,
             time_division: TimeDivision::try_from(raw.division)
-                .map_err(GlobalDeserializationError::TimeDivision)?,
+                .map_err(PresetSettingsDeserializationError::TimeDivision)?,
             note_repeat_switch: TriggerKind::try_from(raw.note_repeat_switch)
-                .map_err(GlobalDeserializationError::NoteRepeatSwitch)?,
-            gate: GateValue::try_from(raw.gate).map_err(GlobalDeserializationError::Gate)?,
-            swing: SwingKind::try_from(raw.swing).map_err(GlobalDeserializationError::Swing)?,
+                .map_err(PresetSettingsDeserializationError::NoteRepeatSwitch)?,
+            gate: GateValue::try_from(raw.gate)
+                .map_err(PresetSettingsDeserializationError::Gate)?,
+            swing: SwingKind::try_from(raw.swing)
+                .map_err(PresetSettingsDeserializationError::Swing)?,
             transport: TransportKind::try_from(raw.transport)
-                .map_err(GlobalDeserializationError::Transport)?,
+                .map_err(PresetSettingsDeserializationError::Transport)?,
         })
     }
 }
 
-impl From<&Global> for RawGlobal {
-    fn from(global: &Global) -> Self {
-        RawGlobal {
-            preset: global.preset_slot as u8,
-            name: global.preset_name.0,
+impl From<&PresetSettings> for RawPresetSettings {
+    fn from(settings: &PresetSettings) -> Self {
+        RawPresetSettings {
+            preset: settings.preset_slot as u8,
+            name: settings.preset_name.0,
             un1: 0,
-            tempo: global.tempo.to_packed_bytes(),
-            time_division_switch: global.time_division_switch as u8,
-            division: global.time_division as u8,
-            note_repeat_switch: global.note_repeat_switch as u8,
-            gate: global.gate as u8,
-            swing: global.swing as u8,
+            tempo: settings.tempo.to_packed_bytes(),
+            time_division_switch: settings.time_division_switch as u8,
+            division: settings.time_division as u8,
+            note_repeat_switch: settings.note_repeat_switch as u8,
+            gate: settings.gate as u8,
+            swing: settings.swing as u8,
             un5: 0,
             un6: 0,
             un7: 0,
             un8: 0,
             un9: 0,
-            transport: global.transport as u8,
+            transport: settings.transport as u8,
         }
     }
 }

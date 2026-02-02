@@ -214,18 +214,18 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
         ui.horizontal(|ui| {
             ui.label("Slot:");
             ComboBox::from_id_salt("header_preset_slot")
-                .selected_text(format!("{:?}", preset.global.preset_slot))
+                .selected_text(format!("{:?}", preset.settings.preset_slot))
                 .show_ui(ui, |ui| {
                     for slot in PresetSlot::iter() {
                         if ui
                             .selectable_value(
-                                &mut preset.global.preset_slot,
+                                &mut preset.settings.preset_slot,
                                 slot,
                                 format!("{:?}", slot),
                             )
                             .clicked()
                         {
-                            preset.global.preset_slot = slot;
+                            preset.settings.preset_slot = slot;
                         }
                     }
                 });
@@ -235,7 +235,7 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
             ui.label("Name:");
 
             let mut text = preset
-                .global
+                .settings
                 .preset_name
                 .0
                 .iter()
@@ -254,35 +254,35 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
             for (i, b) in text.bytes().filter(|b| b.is_ascii()).take(8).enumerate() {
                 buf[i] = b;
             }
-            preset.global.preset_name = PresetName(buf);
+            preset.settings.preset_name = PresetName(buf);
 
             ui.separator();
 
             ui.label("Tempo:");
-            let mut tempo_val = preset.global.tempo.0 as u32;
+            let mut tempo_val = preset.settings.tempo.0 as u32;
             if ui
                 .add(DragValue::new(&mut tempo_val).range(30..=300))
                 .changed()
             {
-                preset.global.tempo = Tempo(tempo_val as u16);
+                preset.settings.tempo = Tempo(tempo_val as u16);
             }
 
             ui.separator();
 
             ui.label("Division:");
             ComboBox::from_id_salt("header_time_division")
-                .selected_text(format!("{}", preset.global.time_division))
+                .selected_text(format!("{}", preset.settings.time_division))
                 .show_ui(ui, |ui| {
                     for variant in TimeDivision::iter() {
                         if ui
                             .selectable_value(
-                                &mut preset.global.time_division,
+                                &mut preset.settings.time_division,
                                 variant,
                                 format!("{}", variant),
                             )
                             .clicked()
                         {
-                            preset.global.time_division = variant;
+                            preset.settings.time_division = variant;
                         }
                     }
                 });
@@ -293,18 +293,18 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
         ui.horizontal(|ui| {
             ui.label("Div Switch:");
             ComboBox::from_id_salt("header_time_division_switch")
-                .selected_text(format!("{}", preset.global.time_division_switch))
+                .selected_text(format!("{}", preset.settings.time_division_switch))
                 .show_ui(ui, |ui| {
                     for variant in TriggerKind::iter() {
                         if ui
                             .selectable_value(
-                                &mut preset.global.time_division_switch,
+                                &mut preset.settings.time_division_switch,
                                 variant,
                                 format!("{}", variant),
                             )
                             .clicked()
                         {
-                            preset.global.time_division_switch = variant;
+                            preset.settings.time_division_switch = variant;
                         }
                     }
                 });
@@ -313,18 +313,18 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
 
             ui.label("Repeat:");
             ComboBox::from_id_salt("header_note_repeat_switch")
-                .selected_text(format!("{}", preset.global.note_repeat_switch))
+                .selected_text(format!("{}", preset.settings.note_repeat_switch))
                 .show_ui(ui, |ui| {
                     for variant in TriggerKind::iter() {
                         if ui
                             .selectable_value(
-                                &mut preset.global.note_repeat_switch,
+                                &mut preset.settings.note_repeat_switch,
                                 variant,
                                 format!("{}", variant),
                             )
                             .clicked()
                         {
-                            preset.global.note_repeat_switch = variant;
+                            preset.settings.note_repeat_switch = variant;
                         }
                     }
                 });
@@ -332,31 +332,31 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
             ui.separator();
 
             ui.label("Gate:");
-            let mut gate_val = preset.global.gate as u8;
+            let mut gate_val = preset.settings.gate as u8;
             if ui
                 .add(DragValue::new(&mut gate_val).range(0..=100))
                 .changed()
                 && let Ok(g) = GateValue::try_from(gate_val)
             {
-                preset.global.gate = g;
+                preset.settings.gate = g;
             }
 
             ui.separator();
 
             ui.label("Swing:");
             ComboBox::from_id_salt("header_swing")
-                .selected_text(format!("{}", preset.global.swing))
+                .selected_text(format!("{}", preset.settings.swing))
                 .show_ui(ui, |ui| {
                     for variant in SwingKind::iter() {
                         if ui
                             .selectable_value(
-                                &mut preset.global.swing,
+                                &mut preset.settings.swing,
                                 variant,
                                 format!("{}", variant),
                             )
                             .clicked()
                         {
-                            preset.global.swing = variant;
+                            preset.settings.swing = variant;
                         }
                     }
                 });
@@ -365,18 +365,18 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
 
             ui.label("Transport:");
             ComboBox::from_id_salt("header_transport")
-                .selected_text(format!("{}", preset.global.transport))
+                .selected_text(format!("{}", preset.settings.transport))
                 .show_ui(ui, |ui| {
                     for variant in TransportKind::iter() {
                         if ui
                             .selectable_value(
-                                &mut preset.global.transport,
+                                &mut preset.settings.transport,
                                 variant,
                                 format!("{}", variant),
                             )
                             .clicked()
                         {
-                            preset.global.transport = variant;
+                            preset.settings.transport = variant;
                         }
                     }
                 });
@@ -393,7 +393,7 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
         {
             ui_state.user_error = None;
             outbox.push(AppMsg::Ui(UiEffect::RequestPresetFromDevice(
-                preset.global.preset_slot,
+                preset.settings.preset_slot,
             )));
         }
 

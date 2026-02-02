@@ -2,7 +2,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use midilab::manufacturer::akai::mpd226::Preset;
-use midilab::manufacturer::akai::mpd226::control::Global;
+use midilab::manufacturer::akai::mpd226::control::PresetSettings;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
 use midilab::manufacturer::akai::mpd226::preset_dump_request;
 use midilab::manufacturer::akai::mpd226::preset_send_message;
@@ -117,7 +117,7 @@ fn test_construction_and_transmission_to_device() {
     send_and_verify(&mut conn, &rx, &default, "default");
 
     let hello = Preset {
-        global: Global {
+        settings: PresetSettings {
             preset_name: PresetName(*b"hello   "),
             ..Default::default()
         },
@@ -126,7 +126,7 @@ fn test_construction_and_transmission_to_device() {
     send_and_verify(&mut conn, &rx, &hello, "hello");
 
     let world = Preset {
-        global: Global {
+        settings: PresetSettings {
             preset_name: PresetName(*b"world   "),
             ..Default::default()
         },

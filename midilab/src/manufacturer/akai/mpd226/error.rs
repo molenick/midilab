@@ -19,8 +19,8 @@ use crate::midi::Note;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PresetDeserializationError {
-    #[error("global: {0}")]
-    Global(#[from] GlobalDeserializationError),
+    #[error("preset settings: {0}")]
+    PresetSettings(#[from] PresetSettingsDeserializationError),
     #[error("pad {index}: {source}")]
     Pad {
         index: usize,
@@ -44,7 +44,7 @@ pub enum PresetDeserializationError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum GlobalDeserializationError {
+pub enum PresetSettingsDeserializationError {
     #[error("invalid preset_slot: {0}")]
     PresetSlot(TryFromPrimitiveError<PresetSlot>),
     #[error("invalid time_division_switch: {0}")]

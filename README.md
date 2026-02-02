@@ -28,7 +28,6 @@ Software for programming midi controllers via Sysex messages
 #### Completed features:
     - Sysex deserialization into domain types
     - Pad Mapping
-    - Global Mapping
     - Dial mapping
     - Preset dump
     - Preset send
