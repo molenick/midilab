@@ -1764,6 +1764,7 @@ dependencies = [
 name = "midilab-io"
 version = "0.1.7"
 dependencies = [
+ "bytemuck",
  "core-foundation 0.10.1",
  "midilab",
  "midir",

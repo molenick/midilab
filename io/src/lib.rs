@@ -44,3 +44,29 @@ pub async fn recv_device_bytes(
         Err(_) => Err(MidiError::ResponseTimeout),
     }
 }
+
+pub mod fs {
+    use std::path::Path;
+
+    use midilab::manufacturer::akai::mpd226::raw::RawPreset;
+    use midilab::manufacturer::akai::mpd226::{self};
+    use midilab::sysex::Sysex;
+
+    #[derive(Debug, thiserror::Error)]
+    pub enum Error {
+        #[error(transparent)]
+        FileSys(#[from] std::io::Error),
+    }
+
+    pub async fn save_akai_mpd226_preset_as_sysex(
+        preset: mpd226::Preset,
+        path: &Path,
+    ) -> Result<(), Error> {
+        let raw = RawPreset::from(&preset);
+        let payload = bytemuck::bytes_of(&raw).to_vec();
+        let sysex = Sysex::new(payload);
+        let bytes = sysex.as_bytes();
+
+        Ok(tokio::fs::write(path, bytes).await?)
+    }
+}
