@@ -21,24 +21,9 @@ Software for programming midi controllers via Sysex messages
 | **[midilab-gui](./gui)** | `gui` | Graphical user interface library for midilab-editor |
 | **[midilab-sim](./sim)** | `sim` | Hardware device simulations for midilab-editor |
 
-
 ## Supported devices
 
-### Akai Mpd226 (work in progress)
-#### Completed features:
-    - Sysex deserialization into domain types
-    - Pad Mapping
-    - Dial mapping
-    - Preset dump
-    - Preset send
-    - Basic note pattern mapping
-    - Basic LED color pattern mapping
-
-#### Feature roadmap:
-    - Fader mapping
-    - Switch mapping
-    - Additional note/led pattern mapping options
-    - Local persistence of presets
+Akai Mpd226 (work in progress)
 
 ## License
 
