@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::error::DeviceStatusDeserializationError;
@@ -15,6 +16,17 @@ pub enum AppMsg {
     MidiError(MidiError), // this comes from midi layer, it's an io error
     SysexParseError(SysexDeserializationError), // this comes from parsing wire layer - it's not sysex
     DeviceStatusParseError(DeviceStatusDeserializationError), // this comes from parsing into a known device status - it's not a device status
+    Io(Box<IoEffect>),
+}
+
+pub enum IoMsg {
+    SavePreset { preset: Box<Preset>, path: PathBuf },
+    LoadPreset { path: PathBuf },
+}
+
+pub enum IoEffect {
+    PresetSaveResult(Result<(), String>),
+    PresetLoadResult(Result<Box<Preset>, String>),
 }
 
 pub enum SubsystemError {
@@ -27,6 +39,7 @@ pub enum SubsystemError {
 pub enum AppEffect {
     Ui(UiMsg),
     Device(DeviceMsg),
+    Io(Box<IoMsg>),
 }
 
 /// Notifies ui of updates
@@ -110,6 +123,32 @@ impl AppState {
                 received_at: Instant::now(),
                 kind: UserMsgKind::Error,
             }))],
+            AppMsg::Io(io_effect) => match *io_effect {
+                IoEffect::PresetSaveResult(result) => match result {
+                    Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: "Preset saved".to_string(),
+                        kind: UserMsgKind::Status,
+                        received_at: Instant::now(),
+                    }))],
+                    Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: format!("Preset save failed: {e}"),
+                        kind: UserMsgKind::Error,
+                        received_at: Instant::now(),
+                    }))],
+                },
+                IoEffect::PresetLoadResult(result) => match result {
+                    Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: "Preset saved".to_string(),
+                        kind: UserMsgKind::Status,
+                        received_at: Instant::now(),
+                    }))],
+                    Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: format!("Preset save failed: {e}"),
+                        kind: UserMsgKind::Error,
+                        received_at: Instant::now(),
+                    }))],
+                },
+            },
         }
     }
 }
