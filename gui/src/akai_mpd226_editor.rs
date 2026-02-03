@@ -213,7 +213,38 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
     ui.horizontal(|ui| {
         let _ = ui.button("Load preset");
         let _ = ui.button("Save preset");
+
+        ui.separator();
+
+        if let Some(preset) = &ui_state.preset
+            && ui.button("Load from device").clicked()
+        {
+            ui_state.user_error = None;
+            outbox.push(AppMsg::Ui(UiEffect::RequestPresetFromDevice(
+                preset.settings.preset_slot,
+            )));
+        }
+
+        if let Some(preset) = ui_state.preset
+            && ui.button("Send to device").clicked()
+        {
+            ui_state.user_error = None;
+            outbox.push(AppMsg::Ui(UiEffect::SendPresetToDevice(Box::new(preset))));
+        }
+
+        if let Some(status) = &ui_state.user_error {
+            let color = match status.kind {
+                midilab::message::UserMsgKind::Status => Color32::GREEN,
+                midilab::message::UserMsgKind::Error => Color32::RED,
+            };
+
+            ui.colored_label(color, &status.msg);
+        }
     });
+
+    ui.separator();
+
+    ui.add_space(16.);
 
     if let Some(preset) = &mut ui_state.preset {
         ui.horizontal(|ui| {
@@ -390,34 +421,7 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
         ui.label("No preset loaded");
     }
 
-    ui.add_space(ROW_SPACING);
-
-    ui.horizontal(|ui| {
-        if let Some(preset) = &ui_state.preset
-            && ui.button("Load from device").clicked()
-        {
-            ui_state.user_error = None;
-            outbox.push(AppMsg::Ui(UiEffect::RequestPresetFromDevice(
-                preset.settings.preset_slot,
-            )));
-        }
-
-        if let Some(preset) = ui_state.preset
-            && ui.button("Send to device").clicked()
-        {
-            ui_state.user_error = None;
-            outbox.push(AppMsg::Ui(UiEffect::SendPresetToDevice(Box::new(preset))));
-        }
-
-        if let Some(status) = &ui_state.user_error {
-            let color = match status.kind {
-                midilab::message::UserMsgKind::Status => Color32::GREEN,
-                midilab::message::UserMsgKind::Error => Color32::RED,
-            };
-
-            ui.colored_label(color, &status.msg);
-        }
-    });
+    ui.separator();
 }
 
 fn render_pad_patterns(ui: &mut Ui, ui_state: &mut UiState) {
@@ -441,6 +445,7 @@ fn render_pad_patterns(ui: &mut Ui, ui_state: &mut UiState) {
 
 fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
+        ui.add_space(16.);
         ui.label("Note Mapping");
 
         ui.horizontal(|ui| {
@@ -698,9 +703,7 @@ fn render_all_pad_banks(
         .map(|chunk| chunk.to_vec())
         .collect();
 
-    ui.add_space(16.0);
     ui.horizontal(|ui| {
-        ui.add_space(16.0);
         for (bank_id, bank) in banks.into_iter().enumerate() {
             let bank_label = BANKS[bank_id].to_string();
             render_pad_bank(ui, selected_item, bank, bank_label);
@@ -787,10 +790,10 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
     }
 }
 
+// todo: misnamed, this is a subset of the editor
 fn render_editor(ui: &mut Ui, ui_state: &mut UiState) {
     if let Some(preset) = &mut ui_state.preset {
         render_all_pad_banks(ui, &mut ui_state.selected_item, &mut preset.pads);
-        ui.add_space(16.0);
         render_all_control_banks(
             ui,
             &mut ui_state.selected_item,
@@ -818,9 +821,7 @@ fn render_all_control_banks(
     fader_repo: &mut FaderRepository,
     switch_repo: &mut SwitchRepository,
 ) {
-    ui.add_space(16.0);
     ui.horizontal(|ui| {
-        ui.add_space(16.0);
         for (bank_idx, bank_label) in CONTROL_BANKS.iter().enumerate() {
             render_control_bank(
                 ui,
