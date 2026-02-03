@@ -78,7 +78,7 @@ impl Mpd226Sim {
                                 return SimEffect::Noop;
                             }
                         };
-                        let slot = preset.global.preset_slot;
+                        let slot = preset.settings.preset_slot;
                         self.presets[slot as usize] = preset;
                         SimEffect::SendSysex(preset_ack_message(slot))
                     }
