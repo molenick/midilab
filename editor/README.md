@@ -4,8 +4,8 @@ An application for programming MIDI controllers
 ![MidiLab Editor Screenshot](https://raw.githubusercontent.com/molenick/midilab/main/editor/assets/screenshot.png)
 
 ## Supported Controllers
-
 - Akai Mpd226
+
 ## Editor usage
 Install and run midilab-editor:
 
