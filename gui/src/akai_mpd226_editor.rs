@@ -92,9 +92,9 @@ impl eframe::App for AkaiMpd226Editor {
 
         CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
-                render_header(ui, &mut self.ui_state, &mut self.outbox);
+                render_preset_settings(ui, &mut self.ui_state, &mut self.outbox);
                 ui.add_space(16.0);
-                render_editor(ui, &mut self.ui_state);
+                render_banks(ui, &mut self.ui_state);
                 ui.add_space(16.0);
                 render_pad_patterns(ui, &mut self.ui_state);
             });
@@ -207,7 +207,7 @@ impl Default for ColorMappingState {
     }
 }
 
-fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
     const ROW_SPACING: f32 = 8.0;
 
     ui.horizontal(|ui| {
@@ -785,8 +785,7 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
     }
 }
 
-// todo: misnamed, this is a subset of the editor
-fn render_editor(ui: &mut Ui, ui_state: &mut UiState) {
+fn render_banks(ui: &mut Ui, ui_state: &mut UiState) {
     render_all_pad_banks(ui, &mut ui_state.selected_item, &mut ui_state.preset.pads);
     render_all_control_banks(
         ui,
