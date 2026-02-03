@@ -51,6 +51,8 @@ pub enum UiMsg {
 pub enum UiEffect {
     SendPresetToDevice(Box<Preset>),
     RequestPresetFromDevice(PresetSlot),
+    LoadPersistedPreset,
+    PersistPreset(Box<Preset>),
 }
 
 pub enum DeviceMsg {
@@ -77,16 +79,32 @@ pub struct AppState {
 impl AppState {
     #[must_use]
     pub fn update(&mut self, msg: AppMsg) -> Vec<AppEffect> {
+        const PRESET_PATH: &str = "/tmp/akai_mpd226_preset";
+
         match msg {
-            AppMsg::Ui(UiEffect::SendPresetToDevice(preset)) => {
-                self.preset = *preset;
-                vec![AppEffect::Device(DeviceMsg::SendPreset(Box::new(
-                    self.preset,
-                )))]
-            }
-            AppMsg::Ui(UiEffect::RequestPresetFromDevice(slot)) => {
-                vec![AppEffect::Device(DeviceMsg::RequestPreset(slot))]
-            }
+            AppMsg::Ui(msg) => match msg {
+                UiEffect::SendPresetToDevice(preset) => {
+                    self.preset = *preset;
+                    vec![AppEffect::Device(DeviceMsg::SendPreset(Box::new(
+                        self.preset,
+                    )))]
+                }
+                UiEffect::RequestPresetFromDevice(slot) => {
+                    vec![AppEffect::Device(DeviceMsg::RequestPreset(slot))]
+                }
+                UiEffect::LoadPersistedPreset => {
+                    vec![AppEffect::Io(Box::new(IoMsg::LoadPreset {
+                        path: PRESET_PATH.into(),
+                    }))]
+                }
+                UiEffect::PersistPreset(preset) => {
+                    vec![AppEffect::Io(Box::new(IoMsg::SavePreset {
+                        preset,
+                        path: PRESET_PATH.into(),
+                    }))]
+                }
+            },
+
             AppMsg::Device(msg) => match msg {
                 DeviceStatus::PresetData(preset) => {
                     let slot = preset.settings.preset_slot;
@@ -138,7 +156,7 @@ impl AppState {
                 },
                 IoEffect::PresetLoadResult(result) => match result {
                     Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                        msg: "Preset saved".to_string(),
+                        msg: "Preset loaded".to_string(),
                         kind: UserMsgKind::Status,
                         received_at: Instant::now(),
                     }))],

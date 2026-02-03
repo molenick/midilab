@@ -211,8 +211,15 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
     const ROW_SPACING: f32 = 8.0;
 
     ui.horizontal(|ui| {
-        let _ = ui.button("Load preset");
-        let _ = ui.button("Save preset");
+        if ui.button("Load preset").clicked() {
+            outbox.push(AppMsg::Ui(UiEffect::LoadPersistedPreset));
+        }
+        if ui.button("Save preset").clicked() {
+            outbox.push(AppMsg::Ui(UiEffect::PersistPreset(Box::new(
+                // todo: lets remove option indirection
+                ui_state.preset.unwrap(),
+            ))));
+        }
 
         ui.separator();
 
