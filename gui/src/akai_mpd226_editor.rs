@@ -210,6 +210,11 @@ impl Default for ColorMappingState {
 fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
     const ROW_SPACING: f32 = 8.0;
 
+    ui.horizontal(|ui| {
+        let _ = ui.button("Load preset");
+        let _ = ui.button("Save preset");
+    });
+
     if let Some(preset) = &mut ui_state.preset {
         ui.horizontal(|ui| {
             ui.label("Slot:");
