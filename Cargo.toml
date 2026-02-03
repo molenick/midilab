@@ -17,7 +17,7 @@ midilab = { version = "0.1.7", path = "midilab" }
 midilab-gui = { version = "0.1.7", path = "gui" }
 midilab-io = { version = "0.1.7", path = "io" }
 midilab-sim = { version = "0.1.7", path = "sim" }
-bytemuck = { version = "1.24.0", features = ["derive"] }
+bytemuck = { version = "1.24.0", features = ["derive", "impl_core_error"] }
 eframe = "0.33.3"
 enumeric = "0.1.2"
 midir = "0.10.3"
