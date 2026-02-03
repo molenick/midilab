@@ -75,7 +75,7 @@ impl AkaiMpd226Editor {
         while let Ok(msg) = self.ui_rx.try_recv() {
             match msg {
                 UiMsg::UpdatePreset(preset) => {
-                    self.ui_state.preset = Some(*preset);
+                    self.ui_state.preset = *preset;
                 }
 
                 UiMsg::UserMsg(e) => {
@@ -157,7 +157,7 @@ pub struct MidiStatus {
 #[derive(Default)]
 pub struct UiState {
     pub selected_item: Option<UserSelection>,
-    pub preset: Option<Preset>,
+    pub preset: Preset,
     pub note_mapping: NoteMappingState,
     pub off_color_mapping: ColorMappingState,
     pub on_color_mapping: ColorMappingState,
@@ -216,27 +216,24 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
         }
         if ui.button("Save preset").clicked() {
             outbox.push(AppMsg::Ui(UiEffect::PersistPreset(Box::new(
-                // todo: lets remove option indirection
-                ui_state.preset.unwrap(),
+                ui_state.preset,
             ))));
         }
 
         ui.separator();
 
-        if let Some(preset) = &ui_state.preset
-            && ui.button("Load from device").clicked()
-        {
+        if ui.button("Load from device").clicked() {
             ui_state.user_error = None;
             outbox.push(AppMsg::Ui(UiEffect::RequestPresetFromDevice(
-                preset.settings.preset_slot,
+                ui_state.preset.settings.preset_slot,
             )));
         }
 
-        if let Some(preset) = ui_state.preset
-            && ui.button("Send to device").clicked()
-        {
+        if ui.button("Send to device").clicked() {
             ui_state.user_error = None;
-            outbox.push(AppMsg::Ui(UiEffect::SendPresetToDevice(Box::new(preset))));
+            outbox.push(AppMsg::Ui(UiEffect::SendPresetToDevice(Box::new(
+                ui_state.preset,
+            ))));
         }
 
         if let Some(status) = &ui_state.user_error {
@@ -253,180 +250,177 @@ fn render_header(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) 
 
     ui.add_space(16.);
 
-    if let Some(preset) = &mut ui_state.preset {
-        ui.horizontal(|ui| {
-            ui.label("Slot:");
-            ComboBox::from_id_salt("header_preset_slot")
-                .selected_text(format!("{:?}", preset.settings.preset_slot))
-                .show_ui(ui, |ui| {
-                    for slot in PresetSlot::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut preset.settings.preset_slot,
-                                slot,
-                                format!("{:?}", slot),
-                            )
-                            .clicked()
-                        {
-                            preset.settings.preset_slot = slot;
-                        }
+    ui.horizontal(|ui| {
+        ui.label("Slot:");
+        ComboBox::from_id_salt("header_preset_slot")
+            .selected_text(format!("{:?}", ui_state.preset.settings.preset_slot))
+            .show_ui(ui, |ui| {
+                for slot in PresetSlot::iter() {
+                    if ui
+                        .selectable_value(
+                            &mut ui_state.preset.settings.preset_slot,
+                            slot,
+                            format!("{:?}", slot),
+                        )
+                        .clicked()
+                    {
+                        ui_state.preset.settings.preset_slot = slot;
                     }
-                });
+                }
+            });
 
-            ui.separator();
+        ui.separator();
 
-            ui.label("Name:");
+        ui.label("Name:");
 
-            let mut text = preset
-                .settings
-                .preset_name
-                .0
-                .iter()
-                .map(|&b| if b.is_ascii() { b as char } else { ' ' })
-                .collect::<String>()
-                .trim_end()
-                .to_string();
+        let mut text = ui_state
+            .preset
+            .settings
+            .preset_name
+            .0
+            .iter()
+            .map(|&b| if b.is_ascii() { b as char } else { ' ' })
+            .collect::<String>()
+            .trim_end()
+            .to_string();
 
-            ui.add(
-                TextEdit::singleline(&mut text)
-                    .char_limit(8)
-                    .desired_width(80.0),
-            );
+        ui.add(
+            TextEdit::singleline(&mut text)
+                .char_limit(8)
+                .desired_width(80.0),
+        );
 
-            let mut buf = [b' '; 8];
-            for (i, b) in text.bytes().filter(|b| b.is_ascii()).take(8).enumerate() {
-                buf[i] = b;
-            }
-            preset.settings.preset_name = PresetName(buf);
+        let mut buf = [b' '; 8];
+        for (i, b) in text.bytes().filter(|b| b.is_ascii()).take(8).enumerate() {
+            buf[i] = b;
+        }
+        ui_state.preset.settings.preset_name = PresetName(buf);
 
-            ui.separator();
+        ui.separator();
 
-            ui.label("Tempo:");
-            let mut tempo_val = preset.settings.tempo.0 as u32;
-            if ui
-                .add(DragValue::new(&mut tempo_val).range(30..=300))
-                .changed()
-            {
-                preset.settings.tempo = Tempo(tempo_val as u16);
-            }
+        ui.label("Tempo:");
+        let mut tempo_val = ui_state.preset.settings.tempo.0 as u32;
+        if ui
+            .add(DragValue::new(&mut tempo_val).range(30..=300))
+            .changed()
+        {
+            ui_state.preset.settings.tempo = Tempo(tempo_val as u16);
+        }
 
-            ui.separator();
+        ui.separator();
 
-            ui.label("Division:");
-            ComboBox::from_id_salt("header_time_division")
-                .selected_text(format!("{}", preset.settings.time_division))
-                .show_ui(ui, |ui| {
-                    for variant in TimeDivision::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut preset.settings.time_division,
-                                variant,
-                                format!("{}", variant),
-                            )
-                            .clicked()
-                        {
-                            preset.settings.time_division = variant;
-                        }
+        ui.label("Division:");
+        ComboBox::from_id_salt("header_time_division")
+            .selected_text(format!("{}", ui_state.preset.settings.time_division))
+            .show_ui(ui, |ui| {
+                for variant in TimeDivision::iter() {
+                    if ui
+                        .selectable_value(
+                            &mut ui_state.preset.settings.time_division,
+                            variant,
+                            format!("{}", variant),
+                        )
+                        .clicked()
+                    {
+                        ui_state.preset.settings.time_division = variant;
                     }
-                });
-        });
+                }
+            });
+    });
 
-        ui.add_space(ROW_SPACING);
+    ui.add_space(ROW_SPACING);
 
-        ui.horizontal(|ui| {
-            ui.label("Div Switch:");
-            ComboBox::from_id_salt("header_time_division_switch")
-                .selected_text(format!("{}", preset.settings.time_division_switch))
-                .show_ui(ui, |ui| {
-                    for variant in TriggerKind::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut preset.settings.time_division_switch,
-                                variant,
-                                format!("{}", variant),
-                            )
-                            .clicked()
-                        {
-                            preset.settings.time_division_switch = variant;
-                        }
+    ui.horizontal(|ui| {
+        ui.label("Div Switch:");
+        ComboBox::from_id_salt("header_time_division_switch")
+            .selected_text(format!("{}", ui_state.preset.settings.time_division_switch))
+            .show_ui(ui, |ui| {
+                for variant in TriggerKind::iter() {
+                    if ui
+                        .selectable_value(
+                            &mut ui_state.preset.settings.time_division_switch,
+                            variant,
+                            format!("{}", variant),
+                        )
+                        .clicked()
+                    {
+                        ui_state.preset.settings.time_division_switch = variant;
                     }
-                });
+                }
+            });
 
-            ui.separator();
+        ui.separator();
 
-            ui.label("Repeat:");
-            ComboBox::from_id_salt("header_note_repeat_switch")
-                .selected_text(format!("{}", preset.settings.note_repeat_switch))
-                .show_ui(ui, |ui| {
-                    for variant in TriggerKind::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut preset.settings.note_repeat_switch,
-                                variant,
-                                format!("{}", variant),
-                            )
-                            .clicked()
-                        {
-                            preset.settings.note_repeat_switch = variant;
-                        }
+        ui.label("Repeat:");
+        ComboBox::from_id_salt("header_note_repeat_switch")
+            .selected_text(format!("{}", ui_state.preset.settings.note_repeat_switch))
+            .show_ui(ui, |ui| {
+                for variant in TriggerKind::iter() {
+                    if ui
+                        .selectable_value(
+                            &mut ui_state.preset.settings.note_repeat_switch,
+                            variant,
+                            format!("{}", variant),
+                        )
+                        .clicked()
+                    {
+                        ui_state.preset.settings.note_repeat_switch = variant;
                     }
-                });
+                }
+            });
 
-            ui.separator();
+        ui.separator();
 
-            ui.label("Gate:");
-            let mut gate_val = preset.settings.gate as u8;
-            if ui
-                .add(DragValue::new(&mut gate_val).range(0..=100))
-                .changed()
-                && let Ok(g) = GateValue::try_from(gate_val)
-            {
-                preset.settings.gate = g;
-            }
+        ui.label("Gate:");
+        let mut gate_val = ui_state.preset.settings.gate as u8;
+        if ui
+            .add(DragValue::new(&mut gate_val).range(0..=100))
+            .changed()
+            && let Ok(g) = GateValue::try_from(gate_val)
+        {
+            ui_state.preset.settings.gate = g;
+        }
 
-            ui.separator();
+        ui.separator();
 
-            ui.label("Swing:");
-            ComboBox::from_id_salt("header_swing")
-                .selected_text(format!("{}", preset.settings.swing))
-                .show_ui(ui, |ui| {
-                    for variant in SwingKind::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut preset.settings.swing,
-                                variant,
-                                format!("{}", variant),
-                            )
-                            .clicked()
-                        {
-                            preset.settings.swing = variant;
-                        }
+        ui.label("Swing:");
+        ComboBox::from_id_salt("header_swing")
+            .selected_text(format!("{}", ui_state.preset.settings.swing))
+            .show_ui(ui, |ui| {
+                for variant in SwingKind::iter() {
+                    if ui
+                        .selectable_value(
+                            &mut ui_state.preset.settings.swing,
+                            variant,
+                            format!("{}", variant),
+                        )
+                        .clicked()
+                    {
+                        ui_state.preset.settings.swing = variant;
                     }
-                });
+                }
+            });
 
-            ui.separator();
+        ui.separator();
 
-            ui.label("Transport:");
-            ComboBox::from_id_salt("header_transport")
-                .selected_text(format!("{}", preset.settings.transport))
-                .show_ui(ui, |ui| {
-                    for variant in TransportKind::iter() {
-                        if ui
-                            .selectable_value(
-                                &mut preset.settings.transport,
-                                variant,
-                                format!("{}", variant),
-                            )
-                            .clicked()
-                        {
-                            preset.settings.transport = variant;
-                        }
+        ui.label("Transport:");
+        ComboBox::from_id_salt("header_transport")
+            .selected_text(format!("{}", ui_state.preset.settings.transport))
+            .show_ui(ui, |ui| {
+                for variant in TransportKind::iter() {
+                    if ui
+                        .selectable_value(
+                            &mut ui_state.preset.settings.transport,
+                            variant,
+                            format!("{}", variant),
+                        )
+                        .clicked()
+                    {
+                        ui_state.preset.settings.transport = variant;
                     }
-                });
-        });
-    } else {
-        ui.label("No preset loaded");
-    }
+                }
+            });
+    });
 
     ui.separator();
 }
@@ -578,18 +572,16 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
         ui.add_space(8.0);
 
         let resp = ui.button("Set pattern");
-        if resp.clicked()
-            && let Some(preset) = ui_state.preset.as_mut()
-        {
+        if resp.clicked() {
             let scale_seq = ui_state.note_mapping.scale_seq;
-            preset.pads.set_note_pattern(
+            ui_state.preset.pads.set_note_pattern(
                 ui_state.note_mapping.starting_from_pad,
                 NotePattern::Scale(scale_seq),
             );
 
             if ui_state.note_mapping.tonic_highlighting_enabled {
                 let tonic_color = (scale_seq.tonic, ui_state.note_mapping.tonic_color);
-                preset.pads.highlight_tonics(
+                ui_state.preset.pads.highlight_tonics(
                     ui_state.note_mapping.starting_from_pad,
                     scale_seq.length,
                     tonic_color,
@@ -617,10 +609,8 @@ fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
             ui.add(DragValue::new(&mut ui_state.off_color_mapping.length).range(1..=64));
         });
 
-        if ui.button("Apply").clicked()
-            && let Some(preset) = ui_state.preset.as_mut()
-        {
-            preset.pads.set_off_color_pattern(
+        if ui.button("Apply").clicked() {
+            ui_state.preset.pads.set_off_color_pattern(
                 ui_state.off_color_mapping.starting_from_pad,
                 ui_state.off_color_mapping.length,
                 ui_state.off_color_mapping.pattern.clone(),
@@ -649,10 +639,8 @@ fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
             ui.add(DragValue::new(&mut ui_state.on_color_mapping.length).range(1..=64));
         });
 
-        if ui.button("Apply").clicked()
-            && let Some(preset) = ui_state.preset.as_mut()
-        {
-            preset.pads.set_on_color_pattern(
+        if ui.button("Apply").clicked() {
+            ui_state.preset.pads.set_on_color_pattern(
                 ui_state.on_color_mapping.starting_from_pad,
                 ui_state.on_color_mapping.length,
                 ui_state.on_color_mapping.pattern.clone(),
@@ -799,18 +787,14 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
 
 // todo: misnamed, this is a subset of the editor
 fn render_editor(ui: &mut Ui, ui_state: &mut UiState) {
-    if let Some(preset) = &mut ui_state.preset {
-        render_all_pad_banks(ui, &mut ui_state.selected_item, &mut preset.pads);
-        render_all_control_banks(
-            ui,
-            &mut ui_state.selected_item,
-            &mut preset.dials,
-            &mut preset.faders,
-            &mut preset.switches,
-        );
-    } else {
-        ui.label("no pad repo");
-    }
+    render_all_pad_banks(ui, &mut ui_state.selected_item, &mut ui_state.preset.pads);
+    render_all_control_banks(
+        ui,
+        &mut ui_state.selected_item,
+        &mut ui_state.preset.dials,
+        &mut ui_state.preset.faders,
+        &mut ui_state.preset.switches,
+    );
 }
 
 fn click_pad(id: usize, selected_item: &mut Option<UserSelection>) {
@@ -1039,30 +1023,28 @@ fn selection_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
         };
         ui.label(format!("Selected: {}", selection_label));
 
-        if let Some(preset) = &mut ui_state.preset {
-            match ui_state.selected_item {
-                Some(UserSelection::Pad { id: index }) => {
-                    if let Some(pad) = preset.pads.pads.iter_mut().find(|p| p.id == index) {
-                        render_pad_compare_grid(ui, pad);
-                    }
+        match ui_state.selected_item {
+            Some(UserSelection::Pad { id: index }) => {
+                if let Some(pad) = ui_state.preset.pads.pads.iter_mut().find(|p| p.id == index) {
+                    render_pad_compare_grid(ui, pad);
                 }
-                Some(UserSelection::Dial { id: index }) => {
-                    if let Some(dial) = preset.dials.0.get_mut(index) {
-                        render_dial_compare_grid(ui, dial);
-                    }
-                }
-                Some(UserSelection::Fader { id: index }) => {
-                    if let Some(fader) = preset.faders.0.get_mut(index) {
-                        render_fader_compare_grid(ui, fader);
-                    }
-                }
-                Some(UserSelection::Switch { id: index }) => {
-                    if let Some(switch) = preset.switches.0.get_mut(index) {
-                        render_switch_compare_grid(ui, switch);
-                    }
-                }
-                None => {}
             }
+            Some(UserSelection::Dial { id: index }) => {
+                if let Some(dial) = ui_state.preset.dials.0.get_mut(index) {
+                    render_dial_compare_grid(ui, dial);
+                }
+            }
+            Some(UserSelection::Fader { id: index }) => {
+                if let Some(fader) = ui_state.preset.faders.0.get_mut(index) {
+                    render_fader_compare_grid(ui, fader);
+                }
+            }
+            Some(UserSelection::Switch { id: index }) => {
+                if let Some(switch) = ui_state.preset.switches.0.get_mut(index) {
+                    render_switch_compare_grid(ui, switch);
+                }
+            }
+            None => {}
         }
     });
 }
