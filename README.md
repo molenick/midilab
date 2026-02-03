@@ -25,6 +25,10 @@ Software for programming midi controllers via Sysex messages
 
 Akai Mpd226 (work in progress)
 
+## Credits
+
+Thanks to [mpd-utils](https://github.com/mungewell/mpd-utils) for providing a starting point for understanding the Sysex payload deserialization.
+
 ## License
 
 Licensed under either of
