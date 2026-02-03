@@ -77,10 +77,12 @@ pub struct AppState {
 }
 
 impl AppState {
+    fn preset_path() -> PathBuf {
+        std::env::temp_dir().join("akai_mpd226_preset")
+    }
+
     #[must_use]
     pub fn update(&mut self, msg: AppMsg) -> Vec<AppEffect> {
-        const PRESET_PATH: &str = "/tmp/akai_mpd226_preset";
-
         match msg {
             AppMsg::Ui(msg) => match msg {
                 UiEffect::SendPresetToDevice(preset) => {
@@ -94,13 +96,13 @@ impl AppState {
                 }
                 UiEffect::LoadPersistedPreset => {
                     vec![AppEffect::Io(Box::new(IoMsg::LoadPreset {
-                        path: PRESET_PATH.into(),
+                        path: Self::preset_path(),
                     }))]
                 }
                 UiEffect::PersistPreset(preset) => {
                     vec![AppEffect::Io(Box::new(IoMsg::SavePreset {
                         preset,
-                        path: PRESET_PATH.into(),
+                        path: Self::preset_path(),
                     }))]
                 }
             },
