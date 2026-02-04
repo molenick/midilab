@@ -240,23 +240,26 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<
     const ROW_SPACING: f32 = 8.0;
 
     ui.horizontal(|ui| {
-        if ui.button("Load preset").clicked() {
-            outbox.push(AppMsg::Ui(UiEffect::LoadPersistedPreset));
-        }
-        if ui.button("Save preset").clicked() {
-            outbox.push(AppMsg::Ui(UiEffect::PersistPreset(Box::new(
-                ui_state.preset,
-            ))));
-        }
-        if ui.button("Set Save Dir").clicked() {
-            outbox.push(AppMsg::Ui(UiEffect::SetPresetDirectory));
-        }
+        // todo: we need to do some UI work to enable persisted preset
+        // listing/selection before we want to expose/release this
 
-        if let Some(dir) = &ui_state.configured_directory {
-            ui.label(format!("Dir: {}", dir.display()));
-        }
+        // if ui.button("Load preset").clicked() {
+        //     outbox.push(AppMsg::Ui(UiEffect::LoadPersistedPreset));
+        // }
+        // if ui.button("Save preset").clicked() {
+        //     outbox.push(AppMsg::Ui(UiEffect::PersistPreset(Box::new(
+        //         ui_state.preset,
+        //     ))));
+        // }
+        // if ui.button("Set Save Dir").clicked() {
+        //     outbox.push(AppMsg::Ui(UiEffect::SetPresetDirectory));
+        // }
 
-        ui.separator();
+        // if let Some(dir) = &ui_state.configured_directory {
+        //     ui.label(format!("Dir: {}", dir.display()));
+        // }
+
+        // ui.separator();
 
         if ui.button("Load from device").clicked() {
             ui_state.user_error = None;
