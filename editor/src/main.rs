@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let mut app_state = AppState::default();
+    let mut app_state = AppState::new();
 
     let app_ui_tx = ui_tx.clone();
     let _app = tokio::spawn(async move {

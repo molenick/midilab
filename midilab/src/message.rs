@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
+use crate::config::AppConfig;
 use crate::error::DeviceStatusDeserializationError;
 use crate::error::MidiError;
 use crate::error::SysexDeserializationError;
@@ -46,6 +47,15 @@ pub enum AppEffect {
 pub enum UiMsg {
     UpdatePreset(Box<Preset>),
     UserMsg(UserMsg),
+    ShowDirectoryPicker { for_action: PendingFileAction },
+    DirectoryConfigured(PathBuf),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PendingFileAction {
+    Save,
+    Load,
+    ManualSet,
 }
 
 pub enum UiEffect {
@@ -53,6 +63,8 @@ pub enum UiEffect {
     RequestPresetFromDevice(PresetSlot),
     LoadPersistedPreset,
     PersistPreset(Box<Preset>),
+    SetPresetDirectory,
+    PresetDirectorySelected(PathBuf),
 }
 
 pub enum DeviceMsg {
@@ -71,14 +83,25 @@ pub enum UserMsgKind {
     Error,
 }
 
-#[derive(Default)]
 pub struct AppState {
     pub preset: Preset,
+    pub config: AppConfig,
+    pending_save_preset: Option<Box<Preset>>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AppState {
-    fn preset_path() -> PathBuf {
-        std::env::temp_dir().join("akai_mpd226_preset")
+    pub fn new() -> Self {
+        Self {
+            preset: Preset::default(),
+            config: AppConfig::load(),
+            pending_save_preset: None,
+        }
     }
 
     #[must_use]
@@ -95,15 +118,42 @@ impl AppState {
                     vec![AppEffect::Device(DeviceMsg::RequestPreset(slot))]
                 }
                 UiEffect::LoadPersistedPreset => {
-                    vec![AppEffect::Io(Box::new(IoMsg::LoadPreset {
-                        path: Self::preset_path(),
-                    }))]
+                    if let Some(path) = self.config.preset_path() {
+                        vec![AppEffect::Io(Box::new(IoMsg::LoadPreset { path }))]
+                    } else {
+                        vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker {
+                            for_action: PendingFileAction::Load,
+                        })]
+                    }
                 }
                 UiEffect::PersistPreset(preset) => {
-                    vec![AppEffect::Io(Box::new(IoMsg::SavePreset {
-                        preset,
-                        path: Self::preset_path(),
-                    }))]
+                    if let Some(path) = self.config.preset_path() {
+                        vec![AppEffect::Io(Box::new(IoMsg::SavePreset { preset, path }))]
+                    } else {
+                        self.pending_save_preset = Some(preset);
+                        vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker {
+                            for_action: PendingFileAction::Save,
+                        })]
+                    }
+                }
+                UiEffect::SetPresetDirectory => {
+                    vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker {
+                        for_action: PendingFileAction::ManualSet,
+                    })]
+                }
+                UiEffect::PresetDirectorySelected(dir) => {
+                    self.config.preset_directory = Some(dir.clone());
+                    let _ = self.config.save();
+
+                    let mut effects = vec![AppEffect::Ui(UiMsg::DirectoryConfigured(dir))];
+
+                    if let Some(preset) = self.pending_save_preset.take()
+                        && let Some(path) = self.config.preset_path()
+                    {
+                        effects.push(AppEffect::Io(Box::new(IoMsg::SavePreset { preset, path })));
+                    }
+
+                    effects
                 }
             },
 

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Instant;
 
 use eframe::egui;
@@ -41,6 +42,7 @@ use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
 use midilab::manufacturer::akai::mpd226::repository::SwitchRepository;
 use midilab::message::AppMsg;
+use midilab::message::PendingFileAction;
 use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserMsg;
@@ -81,8 +83,33 @@ impl AkaiMpd226Editor {
                 UiMsg::UserMsg(e) => {
                     self.ui_state.user_error = Some(e);
                 }
+
+                UiMsg::ShowDirectoryPicker { for_action } => {
+                    self.ui_state.pending_action = Some(for_action);
+                    self.spawn_directory_picker();
+                }
+
+                UiMsg::DirectoryConfigured(path) => {
+                    self.ui_state.configured_directory = Some(path);
+                    self.ui_state.pending_action = None;
+                }
             }
         }
+    }
+
+    fn spawn_directory_picker(&self) {
+        let app_tx = self.app_tx.clone();
+        tokio::spawn(async move {
+            let dialog = rfd::AsyncFileDialog::new()
+                .set_title("Select Preset Save Directory")
+                .pick_folder()
+                .await;
+            if let Some(handle) = dialog {
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::PresetDirectorySelected(
+                    handle.path().to_path_buf(),
+                )));
+            }
+        });
     }
 }
 
@@ -162,6 +189,8 @@ pub struct UiState {
     pub off_color_mapping: ColorMappingState,
     pub on_color_mapping: ColorMappingState,
     pub user_error: Option<UserMsg>,
+    pub pending_action: Option<PendingFileAction>,
+    pub configured_directory: Option<PathBuf>,
 }
 
 pub struct NoteMappingState {
@@ -218,6 +247,13 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<
             outbox.push(AppMsg::Ui(UiEffect::PersistPreset(Box::new(
                 ui_state.preset,
             ))));
+        }
+        if ui.button("Set Save Dir").clicked() {
+            outbox.push(AppMsg::Ui(UiEffect::SetPresetDirectory));
+        }
+
+        if let Some(dir) = &ui_state.configured_directory {
+            ui.label(format!("Dir: {}", dir.display()));
         }
 
         ui.separator();
