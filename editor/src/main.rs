@@ -10,6 +10,8 @@ use midilab::message::AppEffect;
 use midilab::message::AppMsg;
 use midilab::message::AppState;
 use midilab::message::DeviceMsg;
+use midilab::message::IoEffect;
+use midilab::message::IoMsg;
 use midilab::message::UiMsg;
 use midilab::sysex::Sysex;
 use midilab_gui::AkaiMpd226Editor;
@@ -17,6 +19,8 @@ use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
 use midilab_io::find_input_port;
 use midilab_io::find_output_port;
 use midilab_io::flush_coremidi_notifications;
+use midilab_io::fs::load_akai_mpd226_preset_from_sysex;
+use midilab_io::fs::save_akai_mpd226_preset;
 use midilab_io::recv_device_bytes;
 use midir::MidiInput;
 use midir::MidiOutput;
@@ -27,9 +31,31 @@ use tokio::sync::mpsc::unbounded_channel;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (app_tx, mut app_rx) = unbounded_channel();
     let (ui_tx, ui_rx) = unbounded_channel();
-    let (midi_tx, mut midi_rx) = unbounded_channel::<DeviceMsg>();
-
+    let (midi_tx, mut midi_rx) = unbounded_channel();
+    let (io_tx, mut io_rx) = unbounded_channel::<IoMsg>();
+    let io_app_tx = app_tx.clone();
     let midi_app_tx = app_tx.clone();
+
+    let _io = tokio::spawn(async move {
+        while let Some(msg) = io_rx.recv().await {
+            let effect = match msg {
+                IoMsg::SavePreset { preset, path } => IoEffect::PresetSaveResult(
+                    save_akai_mpd226_preset(*preset, &path)
+                        .await
+                        .map_err(|e| e.to_string()),
+                ),
+                IoMsg::LoadPreset { path } => IoEffect::PresetLoadResult(
+                    load_akai_mpd226_preset_from_sysex(&path)
+                        .await
+                        .map(Box::new)
+                        .map_err(|e| e.to_string()),
+                ),
+            };
+
+            io_app_tx.send(AppMsg::Io(Box::new(effect))).unwrap();
+        }
+    });
+
     let _midi = tokio::spawn(async move {
         while let Some(msg) = midi_rx.recv().await {
             let result = handle_midi_msg(msg).await;
@@ -59,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let mut app_state = AppState::default();
+    let mut app_state = AppState::new();
 
     let app_ui_tx = ui_tx.clone();
     let _app = tokio::spawn(async move {
@@ -74,6 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match effect {
                     AppEffect::Ui(ui_msg) => app_ui_tx.send(ui_msg).unwrap(),
                     AppEffect::Device(device_msg) => midi_tx.send(device_msg).unwrap(),
+                    AppEffect::Io(io_msg) => io_tx.send(*io_msg).unwrap(),
                 }
             }
         }

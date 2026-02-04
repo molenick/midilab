@@ -10,8 +10,11 @@ repository.workspace = true
 
 [dependencies]
 bytemuck.workspace = true
+dirs.workspace = true
 enumeric.workspace = true
 num_enum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 strum_macros.workspace = true
 strum.workspace = true
 thiserror.workspace = true

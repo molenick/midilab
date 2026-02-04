@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 midilab.workspace = true
+bytemuck.workspace = true
 midir.workspace = true
 tokio.workspace = true
 thiserror.workspace = true

@@ -160,13 +160,13 @@ pub struct Preset {
 }
 impl Default for Preset {
     fn default() -> Self {
-        // CC and Color values from default manufactuer'rs Generic/default Mpd226 Editor preset
+        // CC and Color values from default manufacturer's Generic/default Mpd226 Editor preset
         const GENERIC_DIAL_CC: [u8; 12] = [3, 9, 14, 15, 52, 53, 54, 55, 83, 85, 86, 87];
         const GENERIC_FADER_CC: [u8; 12] = [20, 21, 22, 23, 61, 62, 63, 70, 92, 93, 94, 95];
         const GENERIC_SWITCH_CC: [u8; 12] = [28, 29, 30, 31, 75, 76, 77, 78, 106, 107, 108, 109];
         let settings = PresetSettings::default();
 
-        let mut pads = PadRepository::default(); // todo: this should get some dressing
+        let mut pads = PadRepository::default();
         let dials = DialRepository::with_cc_values(GENERIC_DIAL_CC);
         let faders = FaderRepository::with_cc_values(GENERIC_FADER_CC);
         let switches = SwitchRepository::with_cc_values(GENERIC_SWITCH_CC);

@@ -10,5 +10,6 @@ repository.workspace = true
 midilab.workspace = true
 
 eframe.workspace = true
+rfd.workspace = true
 tokio.workspace = true
 

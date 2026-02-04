@@ -374,7 +374,7 @@ mod tests {
             assert_eq!(bytes.len(), 11);
             assert_eq!(bytes[0], PadKind::Note as u8);
             assert_eq!(bytes[1], MidiChannel::COMMON as u8); // channel
-            assert_eq!(bytes[2], Note::N60.into()); // note
+            assert_eq!(bytes[2], Note::N60 as u8); // note
             assert_eq!(bytes[9], PadColor::Red as u8);
             assert_eq!(bytes[10], PadColor::Green as u8);
         }
