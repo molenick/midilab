@@ -32,11 +32,11 @@ allow = [
     "Unlicense",
     "0BSD",
     "Unicode-3.0",
-    "OFL-1.1",          # SIL Open Font License (for bundled fonts)
-    "Ubuntu-font-1.0",  # Ubuntu Font License (for bundled fonts)
+    "OFL-1.1",  
+    "Ubuntu-font-1.0",
+    "MPL-2.0",
 ]
 
-# Clarifications for crates that cargo-deny can't auto-detect
 [[licenses.clarify]]
 name = "ring"
 expression = "MIT AND ISC AND OpenSSL"
