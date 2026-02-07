@@ -78,10 +78,10 @@ fn preset_round_trip() {
     mutated.pads.pads[1].note = Note::N84;
     mutated.dials.0[0].midicc = 50.into();
     mutated.dials.0[1].midicc = 51.into();
-    mutated.faders.0[0].midicc = 60;
-    mutated.faders.0[1].midicc = 61;
-    mutated.switches.0[0].midicc = 70;
-    mutated.switches.0[1].midicc = 71;
+    mutated.faders.0[0].midicc = 60.into();
+    mutated.faders.0[1].midicc = 61.into();
+    mutated.switches.0[0].midicc = 70.into();
+    mutated.switches.0[1].midicc = 71.into();
 
     {
         let conn: &mut midir::MidiOutputConnection = &mut conn;
@@ -117,10 +117,10 @@ fn preset_round_trip() {
     assert_eq!(loaded.pads.pads[1].note, Note::N84);
     assert_eq!(loaded.dials.0[0].midicc, 50.into());
     assert_eq!(loaded.dials.0[1].midicc, 51.into());
-    assert_eq!(loaded.faders.0[0].midicc, 60);
-    assert_eq!(loaded.faders.0[1].midicc, 61);
-    assert_eq!(loaded.switches.0[0].midicc, 70);
-    assert_eq!(loaded.switches.0[1].midicc, 71);
+    assert_eq!(loaded.faders.0[0].midicc, 60.into());
+    assert_eq!(loaded.faders.0[1].midicc, 61.into());
+    assert_eq!(loaded.switches.0[0].midicc, 70.into());
+    assert_eq!(loaded.switches.0[1].midicc, 71.into());
 
     {
         let conn: &mut midir::MidiOutputConnection = &mut conn;

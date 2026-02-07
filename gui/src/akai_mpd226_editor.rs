@@ -1056,9 +1056,9 @@ fn render_fader_compare_grid(ui: &mut Ui, fader: &mut Fader) {
             .show(ui, |ui| {
                 row_edit_fader_kind(ui, "kind", &mut fader.kind);
                 row_edit_midi_channel(ui, "channel", &mut fader.channel);
-                row_edit_u8(ui, "midicc", &mut fader.midicc);
-                row_edit_u8(ui, "min", &mut fader.min);
-                row_edit_u8(ui, "max", &mut fader.max);
+                row_edit_u8(ui, "midicc", &mut fader.midicc.into());
+                row_edit_u8(ui, "min", &mut fader.min.into());
+                row_edit_u8(ui, "max", &mut fader.max.into());
                 row_edit_midi2din(ui, "midi to din", &mut fader.midi2din);
             });
     });
@@ -1072,14 +1072,14 @@ fn render_switch_compare_grid(ui: &mut Ui, switch: &mut Switch) {
             .show(ui, |ui| {
                 row_edit_switch_kind(ui, "kind", &mut switch.kind);
                 row_edit_midi_channel(ui, "channel", &mut switch.channel);
-                row_edit_u8(ui, "midicc", &mut switch.midicc);
+                row_edit_u8(ui, "midicc", &mut switch.midicc.into());
                 row_edit_trigger_kind(ui, "mode", &mut switch.mode);
-                row_edit_u8(ui, "prog", &mut switch.prog);
-                row_edit_u8(ui, "msb", &mut switch.msb);
-                row_edit_u8(ui, "lsb", &mut switch.lsb);
+                row_edit_u8(ui, "prog", &mut switch.prog.into());
+                row_edit_u8(ui, "msb", &mut switch.msb.into());
+                row_edit_u8(ui, "lsb", &mut switch.lsb.into());
                 row_edit_midi2din(ui, "midi to din", &mut switch.midi2din);
                 row_edit_u8(ui, "note", &mut switch.note);
-                row_edit_u8(ui, "velo", &mut switch.velo);
+                row_edit_u8(ui, "velo", &mut switch.velo.into());
                 row_edit_midi2din(ui, "invert", &mut switch.invert);
             });
     });
