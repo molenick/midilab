@@ -679,7 +679,22 @@ fn render_pad_bank(
 fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) {
     let (rect, resp) = ui.allocate_exact_size(PAD_DIMENSIONS, egui::Sense::click());
 
-    ui.painter().rect_filled(rect, 4.0, Color32::DARK_GRAY);
+    let half_w = rect.width() * 0.5;
+
+    let left_rect = egui::Rect::from_min_size(rect.min, vec2(half_w, rect.height()));
+    let right_rect =
+        egui::Rect::from_min_size(rect.min + vec2(half_w, 0.0), vec2(half_w, rect.height()));
+
+    let (r, g, b) = *pad.off_color.as_rgb_color();
+    let off_color = Color32::from_rgb(r, g, b);
+    ui.painter().rect_filled(left_rect, 0.0, off_color);
+
+    let (r, g, b) = *pad.on_color.as_rgb_color();
+    let on_color = Color32::from_rgb(r, g, b);
+    ui.painter().rect_filled(right_rect, 0.0, on_color);
+
+    ui.painter()
+        .rect_filled(rect.shrink(3.0), 4.0, Color32::from_rgb(64, 64, 64));
 
     if let Some(UserSelection::Pad { id }) = selected_item
         && pad.id == *id
@@ -692,37 +707,26 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
         );
     }
 
-    let half_w = rect.width() * 0.5;
     let half_h = rect.height() * 0.5;
-
-    let tl = egui::Rect::from_min_size(rect.min, vec2(half_w, half_h));
-    let tr = egui::Rect::from_min_size(rect.min + vec2(half_w, 0.0), vec2(half_w, half_h));
-    let bl = egui::Rect::from_min_size(rect.min + vec2(0.0, half_h), vec2(half_w, half_h));
-    let br = egui::Rect::from_min_size(rect.min + vec2(half_w, half_h), vec2(half_w, half_h));
+    let top_half = egui::Rect::from_min_size(rect.min, vec2(rect.width(), half_h));
+    let bottom_half =
+        egui::Rect::from_min_size(rect.min + vec2(0.0, half_h), vec2(rect.width(), half_h));
 
     ui.painter().text(
-        tl.center(),
+        top_half.center(),
         egui::Align2::CENTER_CENTER,
         pad.id.to_string(),
         egui::FontId::proportional(12.0),
-        Color32::WHITE,
+        Color32::from_rgb(231, 231, 231),
     );
 
     ui.painter().text(
-        tr.center(),
+        bottom_half.center(),
         egui::Align2::CENTER_CENTER,
         format!("♩{}", pad.note),
         egui::FontId::proportional(12.0),
-        Color32::WHITE,
+        Color32::from_rgb(231, 231, 231),
     );
-
-    let (r, g, b) = *pad.off_color.as_rgb_color();
-    let off_color = Color32::from_rgb(r, g, b);
-    ui.painter().rect_filled(bl.shrink(4.0), 4.0, off_color);
-
-    let (r, g, b) = *pad.on_color.as_rgb_color();
-    let on_color = Color32::from_rgb(r, g, b);
-    ui.painter().rect_filled(br.shrink(4.0), 4.0, on_color);
 
     if resp.clicked() {
         click_pad(pad.id, selected_item);
