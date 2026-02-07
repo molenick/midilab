@@ -23,20 +23,14 @@ pub struct PadRepository {
 impl PadRepository {
     pub fn set_note_pattern(&mut self, starting_position: usize, pattern: NotePattern) {
         let clamped_starting_position = starting_position.min(TOTAL_PADS);
+        let notes = pattern.as_midi_notes();
+        let changing_pads = &mut self.pads[clamped_starting_position..TOTAL_PADS];
 
-        match pattern {
-            NotePattern::Scale(scale_sequence) => {
-                let notes = scale_sequence.as_midi_notes();
-
-                let changing_pads = &mut self.pads[clamped_starting_position..TOTAL_PADS];
-
-                for (rel_idx, pad) in changing_pads.iter_mut().enumerate() {
-                    if let Some(&midi_note) = notes.get(rel_idx)
-                        && let Ok(note) = Note::try_from(midi_note)
-                    {
-                        pad.note = note;
-                    }
-                }
+        for (rel_idx, pad) in changing_pads.iter_mut().enumerate() {
+            if let Some(&midi_note) = notes.get(rel_idx)
+                && let Ok(note) = Note::try_from(midi_note)
+            {
+                pad.note = note;
             }
         }
     }
@@ -237,6 +231,7 @@ mod tests {
     use crate::manufacturer::akai::mpd226::raw::RawPad;
     use crate::manufacturer::akai::mpd226::raw::RawSwitch;
     use crate::scale::Octave;
+    use crate::scale::OctaveRowSequence;
     use crate::scale::ScaleKind;
     use crate::scale::ScaleSequence;
     use crate::scale::SequenceDirection;
@@ -751,5 +746,28 @@ mod tests {
         for i in 0..8 {
             assert_eq!(repo.pads[i].off_color, PadColor::Aqua);
         }
+    }
+
+    #[test]
+    fn test_pad_repository_set_note_pattern_octave_row() {
+        let mut repo = PadRepository::default();
+
+        repo.set_note_pattern(
+            0,
+            NotePattern::OctaveRow(OctaveRowSequence {
+                base_note: Note::N36,
+                direction: SequenceDirection::Ascending,
+                length: 64,
+            }),
+        );
+
+        assert_eq!(repo.pads[0].note, Note::N36);
+        assert_eq!(repo.pads[1].note, Note::N36);
+        assert_eq!(repo.pads[2].note, Note::N36);
+        assert_eq!(repo.pads[3].note, Note::N36);
+        assert_eq!(repo.pads[4].note, Note::N48);
+        assert_eq!(repo.pads[5].note, Note::N48);
+        assert_eq!(repo.pads[6].note, Note::N48);
+        assert_eq!(repo.pads[7].note, Note::N48);
     }
 }

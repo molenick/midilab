@@ -55,6 +55,54 @@ impl ScaleSequence {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct OctaveRowSequence {
+    pub base_note: Note,
+    pub direction: SequenceDirection,
+    pub length: usize,
+}
+
+impl Default for OctaveRowSequence {
+    fn default() -> Self {
+        Self {
+            base_note: Note::N36,
+            direction: SequenceDirection::Ascending,
+            length: 64,
+        }
+    }
+}
+
+impl OctaveRowSequence {
+    pub fn as_midi_notes(&self) -> Vec<u8> {
+        let base: u8 = self.base_note.into();
+        let mut notes = Vec::new();
+        let mut row_note = base as i16;
+        let mut last_valid_note = row_note;
+
+        while notes.len() < self.length {
+            if (0..=127).contains(&row_note) {
+                last_valid_note = row_note;
+                for _ in 0..4 {
+                    if notes.len() < self.length {
+                        notes.push(row_note as u8);
+                    }
+                }
+            } else {
+                while notes.len() < self.length {
+                    notes.push(last_valid_note as u8);
+                }
+                break;
+            }
+            row_note = match self.direction {
+                SequenceDirection::Ascending => row_note + 12,
+                SequenceDirection::Descending => row_note - 12,
+            };
+        }
+
+        notes
+    }
+}
+
 /// The octave as represented by Scientific Pitch Notation: https://en.wikipedia.org/wiki/Scientific_pitch_notation
 #[repr(i8)]
 #[derive(Copy, Clone, Debug, EnumIter, PartialEq, Eq)]
