@@ -115,15 +115,14 @@ impl Default for PadRepository {
 }
 
 impl TryFrom<RawPads> for PadRepository {
-    type Error = super::error::PresetDeserializationError;
+    type Error = super::error::PresetParseError;
 
     fn try_from(raw: RawPads) -> Result<Self, Self::Error> {
         let mut pad_repo = PadRepository::default();
 
         for (i, raw_pad) in raw.0.iter().enumerate() {
-            pad_repo.pads[i] = Pad::try_from((i, *raw_pad)).map_err(|source| {
-                super::error::PresetDeserializationError::Pad { index: i, source }
-            })?;
+            pad_repo.pads[i] = Pad::try_from((i, *raw_pad))
+                .map_err(|source| super::error::PresetParseError::Pad { index: i, source })?;
         }
 
         Ok(pad_repo)
@@ -176,15 +175,14 @@ impl DialRepository {
 }
 
 impl TryFrom<RawFaders> for FaderRepository {
-    type Error = super::error::PresetDeserializationError;
+    type Error = super::error::PresetParseError;
 
     fn try_from(raw: RawFaders) -> Result<Self, Self::Error> {
         let mut faders = [Fader::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let fader = Fader::try_from(*r).map_err(|source| {
-                super::error::PresetDeserializationError::Fader { index: i, source }
-            })?;
+            let fader = Fader::try_from(*r)
+                .map_err(|source| super::error::PresetParseError::Fader { index: i, source })?;
             faders[i] = fader;
         }
 
@@ -193,15 +191,14 @@ impl TryFrom<RawFaders> for FaderRepository {
 }
 
 impl TryFrom<RawSwitches> for SwitchRepository {
-    type Error = super::error::PresetDeserializationError;
+    type Error = super::error::PresetParseError;
 
     fn try_from(raw: RawSwitches) -> Result<Self, Self::Error> {
         let mut switches = [Switch::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let switch = Switch::try_from(*r).map_err(|source| {
-                super::error::PresetDeserializationError::Switch { index: i, source }
-            })?;
+            let switch = Switch::try_from(*r)
+                .map_err(|source| super::error::PresetParseError::Switch { index: i, source })?;
             switches[i] = switch;
         }
 
@@ -210,15 +207,14 @@ impl TryFrom<RawSwitches> for SwitchRepository {
 }
 
 impl TryFrom<RawDials> for DialRepository {
-    type Error = super::error::PresetDeserializationError;
+    type Error = super::error::PresetParseError;
 
     fn try_from(raw: RawDials) -> Result<Self, Self::Error> {
         let mut dials = [Dial::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let dial = Dial::try_from(*r).map_err(|source| {
-                super::error::PresetDeserializationError::Dial { index: i, source }
-            })?;
+            let dial = Dial::try_from(*r)
+                .map_err(|source| super::error::PresetParseError::Dial { index: i, source })?;
             dials[i] = dial;
         }
 

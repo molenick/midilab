@@ -27,7 +27,7 @@ use midilab::sysex::Sysex;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
 
 // Deserialize an Akai Mpd226's raw PresetAck bytes into Sysex
-let bytes: &[u8] = &[0xf0, 0x47, 0x00, 0x35, 0x11, 0x00, 0x01, 0x00, 0xf7];
+let bytes: &[u8] = &[0xf0, 0x47, 0x00, 0x35, 0x11, 0x00, 0x01, 0x00, 0x00, 0xf7];
 let sysex = Sysex::try_from(bytes).unwrap();
 // Deserialize the Sysex into a DeviceStatus variant
 let status = DeviceStatus::try_from(sysex).unwrap();

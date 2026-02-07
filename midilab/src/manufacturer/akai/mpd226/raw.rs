@@ -1,9 +1,29 @@
 use bytemuck::Pod;
-use bytemuck::PodCastError;
 use bytemuck::Zeroable;
 
+use crate::manufacturer::akai::SYSEX_MANUFACTURER_ID;
+use crate::manufacturer::akai::mpd226::DEVICE_ID;
+use crate::manufacturer::akai::mpd226::DeviceCommandId;
+use crate::manufacturer::akai::mpd226::DeviceHeader;
+use crate::manufacturer::akai::mpd226::GLOBAL_VALUE_FOOTER_MAGIC;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
 use crate::sysex::Sysex;
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub struct RawGlobalParamAck {
+    _unknown1: u8,
+    _unknown2: u8,
+    pub addr: u8,
+    pub status: u8,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub struct RawPresetAck {
+    pub _unknown1: u8,
+    pub slot: u8,
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -16,27 +36,26 @@ pub struct RawPreset {
     pub footer_magic: [u8; 12],
 }
 
-impl TryFrom<Sysex> for RawPreset {
-    type Error = PodCastError;
-
-    fn try_from(sysex: Sysex) -> Result<Self, PodCastError> {
-        let payload = sysex.payload();
-        let mid = std::mem::size_of::<RawHeader>();
-        let (_header, preset_bytes) = payload.split_at(mid);
-
-        let preset = bytemuck::try_from_bytes::<RawPreset>(preset_bytes)?;
-        Ok(*preset)
-    }
-}
-
 #[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
+#[derive(Copy, Clone, Pod, Zeroable, Debug)]
 pub struct RawHeader {
     pub mfg_id: u8,
     pub _unknown: u8,
     pub device_id: u8,
     pub cmd: u8,
     pub length: [u8; 2],
+}
+
+impl<C: Into<u8> + Copy> From<&DeviceHeader<C>> for RawHeader {
+    fn from(value: &DeviceHeader<C>) -> Self {
+        RawHeader {
+            mfg_id: SYSEX_MANUFACTURER_ID,
+            _unknown: 0,
+            device_id: DEVICE_ID,
+            cmd: value.cmd.into(),
+            length: value.message_length.to_le_bytes(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -134,10 +153,73 @@ pub struct RawFaders(pub [RawFader; 12]);
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct RawSwitches(pub [RawSwitch; 12]);
 
+/// Wire representation of MPD226 global parameters (11 bytes).
+/// Field order matches device dump byte order (after the 3-byte prefix is
+/// stripped). All bytes are in sequential addr order (0x01..=0x0B).
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable, Default, Debug)]
+pub struct RawGlobal {
+    pub common_channel: u8,   // byte 0, addr 0x01
+    pub lcd_contrast: u8,     // byte 1, addr 0x02
+    pub tap_average: u8,      // byte 2, addr 0x03
+    pub tempo_led: u8,        // byte 3, addr 0x04
+    pub midi_clock: u8,       // byte 4, addr 0x05
+    pub transport_to_din: u8, // byte 5, addr 0x06
+    pub pad_threshold: u8,    // byte 6, addr 0x07
+    pub _unknown_08: u8,      // byte 7, addr 0x08
+    pub pad_curve: u8,        // byte 8, addr 0x09
+    pub pad_gain: u8,         // byte 9, addr 0x0A
+    pub note_display: u8,     // byte 10, addr 0x0B
+}
+
+impl RawGlobal {
+    fn param_pairs(&self) -> [(u8, u8); 11] {
+        [
+            (0x01, self.common_channel),
+            (0x02, self.lcd_contrast),
+            (0x03, self.tap_average),
+            (0x04, self.tempo_led),
+            (0x05, self.midi_clock),
+            (0x06, self.transport_to_din),
+            (0x07, self.pad_threshold),
+            (0x08, self._unknown_08),
+            (0x09, self.pad_curve),
+            (0x0A, self.pad_gain),
+            (0x0B, self.note_display),
+        ]
+    }
+
+    /// Send all global parameters to device (as individual writes)
+    /// Returns Vec of sysex messages, one per parameter
+    pub fn global_send_messages(&self) -> Vec<Vec<u8>> {
+        self.param_pairs()
+            .into_iter()
+            .map(|(addr, value)| Self::global_write_param(addr, value))
+            .collect()
+    }
+
+    fn global_write_param(addr: u8, value: u8) -> Vec<u8> {
+        let length = u16::from_le_bytes([0x00, 0x04]).to_le_bytes();
+        let header = RawHeader {
+            mfg_id: SYSEX_MANUFACTURER_ID,
+            _unknown: 0,
+            device_id: DEVICE_ID,
+            cmd: DeviceCommandId::WriteGlobal as u8,
+            length,
+        };
+
+        let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
+        sysex_payload.extend_from_slice(&GLOBAL_VALUE_FOOTER_MAGIC);
+        sysex_payload.push(addr);
+        sysex_payload.push(value);
+        Sysex::new(sysex_payload).as_bytes()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::manufacturer::akai::mpd226::DeviceCommand;
+    use crate::manufacturer::akai::mpd226::DeviceCommandId;
     use crate::manufacturer::akai::mpd226::preset_dump_request;
 
     #[test]
@@ -246,7 +328,7 @@ mod tests {
         assert_eq!(request[1], 0x47);
         assert_eq!(request[2], 0x00);
         assert_eq!(request[3], 0x35);
-        assert_eq!(request[4], DeviceCommand::DumpPreset as u8);
+        assert_eq!(request[4], DeviceCommandId::DumpPreset as u8);
         assert_eq!(request[5], 0x00);
         assert_eq!(request[6], 0x01);
         assert_eq!(request[7], 0x00);
@@ -259,5 +341,10 @@ mod tests {
 
         assert_eq!(request.len(), 9);
         assert_eq!(request[7], 0x00);
+    }
+
+    #[test]
+    fn test_raw_global_size() {
+        assert_eq!(std::mem::size_of::<super::RawGlobal>(), 11);
     }
 }

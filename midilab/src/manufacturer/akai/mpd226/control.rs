@@ -21,7 +21,6 @@ use crate::manufacturer::akai::mpd226::raw::RawPad;
 use crate::manufacturer::akai::mpd226::raw::RawSwitch;
 use crate::midi::Note;
 
-/// Contains common value types used the controls
 pub mod value_kind;
 
 #[repr(C)]
@@ -34,9 +33,9 @@ pub struct Pad {
     pub midi2din: ActiveState,
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
-    pub program: u8, // u4
-    pub msb: u8,     // u4
-    pub lsb: u8,     // u4
+    pub program: u8,
+    pub msb: u8,
+    pub lsb: u8,
     pub off_color: PadColor,
     pub on_color: PadColor,
 }
@@ -71,29 +70,25 @@ impl Pad {
 }
 
 impl TryFrom<(usize, RawPad)> for Pad {
-    type Error = super::error::PadDeserializationError;
+    type Error = super::error::PadParseError;
 
     fn try_from(value: (usize, RawPad)) -> Result<Self, Self::Error> {
-        use super::error::PadDeserializationError;
+        use super::error::PadParseError;
         let (index, raw) = value;
         Ok(Pad {
             id: index,
-            kind: PadKind::try_from(raw.kind).map_err(PadDeserializationError::Kind)?,
-            channel: MidiChannel::try_from(raw.channel)
-                .map_err(PadDeserializationError::Channel)?,
-            note: Note::try_from(raw.note).map_err(PadDeserializationError::Note)?,
-            midi2din: ActiveState::try_from(raw.midi2din)
-                .map_err(PadDeserializationError::Midi2Din)?,
-            trigger: TriggerKind::try_from(raw.trigger)
-                .map_err(PadDeserializationError::Trigger)?,
+            kind: PadKind::try_from(raw.kind).map_err(PadParseError::Kind)?,
+            channel: MidiChannel::try_from(raw.channel).map_err(PadParseError::Channel)?,
+            note: Note::try_from(raw.note).map_err(PadParseError::Note)?,
+            midi2din: ActiveState::try_from(raw.midi2din).map_err(PadParseError::Midi2Din)?,
+            trigger: TriggerKind::try_from(raw.trigger).map_err(PadParseError::Trigger)?,
             aftertouch: AfterTouchKind::try_from(raw.aftertouch)
-                .map_err(PadDeserializationError::Aftertouch)?,
+                .map_err(PadParseError::Aftertouch)?,
             program: raw.program,
             msb: raw.msb,
             lsb: raw.lsb,
-            off_color: PadColor::try_from(raw.off_color)
-                .map_err(PadDeserializationError::OffColor)?,
-            on_color: PadColor::try_from(raw.on_color).map_err(PadDeserializationError::OnColor)?,
+            off_color: PadColor::try_from(raw.off_color).map_err(PadParseError::OffColor)?,
+            on_color: PadColor::try_from(raw.on_color).map_err(PadParseError::OnColor)?,
         })
     }
 }
@@ -103,13 +98,13 @@ impl TryFrom<(usize, RawPad)> for Pad {
 pub struct Dial {
     pub kind: DialKind,
     pub channel: MidiChannel,
-    pub midicc: u8, // CC and ID2 only
-    pub min: u8,    // CC and AT only
-    pub max: u8,    // CC and AT only
+    pub midicc: u8,
+    pub min: u8,
+    pub max: u8,
     pub midi2din: ActiveState,
-    pub msb: u8,   // ID1 only
-    pub lsb: u8,   // ID1 only
-    pub value: u8, // ID1 only
+    pub msb: u8,
+    pub lsb: u8,
+    pub value: u8,
 }
 
 impl Default for Dial {
@@ -145,19 +140,17 @@ impl Dial {
 }
 
 impl TryFrom<RawDial> for Dial {
-    type Error = super::error::DialDeserializationError;
+    type Error = super::error::DialParseError;
 
     fn try_from(raw: RawDial) -> Result<Self, Self::Error> {
-        use super::error::DialDeserializationError;
+        use super::error::DialParseError;
         Ok(Dial {
-            kind: DialKind::try_from(raw.kind).map_err(DialDeserializationError::Kind)?,
-            channel: MidiChannel::try_from(raw.channel)
-                .map_err(DialDeserializationError::Channel)?,
+            kind: DialKind::try_from(raw.kind).map_err(DialParseError::Kind)?,
+            channel: MidiChannel::try_from(raw.channel).map_err(DialParseError::Channel)?,
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
-            midi2din: ActiveState::try_from(raw.midi2din)
-                .map_err(DialDeserializationError::Midi2Din)?,
+            midi2din: ActiveState::try_from(raw.midi2din).map_err(DialParseError::Midi2Din)?,
             msb: raw.msb,
             lsb: raw.lsb,
             value: raw.value,
@@ -170,9 +163,9 @@ impl TryFrom<RawDial> for Dial {
 pub struct Fader {
     pub kind: FaderKind,
     pub channel: MidiChannel,
-    pub midicc: u8, // cc only
-    pub min: u8,    // both cc and aftertouch
-    pub max: u8,    // both cc and aftertouch
+    pub midicc: u8,
+    pub min: u8,
+    pub max: u8,
     pub midi2din: ActiveState,
 }
 
@@ -203,19 +196,17 @@ impl Fader {
 }
 
 impl TryFrom<RawFader> for Fader {
-    type Error = super::error::FaderDeserializationError;
+    type Error = super::error::FaderParseError;
 
     fn try_from(raw: RawFader) -> Result<Self, Self::Error> {
-        use super::error::FaderDeserializationError;
+        use super::error::FaderParseError;
         Ok(Fader {
-            kind: FaderKind::try_from(raw.kind).map_err(FaderDeserializationError::Kind)?,
-            channel: MidiChannel::try_from(raw.channel)
-                .map_err(FaderDeserializationError::Channel)?,
+            kind: FaderKind::try_from(raw.kind).map_err(FaderParseError::Kind)?,
+            channel: MidiChannel::try_from(raw.channel).map_err(FaderParseError::Channel)?,
             midicc: raw.midicc,
             min: raw.min,
             max: raw.max,
-            midi2din: ActiveState::try_from(raw.midi2din)
-                .map_err(FaderDeserializationError::Midi2Din)?,
+            midi2din: ActiveState::try_from(raw.midi2din).map_err(FaderParseError::Midi2Din)?,
         })
     }
 }
@@ -224,8 +215,8 @@ impl TryFrom<RawFader> for Fader {
 #[derive(Clone, Copy, Debug)]
 pub struct Switch {
     pub kind: SwitchKind,
-    pub channel: MidiChannel, // all but keystroke
-    pub midicc: u8,           // cc only
+    pub channel: MidiChannel,
+    pub midicc: u8,
     pub mode: TriggerKind,
     pub prog: u8,
     pub msb: u8,
@@ -234,7 +225,7 @@ pub struct Switch {
     pub note: u8,
     pub velo: u8,
     pub invert: ActiveState,
-    pub key1: u8, // todo: support properly. can be used today if you know the corresponding key value - i would bet on the lower side of u4 :)
+    pub key1: u8,
     pub key2: KeyModifier,
 }
 
@@ -279,27 +270,24 @@ impl Switch {
 }
 
 impl TryFrom<RawSwitch> for Switch {
-    type Error = super::error::SwitchDeserializationError;
+    type Error = super::error::SwitchParseError;
 
     fn try_from(raw: RawSwitch) -> Result<Self, Self::Error> {
-        use super::error::SwitchDeserializationError;
+        use super::error::SwitchParseError;
         Ok(Switch {
-            kind: SwitchKind::try_from(raw.kind).map_err(SwitchDeserializationError::Kind)?,
-            channel: MidiChannel::try_from(raw.channel)
-                .map_err(SwitchDeserializationError::Channel)?,
+            kind: SwitchKind::try_from(raw.kind).map_err(SwitchParseError::Kind)?,
+            channel: MidiChannel::try_from(raw.channel).map_err(SwitchParseError::Channel)?,
             midicc: raw.midicc,
-            mode: TriggerKind::try_from(raw.mode).map_err(SwitchDeserializationError::Mode)?,
+            mode: TriggerKind::try_from(raw.mode).map_err(SwitchParseError::Mode)?,
             prog: raw.prog,
             msb: raw.msb,
             lsb: raw.lsb,
-            midi2din: ActiveState::try_from(raw.midi2din)
-                .map_err(SwitchDeserializationError::Midi2Din)?,
+            midi2din: ActiveState::try_from(raw.midi2din).map_err(SwitchParseError::Midi2Din)?,
             note: raw.note,
             velo: raw.velo,
-            invert: ActiveState::try_from(raw.invert)
-                .map_err(SwitchDeserializationError::Invert)?,
+            invert: ActiveState::try_from(raw.invert).map_err(SwitchParseError::Invert)?,
             key1: raw.key1,
-            key2: KeyModifier::try_from(raw.key2).map_err(SwitchDeserializationError::Key2)?,
+            key2: KeyModifier::try_from(raw.key2).map_err(SwitchParseError::Key2)?,
         })
     }
 }
@@ -373,8 +361,8 @@ mod tests {
             let bytes = pad.as_bytes();
             assert_eq!(bytes.len(), 11);
             assert_eq!(bytes[0], PadKind::Note as u8);
-            assert_eq!(bytes[1], MidiChannel::COMMON as u8); // channel
-            assert_eq!(bytes[2], Note::N60 as u8); // note
+            assert_eq!(bytes[1], MidiChannel::COMMON as u8);
+            assert_eq!(bytes[2], Note::N60 as u8);
             assert_eq!(bytes[9], PadColor::Red as u8);
             assert_eq!(bytes[10], PadColor::Green as u8);
         }
@@ -460,10 +448,10 @@ mod tests {
             let bytes = dial.as_bytes();
             assert_eq!(bytes.len(), 9);
             assert_eq!(bytes[0], DialKind::CC as u8);
-            assert_eq!(bytes[1], 1); // channel
-            assert_eq!(bytes[2], 74); // midicc
-            assert_eq!(bytes[3], 0); // min
-            assert_eq!(bytes[4], 127); // max
+            assert_eq!(bytes[1], 1);
+            assert_eq!(bytes[2], 74);
+            assert_eq!(bytes[3], 0);
+            assert_eq!(bytes[4], 127);
         }
 
         #[test]
@@ -528,8 +516,8 @@ mod tests {
             let bytes = fader.as_bytes();
             assert_eq!(bytes.len(), 6);
             assert_eq!(bytes[0], FaderKind::Aftertouch as u8);
-            assert_eq!(bytes[1], MidiChannel::A2 as u8); // channel
-            assert_eq!(bytes[2], 7); // midicc
+            assert_eq!(bytes[1], MidiChannel::A2 as u8);
+            assert_eq!(bytes[2], 7);
         }
 
         #[test]

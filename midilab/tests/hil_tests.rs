@@ -1,36 +1,42 @@
 use std::sync::mpsc;
 use std::time::Duration;
 
+use midilab::manufacturer::akai::mpd226::DeviceStatus;
+use midilab::manufacturer::akai::mpd226::Global;
 use midilab::manufacturer::akai::mpd226::Preset;
-use midilab::manufacturer::akai::mpd226::control::PresetSettings;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
+use midilab::manufacturer::akai::mpd226::global_dump_request;
 use midilab::manufacturer::akai::mpd226::preset_dump_request;
 use midilab::manufacturer::akai::mpd226::preset_send_message;
+use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
-use midilab::sysex::Sysex;
+use midilab::midi::Note;
 
-#[ignore = "this flashes the device, we only want it to run sometimes"]
-#[test]
-fn test_construction_and_transmission_to_device() {
-    const PORT_NAME: &str = "MPD226 Remote";
+const PORT_NAME: &str = "MPD226 Remote";
+const TIMEOUT: Duration = Duration::from_secs(5);
 
+fn midi_setup() -> (
+    midir::MidiOutputConnection,
+    mpsc::Receiver<Vec<u8>>,
+    midir::MidiInputConnection<()>,
+) {
     let midi_out = midir::MidiOutput::new("mpd226").unwrap();
     let out_ports = midi_out.ports();
     let out_port = out_ports
         .iter()
         .find(|p| midi_out.port_name(p).unwrap() == PORT_NAME)
-        .expect("MPD226 Remote output port not found");
-    let mut conn = midi_out.connect(out_port, "mpd226-send").unwrap();
+        .unwrap();
+    let conn_out = midi_out.connect(out_port, "mpd226-send").unwrap();
 
     let midi_in = midir::MidiInput::new("mpd226-recv").unwrap();
     let in_ports = midi_in.ports();
     let in_port = in_ports
         .iter()
         .find(|p| midi_in.port_name(p).unwrap() == PORT_NAME)
-        .expect("MPD226 Remote input port not found");
+        .unwrap();
 
     let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _in_conn = midi_in
+    let conn_in = midi_in
         .connect(
             in_port,
             "mpd226-recv",
@@ -41,96 +47,155 @@ fn test_construction_and_transmission_to_device() {
         )
         .unwrap();
 
-    const SYSEX_PAYLOAD_SIZE: usize = 6 + 1075;
-    const ACK_PAYLOAD_SIZE: usize = 8;
+    std::thread::sleep(Duration::from_millis(100));
+    while rx.try_recv().is_ok() {}
 
-    let receive_ack = |rx: &mpsc::Receiver<Vec<u8>>, _: &str| {
-        let data = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    (conn_out, rx, conn_in)
+}
 
-        let sysex = Sysex::try_from(data.as_slice()).expect("ACK should be valid sysex");
-        let payload = sysex.payload();
+#[ignore = "requires connected MPD226"]
+#[test]
+fn preset_round_trip() {
+    let (mut conn, rx, _in_conn) = midi_setup();
 
-        assert_eq!(
-            payload.len(),
-            ACK_PAYLOAD_SIZE,
-            "ACK payload should be {} bytes, got {}",
-            ACK_PAYLOAD_SIZE,
-            payload.len()
-        );
-
-        assert_eq!(payload[0], 0x47, "ACK mfg_id should be 0x47");
-        assert_eq!(payload[1], 0x00, "ACK unknown byte should be 0x00");
-        assert_eq!(payload[2], 0x35, "ACK device_id should be 0x35");
-    };
-
-    let receive_preset = |rx: &mpsc::Receiver<Vec<u8>>, name: &str| -> RawPreset {
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        loop {
-            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            if remaining.is_zero() {
-                panic!("Timeout waiting for {} preset response", name);
-            }
-
-            match rx.recv_timeout(remaining) {
-                Ok(data) => {
-                    if let Ok(sysex) = Sysex::try_from(data.as_slice())
-                        && sysex.payload().len() == SYSEX_PAYLOAD_SIZE
-                        && let Ok(raw_preset) = RawPreset::try_from(sysex)
-                    {
-                        return raw_preset;
-                    }
-                }
-                Err(_) => panic!("Timeout waiting for {} preset response", name),
-            }
+    let original = {
+        let conn: &mut midir::MidiOutputConnection = &mut conn;
+        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
+        conn.send(&preset_dump_request(0x00)).unwrap();
+        let res = {
+            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            DeviceStatus::try_from(data.as_slice()).unwrap()
+        };
+        match res {
+            DeviceStatus::PresetData(p) => *p,
+            _ => panic!("wrong variant"),
         }
     };
 
-    let send_and_verify = |conn: &mut midir::MidiOutputConnection,
-                           rx: &mpsc::Receiver<Vec<u8>>,
-                           preset: &Preset,
-                           name: &str| {
-        let sent_raw = RawPreset::from(preset);
+    let mut mutated = original;
+    mutated.settings.preset_name = PresetName(*b"HILTEST ");
+    mutated.pads.pads[0].note = Note::N72;
+    mutated.pads.pads[1].note = Note::N84;
+    mutated.dials.0[0].midicc = 50;
+    mutated.dials.0[1].midicc = 51;
+    mutated.faders.0[0].midicc = 60;
+    mutated.faders.0[1].midicc = 61;
+    mutated.switches.0[0].midicc = 70;
+    mutated.switches.0[1].midicc = 71;
 
-        conn.send(&{
-            let raw = RawPreset::from(preset);
-            preset_send_message(&raw)
-        })
-        .unwrap();
-        receive_ack(rx, name);
+    {
+        let conn: &mut midir::MidiOutputConnection = &mut conn;
+        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
+        let preset: &Preset = &mutated;
+        let raw = RawPreset::from(preset);
+        conn.send(&preset_send_message(&raw)).unwrap();
+        let res = {
+            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            DeviceStatus::try_from(data.as_slice()).unwrap()
+        };
+        match res {
+            DeviceStatus::ReceivedPresetAck(_) => {}
+            _ => panic!("wrong variant"),
+        }
+    };
+    let loaded = {
+        let conn: &mut midir::MidiOutputConnection = &mut conn;
+        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
         conn.send(&preset_dump_request(0x00)).unwrap();
-        let received_raw = receive_preset(rx, name);
-
-        let sent_bytes = bytemuck::bytes_of(&sent_raw);
-        let received_bytes = bytemuck::bytes_of(&received_raw);
-
-        let sent_data = &sent_bytes[..sent_bytes.len()];
-        let received_data = &received_bytes[..received_bytes.len()];
-
-        assert_eq!(
-            sent_data, received_data,
-            "Preset '{}' round-trip failed: sent != received",
-            name
-        );
+        let res = {
+            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            DeviceStatus::try_from(data.as_slice()).unwrap()
+        };
+        match res {
+            DeviceStatus::PresetData(p) => *p,
+            _ => panic!("wrong variant"),
+        }
     };
 
-    let default = Preset::default();
-    send_and_verify(&mut conn, &rx, &default, "default");
+    assert_eq!(loaded.settings.preset_name.0, *b"HILTEST ");
+    assert_eq!(loaded.pads.pads[0].note, Note::N72);
+    assert_eq!(loaded.pads.pads[1].note, Note::N84);
+    assert_eq!(loaded.dials.0[0].midicc, 50);
+    assert_eq!(loaded.dials.0[1].midicc, 51);
+    assert_eq!(loaded.faders.0[0].midicc, 60);
+    assert_eq!(loaded.faders.0[1].midicc, 61);
+    assert_eq!(loaded.switches.0[0].midicc, 70);
+    assert_eq!(loaded.switches.0[1].midicc, 71);
 
-    let hello = Preset {
-        settings: PresetSettings {
-            preset_name: PresetName(*b"hello   "),
-            ..Default::default()
-        },
-        ..Default::default()
+    {
+        let conn: &mut midir::MidiOutputConnection = &mut conn;
+        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
+        let preset: &Preset = &original;
+        let raw = RawPreset::from(preset);
+        conn.send(&preset_send_message(&raw)).unwrap();
+        let res = {
+            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            DeviceStatus::try_from(data.as_slice()).unwrap()
+        };
+        match res {
+            DeviceStatus::ReceivedPresetAck(_) => {}
+            _ => panic!("wrong variant"),
+        }
     };
-    send_and_verify(&mut conn, &rx, &hello, "hello");
+    let restored = {
+        let conn: &mut midir::MidiOutputConnection = &mut conn;
+        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
+        conn.send(&preset_dump_request(0x00)).unwrap();
+        let res = {
+            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            DeviceStatus::try_from(data.as_slice()).unwrap()
+        };
+        match res {
+            DeviceStatus::PresetData(p) => *p,
+            _ => panic!("wrong variant"),
+        }
+    };
+    let raw_original = RawPreset::from(&original);
+    let raw_restored = RawPreset::from(&restored);
+    assert_eq!(
+        bytemuck::bytes_of(&raw_original),
+        bytemuck::bytes_of(&raw_restored)
+    );
+}
 
-    let world = Preset {
-        settings: PresetSettings {
-            preset_name: PresetName(*b"world   "),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-    send_and_verify(&mut conn, &rx, &world, "world");
+fn send_global(
+    conn: &mut midir::MidiOutputConnection,
+    rx: &mpsc::Receiver<Vec<u8>>,
+    global: &Global,
+) {
+    let raw = RawGlobal::from(global);
+    for msg in raw.global_send_messages() {
+        conn.send(&msg).unwrap();
+        let data = rx.recv_timeout(TIMEOUT).unwrap();
+        let res = DeviceStatus::try_from(data.as_slice()).unwrap();
+        match res {
+            DeviceStatus::GlobalParamAck(_) => {}
+            _ => panic!("wrong variant"),
+        }
+    }
+}
+
+fn read_global(conn: &mut midir::MidiOutputConnection, rx: &mpsc::Receiver<Vec<u8>>) -> Global {
+    conn.send(&global_dump_request()).unwrap();
+    let data = rx.recv_timeout(TIMEOUT).unwrap();
+    let res = DeviceStatus::try_from(data.as_slice()).unwrap();
+    match res {
+        DeviceStatus::GlobalData(g) => *g,
+        _ => panic!("wrong variant"),
+    }
+}
+
+#[ignore = "requires connected MPD226"]
+#[test]
+fn global_round_trip() {
+    let (mut conn, rx, _in_conn) = midi_setup();
+    let device_original = read_global(&mut conn, &rx);
+
+    send_global(&mut conn, &rx, &Global::default());
+    let loaded_default = read_global(&mut conn, &rx);
+    assert_eq!(loaded_default, Global::default());
+
+    send_global(&mut conn, &rx, &device_original);
+    let restored = read_global(&mut conn, &rx);
+    assert_eq!(restored, device_original);
 }
