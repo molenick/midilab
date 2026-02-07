@@ -1,4 +1,4 @@
-use crate::error::SysexDeserializationError;
+use crate::error::SysexParseError;
 
 pub const START_BYTE: u8 = 0xf0;
 pub const END_BYTE: u8 = 0xf7;
@@ -90,21 +90,21 @@ impl Sysex {
 }
 
 impl TryFrom<&[u8]> for Sysex {
-    type Error = SysexDeserializationError;
+    type Error = SysexParseError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        let (first, remaining) = data.split_first().ok_or(SysexDeserializationError::Empty)?;
+        let (first, remaining) = data.split_first().ok_or(SysexParseError::Empty)?;
 
         if *first != START_BYTE {
-            return Err(SysexDeserializationError::InvalidStart(*first));
+            return Err(SysexParseError::InvalidStart(*first));
         }
 
         let (last, payload_slice) = remaining
             .split_last()
-            .ok_or(SysexDeserializationError::MissingEnding)?;
+            .ok_or(SysexParseError::MissingEnding)?;
 
         if *last != END_BYTE {
-            return Err(SysexDeserializationError::InvalidEnding(*last));
+            return Err(SysexParseError::InvalidEnding(*last));
         }
 
         Ok(Sysex {
@@ -160,10 +160,7 @@ mod tests {
         let data = vec![0x00, 0x47, 0x00, 0x35, END_BYTE];
         let result = Sysex::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(
-            result,
-            SysexDeserializationError::InvalidStart(0x00)
-        ))
+        assert!(matches!(result, SysexParseError::InvalidStart(0x00)))
     }
 
     #[test]
@@ -171,10 +168,7 @@ mod tests {
         let data = vec![START_BYTE, 0x47, 0x00, 0x35, 0x00];
         let result = Sysex::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(
-            result,
-            SysexDeserializationError::InvalidEnding(0x00)
-        ))
+        assert!(matches!(result, SysexParseError::InvalidEnding(0x00)))
     }
 
     #[test]
@@ -182,7 +176,7 @@ mod tests {
         let data: Vec<u8> = vec![];
         let result = Sysex::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(result, SysexDeserializationError::Empty));
+        assert!(matches!(result, SysexParseError::Empty));
     }
 
     #[test]
@@ -190,7 +184,7 @@ mod tests {
         let data = vec![START_BYTE];
         let result = Sysex::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(result, SysexDeserializationError::MissingEnding));
+        assert!(matches!(result, SysexParseError::MissingEnding));
     }
 
     #[test]
@@ -205,11 +199,11 @@ mod tests {
 
     #[test]
     fn test_sysex_error_messages() {
-        let start_err = SysexDeserializationError::InvalidStart(0x42);
+        let start_err = SysexParseError::InvalidStart(0x42);
         assert!(start_err.to_string().contains("42"));
         assert!(start_err.to_string().contains("F0"));
 
-        let end_err = SysexDeserializationError::InvalidEnding(0x42);
+        let end_err = SysexParseError::InvalidEnding(0x42);
         assert!(end_err.to_string().contains("42"));
         assert!(end_err.to_string().contains("F7"));
     }

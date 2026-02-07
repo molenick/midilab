@@ -16,7 +16,6 @@ pub fn flush_coremidi_notifications() {
         true,
     );
 }
-
 #[cfg(not(target_vendor = "apple"))]
 pub fn flush_coremidi_notifications() {}
 
@@ -51,7 +50,7 @@ pub mod fs {
     use bytemuck::PodCastError;
     use midilab::manufacturer::akai;
     use midilab::manufacturer::akai::mpd226::Preset;
-    use midilab::manufacturer::akai::mpd226::error::PresetDeserializationError;
+    use midilab::manufacturer::akai::mpd226::error::PresetParseError;
     use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 
     #[derive(Debug, thiserror::Error)]
@@ -61,10 +60,9 @@ pub mod fs {
         #[error(transparent)]
         RawPresetDeserialization(#[from] PodCastError),
         #[error(transparent)]
-        PresetDeserialization(#[from] PresetDeserializationError),
+        PresetDeserialization(#[from] PresetParseError),
     }
 
-    /// Saves the raw bytes of a preset to the specified path
     pub async fn save_akai_mpd226_preset(
         preset: akai::mpd226::Preset,
         path: &Path,
@@ -75,7 +73,6 @@ pub mod fs {
         Ok(tokio::fs::write(path, payload).await?)
     }
 
-    /// Loads the raw bytes of a preset from the specified path
     pub async fn load_akai_mpd226_preset_from_sysex(
         path: &Path,
     ) -> Result<akai::mpd226::Preset, Error> {

@@ -8,6 +8,8 @@ use num_enum::TryFromPrimitive;
 use strum_macros::Display;
 use strum_macros::EnumIter;
 
+use crate::manufacturer::akai::mpd226::error::PresetParseError;
+use crate::manufacturer::akai::mpd226::error::PresetSettingsParseError;
 use crate::sysex::pack_u14;
 use crate::sysex::unpack_u14;
 
@@ -31,6 +33,25 @@ pub enum MidiChannel {
 impl Default for MidiChannel {
     fn default() -> Self {
         Self::COMMON
+    }
+}
+
+#[range_enum]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive, EnumIter, Display)]
+pub enum UsbChannel {
+    #[range(1..=16)]
+    A,
+    #[range(1..=16)]
+    B,
+}
+#[expect(
+    clippy::derivable_impls,
+    reason = "can't derive default in combination with range_enum"
+)]
+impl Default for UsbChannel {
+    fn default() -> Self {
+        Self::A1
     }
 }
 
@@ -72,7 +93,7 @@ pub enum KeyModifier {
 pub struct PresetName(pub [u8; 8]);
 impl Default for PresetName {
     fn default() -> Self {
-        Self(*b"Generic ")
+        Self(*b"Midilab ")
     }
 }
 impl PresetName {
@@ -89,8 +110,6 @@ impl fmt::Display for PresetName {
     }
 }
 
-/// Tempo value in BPM (30-300 range typical).
-/// Uses 7-bit stuffed encoding for MIDI sysex transmission.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tempo(pub u16);
 
@@ -136,6 +155,25 @@ pub enum PresetSlot {
     Slot18 = 18,
     Slot19 = 19,
     Slot20 = 20,
+}
+
+// todo: see if this can be removed in the next sim update phass
+impl TryFrom<&[u8]> for PresetSlot {
+    type Error = PresetParseError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        const PRESET_ACK_LENGTH: usize = 2;
+
+        if value.len() != PRESET_ACK_LENGTH {
+            Err(PresetParseError::PresetSettings(
+                PresetSettingsParseError::PresetSlotData(value.to_vec()),
+            ))
+        } else {
+            PresetSlot::try_from_primitive(value[0]).map_err(|e| {
+                PresetParseError::PresetSettings(PresetSettingsParseError::PresetSlot(e))
+            })
+        }
+    }
 }
 
 #[repr(u8)]
@@ -314,4 +352,68 @@ pub enum ActiveState {
     #[default]
     Off = 0,
     On = 1,
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter, Display)]
+pub enum NoteDisplay {
+    #[default]
+    Value = 0,
+    Number = 1,
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, IntoPrimitive, EnumIter)]
+pub enum TapAverage {
+    Tap2 = 2,
+    #[default]
+    Tap3 = 3,
+    Tap4 = 4,
+}
+
+impl std::fmt::Display for TapAverage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let n = match self {
+            TapAverage::Tap2 => "2",
+            TapAverage::Tap3 => "3",
+            TapAverage::Tap4 => "4",
+        };
+        write!(f, "{n}")
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, IntoPrimitive, EnumIter)]
+pub enum PadCurve {
+    #[default]
+    Linear = 0,
+    SCurve = 1,
+    Log1 = 2,
+    Log2 = 3,
+    Exp1 = 4,
+    Exp2 = 5,
+}
+
+impl std::fmt::Display for PadCurve {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            PadCurve::Linear => "Linear",
+            PadCurve::SCurve => "S-Curve",
+            PadCurve::Log1 => "Log 1",
+            PadCurve::Log2 => "Log 2",
+            PadCurve::Exp1 => "Exp 1",
+            PadCurve::Exp2 => "Exp 2",
+        };
+        write!(f, "{s}")
+    }
+}
+
+#[repr(u8)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, IntoPrimitive, EnumIter, Display,
+)]
+pub enum MidiClock {
+    #[default]
+    Internal = 0,
+    External = 1,
 }
