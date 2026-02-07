@@ -137,7 +137,7 @@ impl FaderRepository {
         let mut repo = Self::default();
 
         for (i, fader) in repo.0.iter_mut().enumerate() {
-            fader.midicc = values[i];
+            fader.midicc = values[i].into();
         }
 
         repo
@@ -152,7 +152,7 @@ impl SwitchRepository {
         let mut repo = Self::default();
 
         for (i, switch) in repo.0.iter_mut().enumerate() {
-            switch.midicc = values[i];
+            switch.midicc = values[i].into();
         }
 
         repo
@@ -167,7 +167,7 @@ impl DialRepository {
         let mut repo = Self::default();
 
         for (i, dial) in repo.0.iter_mut().enumerate() {
-            dial.midicc = values[i];
+            dial.midicc = values[i].into();
         }
 
         repo
@@ -475,7 +475,7 @@ mod tests {
         let repo = FaderRepository::try_from(RawFaders(raw_faders)).unwrap();
         assert_eq!(repo.0[0].kind, FaderKind::CC);
         assert_eq!(repo.0[0].channel, MidiChannel::A1);
-        assert_eq!(repo.0[0].midicc, 7);
+        assert_eq!(repo.0[0].midicc, 7.into());
     }
 
     #[test]

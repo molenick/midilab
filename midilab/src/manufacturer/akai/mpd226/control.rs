@@ -19,6 +19,7 @@ use crate::manufacturer::akai::mpd226::raw::RawDial;
 use crate::manufacturer::akai::mpd226::raw::RawFader;
 use crate::manufacturer::akai::mpd226::raw::RawPad;
 use crate::manufacturer::akai::mpd226::raw::RawSwitch;
+use crate::midi::MidiValue;
 use crate::midi::Note;
 
 pub mod value_kind;
@@ -33,9 +34,9 @@ pub struct Pad {
     pub midi2din: ActiveState,
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
-    pub program: u8,
-    pub msb: u8,
-    pub lsb: u8,
+    pub program: MidiValue,
+    pub msb: MidiValue,
+    pub lsb: MidiValue,
     pub off_color: PadColor,
     pub on_color: PadColor,
 }
@@ -60,9 +61,9 @@ impl Pad {
             self.midi2din as u8,
             self.trigger as u8,
             self.aftertouch as u8,
-            self.program,
-            self.msb,
-            self.lsb,
+            self.program.into(),
+            self.msb.into(),
+            self.lsb.into(),
             self.off_color as u8,
             self.on_color as u8,
         ]
@@ -84,9 +85,9 @@ impl TryFrom<(usize, RawPad)> for Pad {
             trigger: TriggerKind::try_from(raw.trigger).map_err(PadParseError::Trigger)?,
             aftertouch: AfterTouchKind::try_from(raw.aftertouch)
                 .map_err(PadParseError::Aftertouch)?,
-            program: raw.program,
-            msb: raw.msb,
-            lsb: raw.lsb,
+            program: raw.program.into(),
+            msb: raw.msb.into(),
+            lsb: raw.lsb.into(),
             off_color: PadColor::try_from(raw.off_color).map_err(PadParseError::OffColor)?,
             on_color: PadColor::try_from(raw.on_color).map_err(PadParseError::OnColor)?,
         })
@@ -98,13 +99,13 @@ impl TryFrom<(usize, RawPad)> for Pad {
 pub struct Dial {
     pub kind: DialKind,
     pub channel: MidiChannel,
-    pub midicc: u8,
-    pub min: u8,
-    pub max: u8,
+    pub midicc: MidiValue,
+    pub min: MidiValue,
+    pub max: MidiValue,
     pub midi2din: ActiveState,
-    pub msb: u8,
-    pub lsb: u8,
-    pub value: u8,
+    pub msb: MidiValue,
+    pub lsb: MidiValue,
+    pub value: MidiValue,
 }
 
 impl Default for Dial {
@@ -112,13 +113,13 @@ impl Default for Dial {
         Self {
             kind: DialKind::default(),
             channel: MidiChannel::default(),
-            midicc: 0,
-            min: 0,
-            max: 127,
+            midicc: 0.into(),
+            min: 0.into(),
+            max: 127.into(),
             midi2din: ActiveState::default(),
-            msb: 0,
-            lsb: 0,
-            value: 64,
+            msb: 0.into(),
+            lsb: 0.into(),
+            value: 0.into(),
         }
     }
 }
@@ -128,13 +129,13 @@ impl Dial {
         vec![
             self.kind as u8,
             self.channel as u8,
-            self.midicc,
-            self.min,
-            self.max,
+            self.midicc.into(),
+            self.min.into(),
+            self.max.into(),
             self.midi2din as u8,
-            self.msb,
-            self.lsb,
-            self.value,
+            self.msb.into(),
+            self.lsb.into(),
+            self.value.into(),
         ]
     }
 }
@@ -147,13 +148,13 @@ impl TryFrom<RawDial> for Dial {
         Ok(Dial {
             kind: DialKind::try_from(raw.kind).map_err(DialParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(DialParseError::Channel)?,
-            midicc: raw.midicc,
-            min: raw.min,
-            max: raw.max,
+            midicc: raw.midicc.into(),
+            min: raw.min.into(),
+            max: raw.max.into(),
             midi2din: ActiveState::try_from(raw.midi2din).map_err(DialParseError::Midi2Din)?,
-            msb: raw.msb,
-            lsb: raw.lsb,
-            value: raw.value,
+            msb: raw.msb.into(),
+            lsb: raw.lsb.into(),
+            value: raw.value.into(),
         })
     }
 }
@@ -163,9 +164,9 @@ impl TryFrom<RawDial> for Dial {
 pub struct Fader {
     pub kind: FaderKind,
     pub channel: MidiChannel,
-    pub midicc: u8,
-    pub min: u8,
-    pub max: u8,
+    pub midicc: MidiValue,
+    pub min: MidiValue,
+    pub max: MidiValue,
     pub midi2din: ActiveState,
 }
 
@@ -174,9 +175,9 @@ impl Default for Fader {
         Self {
             kind: FaderKind::default(),
             channel: MidiChannel::default(),
-            midicc: 0,
-            min: 0,
-            max: 127,
+            midicc: 0.into(),
+            min: 0.into(),
+            max: 127.into(),
             midi2din: ActiveState::default(),
         }
     }
@@ -187,9 +188,9 @@ impl Fader {
         vec![
             self.kind as u8,
             self.channel as u8,
-            self.midicc,
-            self.min,
-            self.max,
+            self.midicc.into(),
+            self.min.into(),
+            self.max.into(),
             self.midi2din as u8,
         ]
     }
@@ -203,9 +204,9 @@ impl TryFrom<RawFader> for Fader {
         Ok(Fader {
             kind: FaderKind::try_from(raw.kind).map_err(FaderParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(FaderParseError::Channel)?,
-            midicc: raw.midicc,
-            min: raw.min,
-            max: raw.max,
+            midicc: raw.midicc.into(),
+            min: raw.min.into(),
+            max: raw.max.into(),
             midi2din: ActiveState::try_from(raw.midi2din).map_err(FaderParseError::Midi2Din)?,
         })
     }
@@ -216,14 +217,14 @@ impl TryFrom<RawFader> for Fader {
 pub struct Switch {
     pub kind: SwitchKind,
     pub channel: MidiChannel,
-    pub midicc: u8,
+    pub midicc: MidiValue,
     pub mode: TriggerKind,
-    pub prog: u8,
-    pub msb: u8,
-    pub lsb: u8,
+    pub prog: MidiValue,
+    pub msb: MidiValue,
+    pub lsb: MidiValue,
     pub midi2din: ActiveState,
     pub note: u8,
-    pub velo: u8,
+    pub velo: MidiValue,
     pub invert: ActiveState,
     pub key1: u8,
     pub key2: KeyModifier,
@@ -234,14 +235,14 @@ impl Default for Switch {
         Self {
             kind: SwitchKind::default(),
             channel: MidiChannel::default(),
-            midicc: 0,
+            midicc: 0.into(),
             mode: TriggerKind::default(),
-            prog: 0,
-            msb: 0,
-            lsb: 0,
+            prog: 0.into(),
+            msb: 0.into(),
+            lsb: 0.into(),
             midi2din: ActiveState::default(),
             note: 0,
-            velo: 100,
+            velo: 100.into(),
             invert: ActiveState::default(),
             key1: 0,
             key2: KeyModifier::default(),
@@ -254,14 +255,14 @@ impl Switch {
         vec![
             self.kind as u8,
             self.channel as u8,
-            self.midicc,
+            self.midicc.into(),
             self.mode as u8,
-            self.prog,
-            self.msb,
-            self.lsb,
+            self.prog.into(),
+            self.msb.into(),
+            self.lsb.into(),
             self.midi2din as u8,
             self.note,
-            self.velo,
+            self.velo.into(),
             self.invert as u8,
             self.key1,
             self.key2 as u8,
@@ -277,14 +278,14 @@ impl TryFrom<RawSwitch> for Switch {
         Ok(Switch {
             kind: SwitchKind::try_from(raw.kind).map_err(SwitchParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(SwitchParseError::Channel)?,
-            midicc: raw.midicc,
+            midicc: raw.midicc.into(),
             mode: TriggerKind::try_from(raw.mode).map_err(SwitchParseError::Mode)?,
-            prog: raw.prog,
-            msb: raw.msb,
-            lsb: raw.lsb,
+            prog: raw.prog.into(),
+            msb: raw.msb.into(),
+            lsb: raw.lsb.into(),
             midi2din: ActiveState::try_from(raw.midi2din).map_err(SwitchParseError::Midi2Din)?,
             note: raw.note,
-            velo: raw.velo,
+            velo: raw.velo.into(),
             invert: ActiveState::try_from(raw.invert).map_err(SwitchParseError::Invert)?,
             key1: raw.key1,
             key2: KeyModifier::try_from(raw.key2).map_err(SwitchParseError::Key2)?,
@@ -351,9 +352,9 @@ mod tests {
                 midi2din: ActiveState::Off,
                 trigger: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
-                program: 0,
-                msb: 0,
-                lsb: 0,
+                program: MidiValue::default(),
+                msb: MidiValue::default(),
+                lsb: MidiValue::default(),
                 off_color: PadColor::Red,
                 on_color: PadColor::Green,
             };
@@ -436,13 +437,13 @@ mod tests {
             let dial = Dial {
                 kind: DialKind::CC,
                 channel: MidiChannel::A1,
-                midicc: 74,
-                min: 0,
-                max: 127,
+                midicc: 74.into(),
+                min: 0.into(),
+                max: 127.into(),
                 midi2din: ActiveState::On,
-                msb: 0,
-                lsb: 0,
-                value: 64,
+                msb: 0.into(),
+                lsb: 0.into(),
+                value: 0.into(),
             };
 
             let bytes = dial.as_bytes();
@@ -471,7 +472,7 @@ mod tests {
             let dial = Dial::try_from(raw).unwrap();
             assert_eq!(dial.kind, DialKind::IncDec1);
             assert_eq!(dial.channel, MidiChannel::A3);
-            assert_eq!(dial.midicc, 50);
+            assert_eq!(dial.midicc, 50.into());
             assert_eq!(dial.midi2din, ActiveState::On);
         }
 
@@ -507,9 +508,9 @@ mod tests {
             let fader = Fader {
                 kind: FaderKind::Aftertouch,
                 channel: MidiChannel::A2,
-                midicc: 7,
-                min: 0,
-                max: 127,
+                midicc: 7.into(),
+                min: 0.into(),
+                max: 127.into(),
                 midi2din: ActiveState::Off,
             };
 
@@ -534,9 +535,9 @@ mod tests {
             let fader = Fader::try_from(raw).unwrap();
             assert_eq!(fader.kind, FaderKind::Aftertouch);
             assert_eq!(fader.channel, MidiChannel::A5);
-            assert_eq!(fader.midicc, 11);
-            assert_eq!(fader.min, 20);
-            assert_eq!(fader.max, 100);
+            assert_eq!(fader.midicc, 11.into());
+            assert_eq!(fader.min, 20.into());
+            assert_eq!(fader.max, 100.into());
         }
 
         #[test]
@@ -568,14 +569,14 @@ mod tests {
             let switch = Switch {
                 kind: SwitchKind::Program,
                 channel: MidiChannel::A1,
-                midicc: 64,
+                midicc: 64.into(),
                 mode: TriggerKind::Toggle,
-                prog: 5,
-                msb: 0,
-                lsb: 0,
+                prog: 5.into(),
+                msb: 0.into(),
+                lsb: 0.into(),
                 midi2din: ActiveState::On,
                 note: 60,
-                velo: 100,
+                velo: 100.into(),
                 invert: ActiveState::Off,
                 key1: 0,
                 key2: KeyModifier::CTRL,
