@@ -259,10 +259,6 @@ pub enum PadKind {
     Bank = 2,
 }
 
-impl PadKind {
-    pub const MAX: u8 = Self::Bank as u8;
-}
-
 #[repr(u8)]
 #[derive(Default, Clone, Copy, TryFromPrimitive, Debug, PartialEq, EnumIter, Display)]
 pub enum AfterTouchKind {
