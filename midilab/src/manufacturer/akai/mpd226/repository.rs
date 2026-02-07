@@ -167,7 +167,7 @@ impl DialRepository {
         let mut repo = Self::default();
 
         for (i, dial) in repo.0.iter_mut().enumerate() {
-            dial.midicc = values[i];
+            dial.midicc = values[i].into();
         }
 
         repo

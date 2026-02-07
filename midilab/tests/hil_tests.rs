@@ -76,8 +76,8 @@ fn preset_round_trip() {
     mutated.settings.preset_name = PresetName(*b"HILTEST ");
     mutated.pads.pads[0].note = Note::N72;
     mutated.pads.pads[1].note = Note::N84;
-    mutated.dials.0[0].midicc = 50;
-    mutated.dials.0[1].midicc = 51;
+    mutated.dials.0[0].midicc = 50.into();
+    mutated.dials.0[1].midicc = 51.into();
     mutated.faders.0[0].midicc = 60;
     mutated.faders.0[1].midicc = 61;
     mutated.switches.0[0].midicc = 70;
@@ -115,8 +115,8 @@ fn preset_round_trip() {
     assert_eq!(loaded.settings.preset_name.0, *b"HILTEST ");
     assert_eq!(loaded.pads.pads[0].note, Note::N72);
     assert_eq!(loaded.pads.pads[1].note, Note::N84);
-    assert_eq!(loaded.dials.0[0].midicc, 50);
-    assert_eq!(loaded.dials.0[1].midicc, 51);
+    assert_eq!(loaded.dials.0[0].midicc, 50.into());
+    assert_eq!(loaded.dials.0[1].midicc, 51.into());
     assert_eq!(loaded.faders.0[0].midicc, 60);
     assert_eq!(loaded.faders.0[1].midicc, 61);
     assert_eq!(loaded.switches.0[0].midicc, 70);

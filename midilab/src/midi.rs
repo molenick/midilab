@@ -9,7 +9,7 @@ use crate::scale::PitchClass;
 /// MAX of 127. A clamped u8 is used instead of a u4 so
 /// that we don't have to convert back to u8 before sending
 /// over the wire.
-#[derive(Default, Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MidiValue(u8);
 impl MidiValue {
     pub const MIN: u8 = 0;

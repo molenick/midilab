@@ -35,8 +35,8 @@ pub struct Pad {
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
     pub program: MidiValue,
-    pub msb: u8,
-    pub lsb: u8,
+    pub msb: MidiValue,
+    pub lsb: MidiValue,
     pub off_color: PadColor,
     pub on_color: PadColor,
 }
@@ -62,8 +62,8 @@ impl Pad {
             self.trigger as u8,
             self.aftertouch as u8,
             self.program.into(),
-            self.msb,
-            self.lsb,
+            self.msb.into(),
+            self.lsb.into(),
             self.off_color as u8,
             self.on_color as u8,
         ]
@@ -86,8 +86,8 @@ impl TryFrom<(usize, RawPad)> for Pad {
             aftertouch: AfterTouchKind::try_from(raw.aftertouch)
                 .map_err(PadParseError::Aftertouch)?,
             program: raw.program.into(),
-            msb: raw.msb,
-            lsb: raw.lsb,
+            msb: raw.msb.into(),
+            lsb: raw.lsb.into(),
             off_color: PadColor::try_from(raw.off_color).map_err(PadParseError::OffColor)?,
             on_color: PadColor::try_from(raw.on_color).map_err(PadParseError::OnColor)?,
         })
@@ -99,13 +99,13 @@ impl TryFrom<(usize, RawPad)> for Pad {
 pub struct Dial {
     pub kind: DialKind,
     pub channel: MidiChannel,
-    pub midicc: u8,
-    pub min: u8,
-    pub max: u8,
+    pub midicc: MidiValue,
+    pub min: MidiValue,
+    pub max: MidiValue,
     pub midi2din: ActiveState,
-    pub msb: u8,
-    pub lsb: u8,
-    pub value: u8,
+    pub msb: MidiValue,
+    pub lsb: MidiValue,
+    pub value: MidiValue,
 }
 
 impl Default for Dial {
@@ -113,13 +113,13 @@ impl Default for Dial {
         Self {
             kind: DialKind::default(),
             channel: MidiChannel::default(),
-            midicc: 0,
-            min: 0,
-            max: 127,
+            midicc: 0.into(),
+            min: 0.into(),
+            max: 127.into(),
             midi2din: ActiveState::default(),
-            msb: 0,
-            lsb: 0,
-            value: 64,
+            msb: 0.into(),
+            lsb: 0.into(),
+            value: 0.into(),
         }
     }
 }
@@ -129,13 +129,13 @@ impl Dial {
         vec![
             self.kind as u8,
             self.channel as u8,
-            self.midicc,
-            self.min,
-            self.max,
+            self.midicc.into(),
+            self.min.into(),
+            self.max.into(),
             self.midi2din as u8,
-            self.msb,
-            self.lsb,
-            self.value,
+            self.msb.into(),
+            self.lsb.into(),
+            self.value.into(),
         ]
     }
 }
@@ -148,13 +148,13 @@ impl TryFrom<RawDial> for Dial {
         Ok(Dial {
             kind: DialKind::try_from(raw.kind).map_err(DialParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(DialParseError::Channel)?,
-            midicc: raw.midicc,
-            min: raw.min,
-            max: raw.max,
+            midicc: raw.midicc.into(),
+            min: raw.min.into(),
+            max: raw.max.into(),
             midi2din: ActiveState::try_from(raw.midi2din).map_err(DialParseError::Midi2Din)?,
-            msb: raw.msb,
-            lsb: raw.lsb,
-            value: raw.value,
+            msb: raw.msb.into(),
+            lsb: raw.lsb.into(),
+            value: raw.value.into(),
         })
     }
 }
@@ -353,8 +353,8 @@ mod tests {
                 trigger: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
                 program: MidiValue::default(),
-                msb: 0,
-                lsb: 0,
+                msb: MidiValue::default(),
+                lsb: MidiValue::default(),
                 off_color: PadColor::Red,
                 on_color: PadColor::Green,
             };
@@ -437,13 +437,13 @@ mod tests {
             let dial = Dial {
                 kind: DialKind::CC,
                 channel: MidiChannel::A1,
-                midicc: 74,
-                min: 0,
-                max: 127,
+                midicc: 74.into(),
+                min: 0.into(),
+                max: 127.into(),
                 midi2din: ActiveState::On,
-                msb: 0,
-                lsb: 0,
-                value: 64,
+                msb: 0.into(),
+                lsb: 0.into(),
+                value: 0.into(),
             };
 
             let bytes = dial.as_bytes();
@@ -472,7 +472,7 @@ mod tests {
             let dial = Dial::try_from(raw).unwrap();
             assert_eq!(dial.kind, DialKind::IncDec1);
             assert_eq!(dial.channel, MidiChannel::A3);
-            assert_eq!(dial.midicc, 50);
+            assert_eq!(dial.midicc, 50.into());
             assert_eq!(dial.midi2din, ActiveState::On);
         }
 

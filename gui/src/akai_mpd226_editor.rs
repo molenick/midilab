@@ -1021,8 +1021,8 @@ fn render_pad_compare_grid(ui: &mut Ui, pad: &mut Pad) {
                 row_edit_trigger_kind(ui, "trigger", &mut pad.trigger);
                 row_edit_aftertouch_kind(ui, "aftertouch", &mut pad.aftertouch);
                 row_edit_u8(ui, "program", &mut pad.program.into());
-                row_edit_u8(ui, "msb", &mut pad.msb);
-                row_edit_u8(ui, "lsb", &mut pad.lsb);
+                row_edit_u8(ui, "msb", &mut pad.msb.into());
+                row_edit_u8(ui, "lsb", &mut pad.lsb.into());
                 row_edit_pad_color(ui, "off color", &mut pad.off_color);
                 row_edit_pad_color(ui, "on color", &mut pad.on_color);
             });
@@ -1037,13 +1037,13 @@ fn render_dial_compare_grid(ui: &mut Ui, dial: &mut Dial) {
             .show(ui, |ui| {
                 row_edit_dial_kind(ui, "kind", &mut dial.kind);
                 row_edit_midi_channel(ui, "channel", &mut dial.channel);
-                row_edit_u8(ui, "midicc", &mut dial.midicc);
-                row_edit_u8(ui, "min", &mut dial.min);
-                row_edit_u8(ui, "max", &mut dial.max);
+                row_edit_u8(ui, "midicc", &mut dial.midicc.into());
+                row_edit_u8(ui, "min", &mut dial.min.into());
+                row_edit_u8(ui, "max", &mut dial.max.into());
                 row_edit_midi2din(ui, "midi to din", &mut dial.midi2din);
-                row_edit_u8(ui, "msb", &mut dial.msb);
-                row_edit_u8(ui, "lsb", &mut dial.lsb);
-                row_edit_u8(ui, "value", &mut dial.value);
+                row_edit_u8(ui, "msb", &mut dial.msb.into());
+                row_edit_u8(ui, "lsb", &mut dial.lsb.into());
+                row_edit_u8(ui, "value", &mut dial.value.into());
             });
     });
 }
