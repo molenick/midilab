@@ -13,6 +13,7 @@ use eframe::egui::Grid;
 use eframe::egui::Layout;
 use eframe::egui::ScrollArea;
 use eframe::egui::TextEdit;
+use eframe::egui::TopBottomPanel;
 use eframe::egui::Ui;
 use eframe::egui::Vec2;
 use eframe::egui::vec2;
@@ -93,7 +94,7 @@ impl AkaiMpd226Editor {
                 }
 
                 UiMsg::UserMsg(e) => {
-                    self.ui_state.user_error = Some(e);
+                    self.ui_state.user_msg = Some(e);
                 }
 
                 UiMsg::ShowDirectoryPicker { for_action } => {
@@ -133,17 +134,11 @@ impl eframe::App for AkaiMpd226Editor {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.poll_ui_msgs();
 
-        // TopBottomPanel::top("selected_item_panel")
-        //     .exact_height(180.0)
-        //     .show(ctx, |ui| {
-        //         selection_compare_table(ui, &mut self.ui_state);
-        //     });
+        TopBottomPanel::top("selected_item_panel").show(ctx, |ui| {
+            render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
+        });
 
         CentralPanel::default().show(ctx, |ui| {
-            // render_preset_settings(ui, &mut self.ui_state, &mut self.outbox);
-            // render_global_settings(ui, &mut self.ui_state, &mut self.outbox);
-            // render_pad_patterns(ui, &mut self.ui_state);
-
             let full_height = ui.available_height();
             ui.horizontal(|ui| {
                 ui.set_min_height(full_height);
@@ -154,7 +149,7 @@ impl eframe::App for AkaiMpd226Editor {
                         .show(ui, |ui| {
                             ui.vertical(|ui| {
                                 selection_compare_table(ui, &mut self.ui_state);
-                                render_preset_settings(ui, &mut self.ui_state, &mut self.outbox);
+                                render_preset_settings(ui, &mut self.ui_state);
                                 render_global_settings(ui, &mut self.ui_state, &mut self.outbox);
                                 render_pad_patterns(ui, &mut self.ui_state);
                             });
@@ -222,7 +217,7 @@ pub struct UiState {
     pub note_mapping: NoteMappingState,
     pub off_color_mapping: ColorMappingState,
     pub on_color_mapping: ColorMappingState,
-    pub user_error: Option<UserMsg>,
+    pub user_msg: Option<UserMsg>,
     pub pending_action: Option<PendingFileAction>,
     pub configured_directory: Option<PathBuf>,
 }
@@ -270,33 +265,59 @@ impl Default for ColorMappingState {
     }
 }
 
-fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
-    CollapsingHeader::new("Preset Settings")
-        .default_open(true)
-        .show(ui, |ui| {
+fn render_device_command_controls(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| {
             ui.horizontal(|ui| {
-                if ui.button("Load from device").clicked() {
-                    ui_state.user_error = None;
+                if ui.button("Dump preset from device").clicked() {
+                    ui_state.user_msg = None;
                     outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
                         ui_state.preset.settings.preset_slot,
                     )));
                 }
 
-                if ui.button("Send to device").clicked() {
-                    ui_state.user_error = None;
+                if ui.button("Write preset to device").clicked() {
+                    ui_state.user_msg = None;
                     outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
-                }
-
-                if let Some(status) = &ui_state.user_error {
-                    let color = match status.kind {
-                        midilab::message::UserMsgKind::Status => Color32::GREEN,
-                        midilab::message::UserMsgKind::Error => Color32::RED,
-                    };
-
-                    ui.colored_label(color, &status.msg);
                 }
             });
 
+            ui.horizontal(|ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("Dump global from device").clicked() {
+                        ui_state.user_msg = None;
+                        outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
+                    }
+                    if ui.button("Write global to device").clicked() {
+                        ui_state.user_msg = None;
+                        outbox.push(AppMsg::Ui(UiEffect::SendGlobalToDevice(Box::new(
+                            ui_state.global,
+                        ))));
+                    }
+                });
+            });
+        });
+        ui.horizontal(|ui| {
+            ui.label("Status:");
+
+            if let Some(status) = &ui_state.user_msg {
+                let color = match status.kind {
+                    midilab::message::UserMsgKind::Status => Color32::GREEN,
+                    midilab::message::UserMsgKind::Error => Color32::RED,
+                };
+
+                ui.colored_label(color, &status.msg);
+            } else {
+                ui.label("None");
+            }
+        });
+    });
+}
+
+fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
+    CollapsingHeader::new("Preset Settings")
+        .default_open(true)
+        .show(ui, |ui| {
             Grid::new("preset_settings_grid")
                 .striped(true)
                 .spacing([16.0, 6.0])
@@ -342,19 +363,6 @@ fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<
     CollapsingHeader::new("Global Settings")
         .default_open(true)
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                if ui.button("Load from device").clicked() {
-                    ui_state.user_error = None;
-                    outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
-                }
-                if ui.button("Send to device").clicked() {
-                    ui_state.user_error = None;
-                    outbox.push(AppMsg::Ui(UiEffect::SendGlobalToDevice(Box::new(
-                        ui_state.global,
-                    ))));
-                }
-            });
-
             Grid::new("global_settings_grid")
                 .striped(true)
                 .spacing([16.0, 6.0])
@@ -488,8 +496,6 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                 ui.add(DragValue::new(&mut ui_state.note_mapping.scale_seq.length).range(1..=64))
             });
 
-            ui.add_space(8.0);
-
             ui.checkbox(
                 &mut ui_state.note_mapping.tonic_highlighting_enabled,
                 "Tonic highlighting",
@@ -515,8 +521,6 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                         });
                 });
             }
-
-            ui.add_space(8.0);
 
             let resp = ui.button("Set pattern");
             if resp.clicked() {
@@ -544,8 +548,6 @@ fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
         .show(ui, |ui| {
             render_color_pattern_editor(ui, "off", &mut ui_state.off_color_mapping.pattern);
 
-            ui.add_space(4.0);
-
             ui.horizontal(|ui| {
                 ui.label("Start Pad");
                 ui.add(
@@ -572,11 +574,7 @@ fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("On Color Mapping")
         .default_open(true)
         .show(ui, |ui| {
-            ui.add_space(4.0);
-
             render_color_pattern_editor(ui, "on", &mut ui_state.on_color_mapping.pattern);
-
-            ui.add_space(4.0);
 
             ui.horizontal(|ui| {
                 ui.label("Start Pad");
@@ -795,29 +793,22 @@ fn render_control_bank(
                 let dial_id = bank_idx * 4 + dial_offset;
                 let dial = dial_repo.0[dial_id];
                 render_dial(ui, selected_item, dial, dial_id);
-                // ui.add_space(4.0);
             }
         });
-
-        // ui.add_space(8.0);
 
         ui.horizontal(|ui| {
             for fader_offset in 0..4 {
                 let fader_id = bank_idx * 4 + fader_offset;
                 let fader = fader_repo.0[fader_id];
                 render_fader(ui, selected_item, fader, fader_id);
-                // ui.add_space(4.0);
             }
         });
-
-        // ui.add_space(8.0);
 
         ui.horizontal(|ui| {
             for switch_offset in 0..4 {
                 let switch_id = bank_idx * 4 + switch_offset;
                 let switch = switch_repo.0[switch_id];
                 render_switch(ui, selected_item, switch, switch_id);
-                // ui.add_space(4.0);
             }
         });
     });
