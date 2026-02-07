@@ -135,6 +135,22 @@ impl eframe::App for AkaiMpd226Editor {
         self.poll_ui_msgs();
 
         TopBottomPanel::top("selected_item_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Akai MPD226 Editor");
+                ui.separator();
+                ui.label("Status:");
+
+                if let Some(status) = &self.ui_state.user_msg {
+                    let color = match status.kind {
+                        midilab::message::UserMsgKind::Status => Color32::GREEN,
+                        midilab::message::UserMsgKind::Error => Color32::RED,
+                    };
+
+                    ui.colored_label(color, &status.msg);
+                } else {
+                    ui.label("None");
+                }
+            });
             render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
         });
 
@@ -148,9 +164,12 @@ impl eframe::App for AkaiMpd226Editor {
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
                             ui.vertical(|ui| {
-                                selection_compare_table(ui, &mut self.ui_state);
+                                ui.allocate_ui(vec2(ui.available_width(), 180.), |ui| {
+                                    ui.set_min_height(288.);
+                                    selection_compare_table(ui, &mut self.ui_state);
+                                });
                                 render_preset_settings(ui, &mut self.ui_state);
-                                render_global_settings(ui, &mut self.ui_state, &mut self.outbox);
+                                render_global_settings(ui, &mut self.ui_state);
                                 render_pad_patterns(ui, &mut self.ui_state);
                             });
                         });
@@ -169,8 +188,8 @@ impl eframe::App for AkaiMpd226Editor {
     }
 }
 
-const APP_X: f32 = 3600. * 0.35;
-const APP_Y: f32 = 2400. * 0.35;
+const APP_X: f32 = 1200.;
+const APP_Y: f32 = 600.;
 pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
 
 const PAD_X: f32 = 48.;
@@ -297,26 +316,12 @@ fn render_device_command_controls(ui: &mut Ui, ui_state: &mut UiState, outbox: &
                 });
             });
         });
-        ui.horizontal(|ui| {
-            ui.label("Status:");
-
-            if let Some(status) = &ui_state.user_msg {
-                let color = match status.kind {
-                    midilab::message::UserMsgKind::Status => Color32::GREEN,
-                    midilab::message::UserMsgKind::Error => Color32::RED,
-                };
-
-                ui.colored_label(color, &status.msg);
-            } else {
-                ui.label("None");
-            }
-        });
     });
 }
 
 fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("Preset Settings")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             Grid::new("preset_settings_grid")
                 .striped(true)
@@ -359,9 +364,9 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
         });
 }
 
-fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("Global Settings")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             Grid::new("global_settings_grid")
                 .striped(true)
@@ -392,7 +397,7 @@ fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<
 
 fn render_pad_patterns(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("Pattern Mapping")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             render_note_mapping(ui, ui_state);
             render_off_color_mapping(ui, ui_state);
@@ -402,7 +407,7 @@ fn render_pad_patterns(ui: &mut Ui, ui_state: &mut UiState) {
 
 fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("Note Mapping")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Tonic");
@@ -544,7 +549,7 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
 
 fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("Off Color Mapping")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             render_color_pattern_editor(ui, "off", &mut ui_state.off_color_mapping.pattern);
 
@@ -572,7 +577,7 @@ fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
 
 fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("On Color Mapping")
-        .default_open(true)
+        .default_open(false)
         .show(ui, |ui| {
             render_color_pattern_editor(ui, "on", &mut ui_state.on_color_mapping.pattern);
 
