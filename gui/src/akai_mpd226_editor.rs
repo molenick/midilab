@@ -68,6 +68,12 @@ use tokio::sync::mpsc::UnboundedSender;
 
 const SIDE_BAR_X: f32 = 240.;
 
+/// Golden ratio spacing function with a base of f32: 8
+fn spacing(n: i32) -> f32 {
+    let phi = (1.0 + 5_f32.sqrt()) / 2.0;
+    8_f32 * phi.powi(n)
+}
+
 #[allow(unused)]
 pub struct AkaiMpd226Editor {
     ui_state: UiState,
@@ -136,6 +142,7 @@ impl eframe::App for AkaiMpd226Editor {
 
         TopBottomPanel::top("selected_item_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
+                ui.add_space(spacing(0));
                 ui.label("Akai MPD226 Editor");
                 ui.separator();
                 ui.label("Status:");
@@ -152,6 +159,7 @@ impl eframe::App for AkaiMpd226Editor {
                 }
             });
             render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
+            ui.add_space(spacing(-4));
         });
 
         CentralPanel::default().show(ctx, |ui| {
@@ -656,6 +664,7 @@ fn render_all_pad_banks(
         for (bank_id, bank) in banks.into_iter().enumerate() {
             let bank_label = BANKS[bank_id].to_string();
             render_pad_bank(ui, selected_item, bank, bank_label);
+            ui.add_space(spacing(0));
         }
     });
 }
@@ -670,6 +679,7 @@ fn render_pad_bank(
 
     ui.vertical(|ui| {
         ui.label(format!("Pad Bank {label}"));
+        ui.add_space(spacing(-2));
         Grid::new(format!("pad_bank_{}", label))
             .num_columns(4)
             .spacing([8.0, 8.0])
@@ -743,6 +753,7 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
 
 fn render_controls(ui: &mut Ui, ui_state: &mut UiState) {
     render_all_pad_banks(ui, &mut ui_state.selected_item, &mut ui_state.preset.pads);
+    ui.add_space(spacing(1));
     render_all_control_banks(
         ui,
         &mut ui_state.selected_item,
@@ -778,6 +789,7 @@ fn render_all_control_banks(
                 bank_idx,
                 bank_label,
             );
+            ui.add_space(spacing(0));
         }
     });
 }
@@ -793,6 +805,7 @@ fn render_control_bank(
 ) {
     ui.vertical(|ui| {
         ui.label(format!("Control Bank {label}"));
+        ui.add_space(spacing(-2));
         ui.horizontal(|ui| {
             for dial_offset in 0..4 {
                 let dial_id = bank_idx * 4 + dial_offset;
