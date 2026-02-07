@@ -5,6 +5,34 @@ use strum_macros::EnumIter;
 
 use crate::scale::PitchClass;
 
+/// Many midi values are u4 with a MIN value of 0 and
+/// MAX of 127. A clamped u8 is used instead of a u4 so
+/// that we don't have to convert back to u8 before sending
+/// over the wire.
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
+pub struct MidiValue(u8);
+impl MidiValue {
+    pub const MIN: u8 = 0;
+    pub const MAX: u8 = 127;
+
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+}
+
+impl From<u8> for MidiValue {
+    fn from(value: u8) -> Self {
+        let value = value.clamp(Self::MIN, Self::MAX);
+        Self(value)
+    }
+}
+
+impl From<MidiValue> for u8 {
+    fn from(val: MidiValue) -> Self {
+        val.0
+    }
+}
+
 /// Finite enum representation of a midi note value
 #[range_enum]
 #[repr(u8)]

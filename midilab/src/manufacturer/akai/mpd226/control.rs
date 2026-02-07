@@ -19,6 +19,7 @@ use crate::manufacturer::akai::mpd226::raw::RawDial;
 use crate::manufacturer::akai::mpd226::raw::RawFader;
 use crate::manufacturer::akai::mpd226::raw::RawPad;
 use crate::manufacturer::akai::mpd226::raw::RawSwitch;
+use crate::midi::MidiValue;
 use crate::midi::Note;
 
 pub mod value_kind;
@@ -33,7 +34,7 @@ pub struct Pad {
     pub midi2din: ActiveState,
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
-    pub program: u8,
+    pub program: MidiValue,
     pub msb: u8,
     pub lsb: u8,
     pub off_color: PadColor,
@@ -60,7 +61,7 @@ impl Pad {
             self.midi2din as u8,
             self.trigger as u8,
             self.aftertouch as u8,
-            self.program,
+            self.program.into(),
             self.msb,
             self.lsb,
             self.off_color as u8,
@@ -84,7 +85,7 @@ impl TryFrom<(usize, RawPad)> for Pad {
             trigger: TriggerKind::try_from(raw.trigger).map_err(PadParseError::Trigger)?,
             aftertouch: AfterTouchKind::try_from(raw.aftertouch)
                 .map_err(PadParseError::Aftertouch)?,
-            program: raw.program,
+            program: raw.program.into(),
             msb: raw.msb,
             lsb: raw.lsb,
             off_color: PadColor::try_from(raw.off_color).map_err(PadParseError::OffColor)?,
@@ -351,7 +352,7 @@ mod tests {
                 midi2din: ActiveState::Off,
                 trigger: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
-                program: 0,
+                program: MidiValue::default(),
                 msb: 0,
                 lsb: 0,
                 off_color: PadColor::Red,

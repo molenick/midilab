@@ -1020,7 +1020,7 @@ fn render_pad_compare_grid(ui: &mut Ui, pad: &mut Pad) {
                 row_edit_midi2din(ui, "midi to din", &mut pad.midi2din);
                 row_edit_trigger_kind(ui, "trigger", &mut pad.trigger);
                 row_edit_aftertouch_kind(ui, "aftertouch", &mut pad.aftertouch);
-                row_edit_u8(ui, "program", &mut pad.program);
+                row_edit_u8(ui, "program", &mut pad.program.into());
                 row_edit_u8(ui, "msb", &mut pad.msb);
                 row_edit_u8(ui, "lsb", &mut pad.lsb);
                 row_edit_pad_color(ui, "off color", &mut pad.off_color);
