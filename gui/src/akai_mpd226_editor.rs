@@ -58,6 +58,9 @@ use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserMsg;
 use midilab::midi::Note;
+use midilab::scale::ChordRowSequence;
+use midilab::scale::ChordVoicing;
+use midilab::scale::IntervalRowSequence;
 use midilab::scale::Octave;
 use midilab::scale::OctaveRowSequence;
 use midilab::scale::PitchClass;
@@ -254,6 +257,8 @@ pub struct UiState {
 enum NotePatternKind {
     Scale,
     OctaveRow,
+    IntervalRow,
+    ChordRow,
 }
 
 pub struct NoteMappingState {
@@ -427,6 +432,8 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
             let current_kind = match ui_state.note_mapping.pattern {
                 NotePattern::Scale(_) => NotePatternKind::Scale,
                 NotePattern::OctaveRow(_) => NotePatternKind::OctaveRow,
+                NotePattern::IntervalRow(_) => NotePatternKind::IntervalRow,
+                NotePattern::ChordRow(_) => NotePatternKind::ChordRow,
             };
 
             let mut selected_kind = current_kind;
@@ -436,6 +443,8 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                     .selected_text(match selected_kind {
                         NotePatternKind::Scale => "Scale",
                         NotePatternKind::OctaveRow => "Octave Row",
+                        NotePatternKind::IntervalRow => "Interval Row",
+                        NotePatternKind::ChordRow => "Chord Row",
                     })
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut selected_kind, NotePatternKind::Scale, "Scale");
@@ -443,6 +452,16 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                             &mut selected_kind,
                             NotePatternKind::OctaveRow,
                             "Octave Row",
+                        );
+                        ui.selectable_value(
+                            &mut selected_kind,
+                            NotePatternKind::IntervalRow,
+                            "Interval Row",
+                        );
+                        ui.selectable_value(
+                            &mut selected_kind,
+                            NotePatternKind::ChordRow,
+                            "Chord Row",
                         );
                     });
             });
@@ -453,6 +472,10 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                     NotePatternKind::OctaveRow => {
                         NotePattern::OctaveRow(OctaveRowSequence::default())
                     }
+                    NotePatternKind::IntervalRow => {
+                        NotePattern::IntervalRow(IntervalRowSequence::default())
+                    }
+                    NotePatternKind::ChordRow => NotePattern::ChordRow(ChordRowSequence::default()),
                 };
             }
 
@@ -522,6 +545,100 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                     ui.horizontal(|ui| {
                         ui.label("Direction");
                         ComboBox::from_id_salt("octave_row_direction")
+                            .selected_text(seq.direction.to_string())
+                            .show_ui(ui, |ui| {
+                                for d in SequenceDirection::iter() {
+                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Length");
+                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
+                    });
+                }
+                NotePattern::IntervalRow(seq) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Base Note");
+                        ComboBox::from_id_salt("interval_row_base_note")
+                            .selected_text(seq.base_note.to_string())
+                            .show_ui(ui, |ui| {
+                                for n in Note::iter() {
+                                    ui.selectable_value(&mut seq.base_note, n, n.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Interval (semitones)");
+                        ui.add(DragValue::new(&mut seq.interval).range(1..=24));
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Direction");
+                        ComboBox::from_id_salt("interval_row_direction")
+                            .selected_text(seq.direction.to_string())
+                            .show_ui(ui, |ui| {
+                                for d in SequenceDirection::iter() {
+                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Length");
+                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
+                    });
+                }
+                NotePattern::ChordRow(seq) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Tonic");
+                        ComboBox::from_id_salt("chord_row_tonic")
+                            .selected_text(seq.tonic.to_string())
+                            .show_ui(ui, |ui| {
+                                for p in PitchClass::iter() {
+                                    ui.selectable_value(&mut seq.tonic, p, p.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Scale");
+                        ComboBox::from_id_salt("chord_row_scale")
+                            .selected_text(seq.scale.to_string())
+                            .show_ui(ui, |ui| {
+                                for s in ScaleKind::iter() {
+                                    ui.selectable_value(&mut seq.scale, s, s.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Octave");
+                        ComboBox::from_id_salt("chord_row_octave")
+                            .selected_text(seq.octave.to_string())
+                            .show_ui(ui, |ui| {
+                                for o in Octave::iter() {
+                                    ui.selectable_value(&mut seq.octave, o, o.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Voicing");
+                        ComboBox::from_id_salt("chord_row_voicing")
+                            .selected_text(seq.voicing.to_string())
+                            .show_ui(ui, |ui| {
+                                for v in ChordVoicing::iter() {
+                                    ui.selectable_value(&mut seq.voicing, v, v.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Direction");
+                        ComboBox::from_id_salt("chord_row_direction")
                             .selected_text(seq.direction.to_string())
                             .show_ui(ui, |ui| {
                                 for d in SequenceDirection::iter() {

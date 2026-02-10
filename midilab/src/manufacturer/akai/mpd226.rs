@@ -37,6 +37,8 @@ use crate::manufacturer::akai::mpd226::repository::DialRepository;
 use crate::manufacturer::akai::mpd226::repository::FaderRepository;
 use crate::manufacturer::akai::mpd226::repository::PadRepository;
 use crate::manufacturer::akai::mpd226::repository::SwitchRepository;
+use crate::scale::ChordRowSequence;
+use crate::scale::IntervalRowSequence;
 use crate::scale::OctaveRowSequence;
 use crate::scale::ScaleSequence;
 use crate::sysex::Sysex;
@@ -687,6 +689,8 @@ impl From<&Global> for RawGlobal {
 pub enum NotePattern {
     Scale(ScaleSequence),
     OctaveRow(OctaveRowSequence),
+    IntervalRow(IntervalRowSequence),
+    ChordRow(ChordRowSequence),
 }
 
 impl NotePattern {
@@ -694,6 +698,8 @@ impl NotePattern {
         match self {
             NotePattern::Scale(seq) => seq.as_midi_notes(),
             NotePattern::OctaveRow(seq) => seq.as_midi_notes(),
+            NotePattern::IntervalRow(seq) => seq.as_midi_notes(),
+            NotePattern::ChordRow(seq) => seq.as_midi_notes(),
         }
     }
 }
