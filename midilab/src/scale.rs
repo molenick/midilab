@@ -8,7 +8,6 @@ use crate::midi::Note;
 #[derive(Clone, Copy, Debug)]
 pub struct IntervalRowSequence {
     pub base_note: Note,
-    /// semitones between rows (e.g. 5 = perfect 4th, 7 = perfect 5th, 12 = octave)
     pub interval: u8,
     pub direction: SequenceDirection,
     pub length: usize,
