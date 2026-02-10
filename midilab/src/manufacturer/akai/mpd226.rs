@@ -326,6 +326,29 @@ pub struct Preset {
     pub switches: SwitchRepository,
 }
 
+impl Preset {
+    const GENERIC_DIAL_CC: [u8; 12] = [3, 9, 14, 15, 52, 53, 54, 55, 83, 85, 86, 87];
+    const GENERIC_FADER_CC: [u8; 12] = [20, 21, 22, 23, 61, 62, 63, 70, 92, 93, 94, 95];
+    const GENERIC_SWITCH_CC: [u8; 12] = [28, 29, 30, 31, 75, 76, 77, 78, 106, 107, 108, 109];
+
+    pub fn blank() -> Self {
+        let settings = PresetSettings::default();
+
+        let pads = PadRepository::default();
+        let dials = DialRepository::with_cc_values(Self::GENERIC_DIAL_CC);
+        let faders = FaderRepository::with_cc_values(Self::GENERIC_FADER_CC);
+        let switches = SwitchRepository::with_cc_values(Self::GENERIC_SWITCH_CC);
+
+        Self {
+            settings,
+            pads,
+            dials,
+            faders,
+            switches,
+        }
+    }
+}
+
 impl TryFrom<&[u8]> for Preset {
     type Error = PresetParseError;
 
@@ -337,15 +360,12 @@ impl TryFrom<&[u8]> for Preset {
 
 impl Default for Preset {
     fn default() -> Self {
-        const GENERIC_DIAL_CC: [u8; 12] = [3, 9, 14, 15, 52, 53, 54, 55, 83, 85, 86, 87];
-        const GENERIC_FADER_CC: [u8; 12] = [20, 21, 22, 23, 61, 62, 63, 70, 92, 93, 94, 95];
-        const GENERIC_SWITCH_CC: [u8; 12] = [28, 29, 30, 31, 75, 76, 77, 78, 106, 107, 108, 109];
         let settings = PresetSettings::default();
 
         let mut pads = PadRepository::default();
-        let dials = DialRepository::with_cc_values(GENERIC_DIAL_CC);
-        let faders = FaderRepository::with_cc_values(GENERIC_FADER_CC);
-        let switches = SwitchRepository::with_cc_values(GENERIC_SWITCH_CC);
+        let dials = DialRepository::with_cc_values(Self::GENERIC_DIAL_CC);
+        let faders = FaderRepository::with_cc_values(Self::GENERIC_FADER_CC);
+        let switches = SwitchRepository::with_cc_values(Self::GENERIC_SWITCH_CC);
 
         pads.set_off_color_pattern(
             0,

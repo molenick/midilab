@@ -180,9 +180,13 @@ impl eframe::App for AkaiMpd226Editor {
                                     ui.set_min_height(288.);
                                     selection_compare_table(ui, &mut self.ui_state);
                                 });
+
                                 render_preset_settings(ui, &mut self.ui_state);
                                 render_global_settings(ui, &mut self.ui_state);
                                 render_pad_patterns(ui, &mut self.ui_state);
+                                if ui.button("Reset Preset").clicked() {
+                                    self.ui_state.preset = Preset::blank();
+                                }
                             });
                         });
                 });
@@ -307,33 +311,31 @@ impl Default for ColorMappingState {
 fn render_device_command_controls(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
-            ui.horizontal(|ui| {
-                if ui.button("Dump preset from device").clicked() {
-                    ui_state.user_msg = None;
-                    outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
-                        ui_state.preset.settings.preset_slot,
-                    )));
-                }
+            if ui.button("Dump preset from device").clicked() {
+                ui_state.user_msg = None;
+                outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
+                    ui_state.preset.settings.preset_slot,
+                )));
+            }
 
-                if ui.button("Write preset to device").clicked() {
-                    ui_state.user_msg = None;
-                    outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
-                }
-            });
+            if ui.button("Write preset to device").clicked() {
+                ui_state.user_msg = None;
+                outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
+            }
+
+            ui.separator();
 
             ui.horizontal(|ui| {
-                ui.horizontal(|ui| {
-                    if ui.button("Dump global from device").clicked() {
-                        ui_state.user_msg = None;
-                        outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
-                    }
-                    if ui.button("Write global to device").clicked() {
-                        ui_state.user_msg = None;
-                        outbox.push(AppMsg::Ui(UiEffect::SendGlobalToDevice(Box::new(
-                            ui_state.global,
-                        ))));
-                    }
-                });
+                if ui.button("Dump global from device").clicked() {
+                    ui_state.user_msg = None;
+                    outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
+                }
+                if ui.button("Write global to device").clicked() {
+                    ui_state.user_msg = None;
+                    outbox.push(AppMsg::Ui(UiEffect::SendGlobalToDevice(Box::new(
+                        ui_state.global,
+                    ))));
+                }
             });
         });
     });
