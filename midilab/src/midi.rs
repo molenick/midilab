@@ -3,7 +3,7 @@ use num_enum::IntoPrimitive;
 use num_enum::TryFromPrimitive;
 use strum_macros::EnumIter;
 
-use crate::scale::PitchClass;
+use crate::music::PitchClass;
 
 /// Many midi values are u4 with a MIN value of 0 and
 /// MAX of 127. A clamped u8 is used instead of a u4 so

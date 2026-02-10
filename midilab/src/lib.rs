@@ -10,8 +10,8 @@ pub mod manufacturer;
 pub mod message;
 /// Midi utilities
 pub mod midi;
-/// Note-mapping utilities
-pub mod scale;
+/// Music theory
+pub mod music;
 ///  Sysex deserialization
 pub mod sysex;
 

@@ -21,7 +21,7 @@ use midilab::IntoEnumIterator;
 use midilab::manufacturer::akai::mpd226::ColorPattern;
 use midilab::manufacturer::akai::mpd226::ColorSequence;
 use midilab::manufacturer::akai::mpd226::Global;
-use midilab::manufacturer::akai::mpd226::NotePattern;
+use midilab::manufacturer::akai::mpd226::NoteColorMap;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::Dial;
 use midilab::manufacturer::akai::mpd226::control::Fader;
@@ -58,15 +58,14 @@ use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserMsg;
 use midilab::midi::Note;
-use midilab::scale::ChordRowSequence;
-use midilab::scale::ChordVoicing;
-use midilab::scale::IntervalRowSequence;
-use midilab::scale::Octave;
-use midilab::scale::OctaveRowSequence;
-use midilab::scale::PitchClass;
-use midilab::scale::ScaleKind;
-use midilab::scale::ScaleSequence;
-use midilab::scale::SequenceDirection;
+use midilab::music::ChordRowSequence;
+use midilab::music::ChordVoicing;
+use midilab::music::NotePattern;
+use midilab::music::Octave;
+use midilab::music::PitchClass;
+use midilab::music::ScaleKind;
+use midilab::music::ScaleSequence;
+use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -257,19 +256,11 @@ pub struct UiState {
     pub configured_directory: Option<PathBuf>,
 }
 
-#[derive(PartialEq, Clone, Copy)]
-enum NotePatternKind {
-    Scale,
-    OctaveRow,
-    IntervalRow,
-    ChordRow,
-}
-
 pub struct NoteMappingState {
     pub pattern: NotePattern,
     pub starting_from_pad: usize,
-    pub tonic_highlighting_enabled: bool,
     pub tonic_color: PadColor,
+    pub color_map: NoteColorMap,
 }
 impl Default for NoteMappingState {
     fn default() -> Self {
@@ -282,8 +273,8 @@ impl Default for NoteMappingState {
                 length: 64,
             }),
             starting_from_pad: 0,
-            tonic_highlighting_enabled: true,
             tonic_color: PadColor::Red,
+            color_map: NoteColorMap::default(),
         }
     }
 }
@@ -431,55 +422,23 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("Note Mapping")
         .default_open(false)
         .show(ui, |ui| {
-            let current_kind = match ui_state.note_mapping.pattern {
-                NotePattern::Scale(_) => NotePatternKind::Scale,
-                NotePattern::OctaveRow(_) => NotePatternKind::OctaveRow,
-                NotePattern::IntervalRow(_) => NotePatternKind::IntervalRow,
-                NotePattern::ChordRow(_) => NotePatternKind::ChordRow,
-            };
-
-            let mut selected_kind = current_kind;
             ui.horizontal(|ui| {
                 ui.label("Pattern");
                 ComboBox::from_id_salt("note_pattern_kind")
-                    .selected_text(match selected_kind {
-                        NotePatternKind::Scale => "Scale",
-                        NotePatternKind::OctaveRow => "Octave Row",
-                        NotePatternKind::IntervalRow => "Interval Row",
-                        NotePatternKind::ChordRow => "Chord Row",
-                    })
+                    .selected_text(ui_state.note_mapping.pattern.to_string())
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut selected_kind, NotePatternKind::Scale, "Scale");
                         ui.selectable_value(
-                            &mut selected_kind,
-                            NotePatternKind::OctaveRow,
-                            "Octave Row",
+                            &mut ui_state.note_mapping.pattern,
+                            NotePattern::Scale(ScaleSequence::default()),
+                            "Scale",
                         );
                         ui.selectable_value(
-                            &mut selected_kind,
-                            NotePatternKind::IntervalRow,
-                            "Interval Row",
-                        );
-                        ui.selectable_value(
-                            &mut selected_kind,
-                            NotePatternKind::ChordRow,
+                            &mut ui_state.note_mapping.pattern,
+                            NotePattern::ChordRow(ChordRowSequence::default()),
                             "Chord Row",
                         );
                     });
             });
-
-            if selected_kind != current_kind {
-                ui_state.note_mapping.pattern = match selected_kind {
-                    NotePatternKind::Scale => NotePattern::Scale(ScaleSequence::default()),
-                    NotePatternKind::OctaveRow => {
-                        NotePattern::OctaveRow(OctaveRowSequence::default())
-                    }
-                    NotePatternKind::IntervalRow => {
-                        NotePattern::IntervalRow(IntervalRowSequence::default())
-                    }
-                    NotePatternKind::ChordRow => NotePattern::ChordRow(ChordRowSequence::default()),
-                };
-            }
 
             match &mut ui_state.note_mapping.pattern {
                 NotePattern::Scale(seq) => {
@@ -532,67 +491,7 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                         ui.add(DragValue::new(&mut seq.length).range(1..=64))
                     });
                 }
-                NotePattern::OctaveRow(seq) => {
-                    ui.horizontal(|ui| {
-                        ui.label("Base Note");
-                        ComboBox::from_id_salt("octave_row_base_note")
-                            .selected_text(seq.base_note.to_string())
-                            .show_ui(ui, |ui| {
-                                for n in Note::iter() {
-                                    ui.selectable_value(&mut seq.base_note, n, n.to_string());
-                                }
-                            });
-                    });
 
-                    ui.horizontal(|ui| {
-                        ui.label("Direction");
-                        ComboBox::from_id_salt("octave_row_direction")
-                            .selected_text(seq.direction.to_string())
-                            .show_ui(ui, |ui| {
-                                for d in SequenceDirection::iter() {
-                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
-                                }
-                            });
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("Length");
-                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
-                    });
-                }
-                NotePattern::IntervalRow(seq) => {
-                    ui.horizontal(|ui| {
-                        ui.label("Base Note");
-                        ComboBox::from_id_salt("interval_row_base_note")
-                            .selected_text(seq.base_note.to_string())
-                            .show_ui(ui, |ui| {
-                                for n in Note::iter() {
-                                    ui.selectable_value(&mut seq.base_note, n, n.to_string());
-                                }
-                            });
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("Interval (semitones)");
-                        ui.add(DragValue::new(&mut seq.interval).range(1..=24));
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("Direction");
-                        ComboBox::from_id_salt("interval_row_direction")
-                            .selected_text(seq.direction.to_string())
-                            .show_ui(ui, |ui| {
-                                for d in SequenceDirection::iter() {
-                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
-                                }
-                            });
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("Length");
-                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
-                    });
-                }
                 NotePattern::ChordRow(seq) => {
                     ui.horizontal(|ui| {
                         ui.label("Tonic");
@@ -661,48 +560,65 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                 ui.add(DragValue::new(&mut ui_state.note_mapping.starting_from_pad).range(0..=63))
             });
 
-            if matches!(ui_state.note_mapping.pattern, NotePattern::Scale(_)) {
-                ui.checkbox(
-                    &mut ui_state.note_mapping.tonic_highlighting_enabled,
-                    "Tonic highlighting",
-                );
-                if ui_state.note_mapping.tonic_highlighting_enabled {
-                    ui.horizontal(|ui| {
-                        ui.label("Tonic color");
-                        ComboBox::from_id_salt("tonic_highlight_color")
-                            .selected_text(ui_state.note_mapping.tonic_color.to_string())
-                            .show_ui(ui, |ui| {
-                                for c in PadColor::iter() {
-                                    ui.selectable_value(
-                                        &mut ui_state.note_mapping.tonic_color,
-                                        c,
-                                        c.to_string(),
-                                    );
-                                }
-                            });
-                    });
-                }
-            }
+            render_note_color_map_editor(ui, &mut ui_state.note_mapping.color_map);
 
             let resp = ui.button("Set pattern");
             if resp.clicked() {
                 let pattern = ui_state.note_mapping.pattern;
-                ui_state
-                    .preset
-                    .pads
-                    .set_note_pattern(ui_state.note_mapping.starting_from_pad, pattern);
-
-                if let NotePattern::Scale(seq) = pattern
-                    && ui_state.note_mapping.tonic_highlighting_enabled
-                {
-                    let tonic_color = (seq.tonic, ui_state.note_mapping.tonic_color);
-                    ui_state.preset.pads.highlight_tonics(
-                        ui_state.note_mapping.starting_from_pad,
-                        seq.length,
-                        tonic_color,
-                    );
-                }
+                ui_state.preset.pads.set_note_pattern_with_off_colors(
+                    ui_state.note_mapping.starting_from_pad,
+                    pattern,
+                    ui_state.note_mapping.color_map.clone(),
+                );
             }
+        });
+}
+
+fn render_note_color_map_editor(ui: &mut Ui, color_map: &mut NoteColorMap) {
+    CollapsingHeader::new("Note Color Map")
+        .default_open(false)
+        .show(ui, |ui| {
+            Grid::new("note_color_map_grid")
+                .striped(true)
+                .spacing([16.0, 6.0])
+                .show(ui, |ui| {
+                    for pitch_class in PitchClass::iter() {
+                        ui.label(pitch_class.to_string());
+
+                        let current_color = color_map
+                            .0
+                            .get(&pitch_class)
+                            .copied()
+                            .unwrap_or(PadColor::Off);
+
+                        let (r, g, b) = *current_color.as_rgb_color();
+                        let swatch_size = vec2(24.0, 18.0);
+                        let (swatch_rect, _) =
+                            ui.allocate_exact_size(swatch_size, egui::Sense::hover());
+                        ui.painter()
+                            .rect_filled(swatch_rect, 3.0, Color32::from_rgb(r, g, b));
+
+                        let mut selected_color = current_color;
+                        ComboBox::from_id_salt(format!("color_map_{:?}", pitch_class))
+                            .selected_text(selected_color.to_string())
+                            .width(100.0)
+                            .show_ui(ui, |ui| {
+                                for color in PadColor::iter() {
+                                    ui.selectable_value(
+                                        &mut selected_color,
+                                        color,
+                                        color.to_string(),
+                                    );
+                                }
+                            });
+
+                        if selected_color != current_color {
+                            color_map.0.insert(pitch_class, selected_color);
+                        }
+
+                        ui.end_row();
+                    }
+                });
         });
 }
 
