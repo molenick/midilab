@@ -58,7 +58,11 @@ use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserMsg;
 use midilab::midi::Note;
+use midilab::scale::ChordRowSequence;
+use midilab::scale::ChordVoicing;
+use midilab::scale::IntervalRowSequence;
 use midilab::scale::Octave;
+use midilab::scale::OctaveRowSequence;
 use midilab::scale::PitchClass;
 use midilab::scale::ScaleKind;
 use midilab::scale::ScaleSequence;
@@ -249,8 +253,16 @@ pub struct UiState {
     pub configured_directory: Option<PathBuf>,
 }
 
+#[derive(PartialEq, Clone, Copy)]
+enum NotePatternKind {
+    Scale,
+    OctaveRow,
+    IntervalRow,
+    ChordRow,
+}
+
 pub struct NoteMappingState {
-    pub scale_seq: ScaleSequence,
+    pub pattern: NotePattern,
     pub starting_from_pad: usize,
     pub tonic_highlighting_enabled: bool,
     pub tonic_color: PadColor,
@@ -258,13 +270,13 @@ pub struct NoteMappingState {
 impl Default for NoteMappingState {
     fn default() -> Self {
         Self {
-            scale_seq: ScaleSequence {
+            pattern: NotePattern::Scale(ScaleSequence {
                 tonic: PitchClass::C,
                 scale: ScaleKind::Chromatic,
                 direction: SequenceDirection::Ascending,
                 octave: Octave::O4,
                 length: 64,
-            },
+            }),
             starting_from_pad: 0,
             tonic_highlighting_enabled: true,
             tonic_color: PadColor::Red,
@@ -417,137 +429,274 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
     CollapsingHeader::new("Note Mapping")
         .default_open(false)
         .show(ui, |ui| {
+            let current_kind = match ui_state.note_mapping.pattern {
+                NotePattern::Scale(_) => NotePatternKind::Scale,
+                NotePattern::OctaveRow(_) => NotePatternKind::OctaveRow,
+                NotePattern::IntervalRow(_) => NotePatternKind::IntervalRow,
+                NotePattern::ChordRow(_) => NotePatternKind::ChordRow,
+            };
+
+            let mut selected_kind = current_kind;
             ui.horizontal(|ui| {
-                ui.label("Tonic");
-                ComboBox::from_id_salt("note_mapping_tonic")
-                    .selected_text(ui_state.note_mapping.scale_seq.tonic.to_string())
+                ui.label("Pattern");
+                ComboBox::from_id_salt("note_pattern_kind")
+                    .selected_text(match selected_kind {
+                        NotePatternKind::Scale => "Scale",
+                        NotePatternKind::OctaveRow => "Octave Row",
+                        NotePatternKind::IntervalRow => "Interval Row",
+                        NotePatternKind::ChordRow => "Chord Row",
+                    })
                     .show_ui(ui, |ui| {
-                        for p in PitchClass::iter() {
-                            if ui
-                                .selectable_value(
-                                    &mut ui_state.note_mapping.scale_seq.tonic,
-                                    p,
-                                    p.to_string(),
-                                )
-                                .clicked()
-                            {
-                                ui_state.note_mapping.scale_seq.tonic = p;
-                            }
-                        }
+                        ui.selectable_value(&mut selected_kind, NotePatternKind::Scale, "Scale");
+                        ui.selectable_value(
+                            &mut selected_kind,
+                            NotePatternKind::OctaveRow,
+                            "Octave Row",
+                        );
+                        ui.selectable_value(
+                            &mut selected_kind,
+                            NotePatternKind::IntervalRow,
+                            "Interval Row",
+                        );
+                        ui.selectable_value(
+                            &mut selected_kind,
+                            NotePatternKind::ChordRow,
+                            "Chord Row",
+                        );
                     });
             });
 
-            ui.horizontal(|ui| {
-                ui.label("Scale");
-                ComboBox::from_id_salt("note_mapping_scale")
-                    .selected_text(ui_state.note_mapping.scale_seq.scale.to_string())
-                    .show_ui(ui, |ui| {
-                        for s in ScaleKind::iter() {
-                            if ui
-                                .selectable_value(
-                                    &mut ui_state.note_mapping.scale_seq.scale,
-                                    s,
-                                    s.to_string(),
-                                )
-                                .clicked()
-                            {
-                                ui_state.note_mapping.scale_seq.scale = s;
-                            }
-                        }
-                    });
-            });
+            if selected_kind != current_kind {
+                ui_state.note_mapping.pattern = match selected_kind {
+                    NotePatternKind::Scale => NotePattern::Scale(ScaleSequence::default()),
+                    NotePatternKind::OctaveRow => {
+                        NotePattern::OctaveRow(OctaveRowSequence::default())
+                    }
+                    NotePatternKind::IntervalRow => {
+                        NotePattern::IntervalRow(IntervalRowSequence::default())
+                    }
+                    NotePatternKind::ChordRow => NotePattern::ChordRow(ChordRowSequence::default()),
+                };
+            }
 
-            ui.horizontal(|ui| {
-                ui.label("Octave");
-                ComboBox::from_id_salt("note_mapping_octave")
-                    .selected_text(ui_state.note_mapping.scale_seq.octave.to_string())
-                    .show_ui(ui, |ui| {
-                        for s in Octave::iter() {
-                            if ui
-                                .selectable_value(
-                                    &mut ui_state.note_mapping.scale_seq.octave,
-                                    s,
-                                    s.to_string(),
-                                )
-                                .clicked()
-                            {
-                                ui_state.note_mapping.scale_seq.octave = s;
-                            }
-                        }
+            match &mut ui_state.note_mapping.pattern {
+                NotePattern::Scale(seq) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Tonic");
+                        ComboBox::from_id_salt("note_mapping_tonic")
+                            .selected_text(seq.tonic.to_string())
+                            .show_ui(ui, |ui| {
+                                for p in PitchClass::iter() {
+                                    ui.selectable_value(&mut seq.tonic, p, p.to_string());
+                                }
+                            });
                     });
-            });
 
-            ui.horizontal(|ui| {
-                ui.label("Direction");
-                ComboBox::from_id_salt("note_mapping_direction")
-                    .selected_text(ui_state.note_mapping.scale_seq.direction.to_string())
-                    .show_ui(ui, |ui| {
-                        for s in SequenceDirection::iter() {
-                            if ui
-                                .selectable_value(
-                                    &mut ui_state.note_mapping.scale_seq.direction,
-                                    s,
-                                    s.to_string(),
-                                )
-                                .clicked()
-                            {
-                                ui_state.note_mapping.scale_seq.direction = s;
-                            }
-                        }
+                    ui.horizontal(|ui| {
+                        ui.label("Scale");
+                        ComboBox::from_id_salt("note_mapping_scale")
+                            .selected_text(seq.scale.to_string())
+                            .show_ui(ui, |ui| {
+                                for s in ScaleKind::iter() {
+                                    ui.selectable_value(&mut seq.scale, s, s.to_string());
+                                }
+                            });
                     });
-            });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Octave");
+                        ComboBox::from_id_salt("note_mapping_octave")
+                            .selected_text(seq.octave.to_string())
+                            .show_ui(ui, |ui| {
+                                for s in Octave::iter() {
+                                    ui.selectable_value(&mut seq.octave, s, s.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Direction");
+                        ComboBox::from_id_salt("note_mapping_direction")
+                            .selected_text(seq.direction.to_string())
+                            .show_ui(ui, |ui| {
+                                for s in SequenceDirection::iter() {
+                                    ui.selectable_value(&mut seq.direction, s, s.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Length");
+                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
+                    });
+                }
+                NotePattern::OctaveRow(seq) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Base Note");
+                        ComboBox::from_id_salt("octave_row_base_note")
+                            .selected_text(seq.base_note.to_string())
+                            .show_ui(ui, |ui| {
+                                for n in Note::iter() {
+                                    ui.selectable_value(&mut seq.base_note, n, n.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Direction");
+                        ComboBox::from_id_salt("octave_row_direction")
+                            .selected_text(seq.direction.to_string())
+                            .show_ui(ui, |ui| {
+                                for d in SequenceDirection::iter() {
+                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Length");
+                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
+                    });
+                }
+                NotePattern::IntervalRow(seq) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Base Note");
+                        ComboBox::from_id_salt("interval_row_base_note")
+                            .selected_text(seq.base_note.to_string())
+                            .show_ui(ui, |ui| {
+                                for n in Note::iter() {
+                                    ui.selectable_value(&mut seq.base_note, n, n.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Interval (semitones)");
+                        ui.add(DragValue::new(&mut seq.interval).range(1..=24));
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Direction");
+                        ComboBox::from_id_salt("interval_row_direction")
+                            .selected_text(seq.direction.to_string())
+                            .show_ui(ui, |ui| {
+                                for d in SequenceDirection::iter() {
+                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Length");
+                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
+                    });
+                }
+                NotePattern::ChordRow(seq) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Tonic");
+                        ComboBox::from_id_salt("chord_row_tonic")
+                            .selected_text(seq.tonic.to_string())
+                            .show_ui(ui, |ui| {
+                                for p in PitchClass::iter() {
+                                    ui.selectable_value(&mut seq.tonic, p, p.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Scale");
+                        ComboBox::from_id_salt("chord_row_scale")
+                            .selected_text(seq.scale.to_string())
+                            .show_ui(ui, |ui| {
+                                for s in ScaleKind::iter() {
+                                    ui.selectable_value(&mut seq.scale, s, s.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Octave");
+                        ComboBox::from_id_salt("chord_row_octave")
+                            .selected_text(seq.octave.to_string())
+                            .show_ui(ui, |ui| {
+                                for o in Octave::iter() {
+                                    ui.selectable_value(&mut seq.octave, o, o.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Voicing");
+                        ComboBox::from_id_salt("chord_row_voicing")
+                            .selected_text(seq.voicing.to_string())
+                            .show_ui(ui, |ui| {
+                                for v in ChordVoicing::iter() {
+                                    ui.selectable_value(&mut seq.voicing, v, v.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Direction");
+                        ComboBox::from_id_salt("chord_row_direction")
+                            .selected_text(seq.direction.to_string())
+                            .show_ui(ui, |ui| {
+                                for d in SequenceDirection::iter() {
+                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
+                                }
+                            });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Length");
+                        ui.add(DragValue::new(&mut seq.length).range(1..=64))
+                    });
+                }
+            }
 
             ui.horizontal(|ui| {
                 ui.label("Starting from Pad");
-
                 ui.add(DragValue::new(&mut ui_state.note_mapping.starting_from_pad).range(0..=63))
             });
 
-            ui.horizontal(|ui| {
-                ui.label("Length");
-
-                ui.add(DragValue::new(&mut ui_state.note_mapping.scale_seq.length).range(1..=64))
-            });
-
-            ui.checkbox(
-                &mut ui_state.note_mapping.tonic_highlighting_enabled,
-                "Tonic highlighting",
-            );
-            if ui_state.note_mapping.tonic_highlighting_enabled {
-                ui.horizontal(|ui| {
-                    ui.label("Tonic color");
-                    ComboBox::from_id_salt("tonic_highlight_color")
-                        .selected_text(ui_state.note_mapping.tonic_color.to_string())
-                        .show_ui(ui, |ui| {
-                            for c in PadColor::iter() {
-                                if ui
-                                    .selectable_value(
+            if matches!(ui_state.note_mapping.pattern, NotePattern::Scale(_)) {
+                ui.checkbox(
+                    &mut ui_state.note_mapping.tonic_highlighting_enabled,
+                    "Tonic highlighting",
+                );
+                if ui_state.note_mapping.tonic_highlighting_enabled {
+                    ui.horizontal(|ui| {
+                        ui.label("Tonic color");
+                        ComboBox::from_id_salt("tonic_highlight_color")
+                            .selected_text(ui_state.note_mapping.tonic_color.to_string())
+                            .show_ui(ui, |ui| {
+                                for c in PadColor::iter() {
+                                    ui.selectable_value(
                                         &mut ui_state.note_mapping.tonic_color,
                                         c,
                                         c.to_string(),
-                                    )
-                                    .clicked()
-                                {
-                                    ui_state.note_mapping.tonic_color = c;
+                                    );
                                 }
-                            }
-                        });
-                });
+                            });
+                    });
+                }
             }
 
             let resp = ui.button("Set pattern");
             if resp.clicked() {
-                let scale_seq = ui_state.note_mapping.scale_seq;
-                ui_state.preset.pads.set_note_pattern(
-                    ui_state.note_mapping.starting_from_pad,
-                    NotePattern::Scale(scale_seq),
-                );
+                let pattern = ui_state.note_mapping.pattern;
+                ui_state
+                    .preset
+                    .pads
+                    .set_note_pattern(ui_state.note_mapping.starting_from_pad, pattern);
 
-                if ui_state.note_mapping.tonic_highlighting_enabled {
-                    let tonic_color = (scale_seq.tonic, ui_state.note_mapping.tonic_color);
+                if let NotePattern::Scale(seq) = pattern
+                    && ui_state.note_mapping.tonic_highlighting_enabled
+                {
+                    let tonic_color = (seq.tonic, ui_state.note_mapping.tonic_color);
                     ui_state.preset.pads.highlight_tonics(
                         ui_state.note_mapping.starting_from_pad,
-                        scale_seq.length,
+                        seq.length,
                         tonic_color,
                     );
                 }

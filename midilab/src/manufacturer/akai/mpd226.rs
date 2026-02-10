@@ -37,6 +37,9 @@ use crate::manufacturer::akai::mpd226::repository::DialRepository;
 use crate::manufacturer::akai::mpd226::repository::FaderRepository;
 use crate::manufacturer::akai::mpd226::repository::PadRepository;
 use crate::manufacturer::akai::mpd226::repository::SwitchRepository;
+use crate::scale::ChordRowSequence;
+use crate::scale::IntervalRowSequence;
+use crate::scale::OctaveRowSequence;
 use crate::scale::ScaleSequence;
 use crate::sysex::Sysex;
 use crate::sysex::unpack_u14;
@@ -682,8 +685,23 @@ impl From<&Global> for RawGlobal {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub enum NotePattern {
     Scale(ScaleSequence),
+    OctaveRow(OctaveRowSequence),
+    IntervalRow(IntervalRowSequence),
+    ChordRow(ChordRowSequence),
+}
+
+impl NotePattern {
+    pub fn as_midi_notes(&self) -> Vec<u8> {
+        match self {
+            NotePattern::Scale(seq) => seq.as_midi_notes(),
+            NotePattern::OctaveRow(seq) => seq.as_midi_notes(),
+            NotePattern::IntervalRow(seq) => seq.as_midi_notes(),
+            NotePattern::ChordRow(seq) => seq.as_midi_notes(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -730,6 +748,8 @@ pub struct ColorSequence {
 mod tests {
     use super::*;
     use crate::midi::Note;
+    use crate::scale::OctaveRowSequence;
+    use crate::scale::SequenceDirection;
 
     #[test]
     fn test_pad_repository_direct_mutation() {
@@ -989,5 +1009,85 @@ mod tests {
 
         assert_eq!(ack.addr, GlobalParamCmdId::try_from(0x02).unwrap());
         assert_eq!(ack.status, 0x00);
+    }
+
+    #[test]
+    fn test_octave_row_ascending() {
+        let seq = OctaveRowSequence {
+            base_note: Note::N36,
+            direction: SequenceDirection::Ascending,
+            length: 16,
+        };
+        let notes = seq.as_midi_notes();
+        assert_eq!(
+            notes,
+            vec![
+                36, 36, 36, 36, 48, 48, 48, 48, 60, 60, 60, 60, 72, 72, 72, 72
+            ]
+        );
+    }
+
+    #[test]
+    fn test_octave_row_descending() {
+        let seq = OctaveRowSequence {
+            base_note: Note::N84,
+            direction: SequenceDirection::Descending,
+            length: 16,
+        };
+        let notes = seq.as_midi_notes();
+        assert_eq!(
+            notes,
+            vec![
+                84, 84, 84, 84, 72, 72, 72, 72, 60, 60, 60, 60, 48, 48, 48, 48
+            ]
+        );
+    }
+
+    #[test]
+    fn test_octave_row_ascending_saturates() {
+        let seq = OctaveRowSequence {
+            base_note: Note::N7,
+            direction: SequenceDirection::Ascending,
+            length: 64,
+        };
+        let notes = seq.as_midi_notes();
+        assert_eq!(notes.len(), 64);
+        assert_eq!(&notes[0..4], &[7, 7, 7, 7]);
+        assert_eq!(&notes[40..44], &[127, 127, 127, 127]);
+        assert_eq!(&notes[44..48], &[127, 127, 127, 127]);
+        assert_eq!(&notes[60..64], &[127, 127, 127, 127]);
+    }
+
+    #[test]
+    fn test_octave_row_descending_saturates() {
+        let seq = OctaveRowSequence {
+            base_note: Note::N120,
+            direction: SequenceDirection::Descending,
+            length: 64,
+        };
+        let notes = seq.as_midi_notes();
+        assert_eq!(notes.len(), 64);
+        assert_eq!(&notes[0..4], &[120, 120, 120, 120]);
+        assert_eq!(&notes[40..44], &[0, 0, 0, 0]);
+        assert_eq!(&notes[44..48], &[0, 0, 0, 0]);
+        assert_eq!(&notes[60..64], &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn test_octave_row_respects_length() {
+        let seq = OctaveRowSequence {
+            base_note: Note::N60,
+            direction: SequenceDirection::Ascending,
+            length: 8,
+        };
+        let notes = seq.as_midi_notes();
+        assert_eq!(notes, vec![60, 60, 60, 60, 72, 72, 72, 72]);
+    }
+
+    #[test]
+    fn test_note_pattern_scale_delegates() {
+        let seq = ScaleSequence::default();
+        let pattern = NotePattern::Scale(seq);
+        assert_eq!(pattern.as_midi_notes(), seq.as_midi_notes());
     }
 }
