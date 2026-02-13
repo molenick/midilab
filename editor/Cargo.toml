@@ -20,3 +20,6 @@ midilab-io.workspace = true
 eframe.workspace = true
 midir.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+egui_kittest.workspace = true
