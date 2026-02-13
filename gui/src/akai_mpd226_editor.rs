@@ -137,12 +137,8 @@ impl AkaiMpd226Editor {
             }
         });
     }
-}
 
-impl eframe::App for AkaiMpd226Editor {
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        self.poll_ui_msgs();
-
+    pub fn render_ui(&mut self, ctx: &Context) {
         TopBottomPanel::top("selected_item_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.add_space(spacing(0));
@@ -200,6 +196,13 @@ impl eframe::App for AkaiMpd226Editor {
         }
 
         ctx.request_repaint_after(std::time::Duration::from_millis(17));
+    }
+}
+
+impl eframe::App for AkaiMpd226Editor {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        self.poll_ui_msgs();
+        self.render_ui(ctx);
     }
 }
 
