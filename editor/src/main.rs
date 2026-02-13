@@ -67,10 +67,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let msg = match result {
                 Ok(bytes) => match DeviceStatus::try_from(bytes.as_slice()) {
                     Ok(msg) => AppMsg::Device(msg),
-                    Err(e) => AppMsg::UserError(UserError::DeviceStatusParseError(e)),
+                    Err(e) => AppMsg::UserError(UserError::DeviceStatusParse(e)),
                 },
 
-                Err(e) => AppMsg::UserError(UserError::MidiError(e)),
+                Err(e) => AppMsg::UserError(UserError::Midi(e)),
             };
 
             midi_app_tx.send(msg).unwrap();

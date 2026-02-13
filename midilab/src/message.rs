@@ -18,9 +18,9 @@ pub enum AppMsg {
 }
 
 pub enum UserError {
-    MidiError(MidiError),             // this comes from midi layer, it's an io error
-    SysexParseError(SysexParseError), // this comes from parsing wire layer - it's not sysex
-    DeviceStatusParseError(DeviceStatusParseError), // this comes from parsing into a known device status - it's not a device status
+    Midi(MidiError),
+    SysexParse(SysexParseError),
+    DeviceStatusParse(DeviceStatusParseError),
 }
 
 pub enum IoMsg {
@@ -31,12 +31,6 @@ pub enum IoMsg {
 pub enum IoEffect {
     PresetSaveResult(Result<(), String>),
     PresetLoadResult(Result<Box<Preset>, String>),
-}
-
-pub enum SubsystemError {
-    Midi(MidiError),
-    SysexParse(SysexParseError),
-    DeviceStatusParseEr(DeviceStatusParseError),
 }
 
 /// Application system effects produced from processing AppMsgs

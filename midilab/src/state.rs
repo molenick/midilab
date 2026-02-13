@@ -176,17 +176,17 @@ impl AppState {
                 },
             },
             AppMsg::UserError(e) => match e {
-                UserError::MidiError(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                UserError::Midi(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                     msg: e.to_string(),
                     received_at: Instant::now(),
                     kind: UserMsgKind::Error,
                 }))],
-                UserError::SysexParseError(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                UserError::SysexParse(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                     msg: e.to_string(),
                     received_at: Instant::now(),
                     kind: UserMsgKind::Error,
                 }))],
-                UserError::DeviceStatusParseError(e) => {
+                UserError::DeviceStatusParse(e) => {
                     vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: e.to_string(),
                         received_at: Instant::now(),
@@ -297,7 +297,7 @@ mod tests {
         let mut app = AppState::default();
         let original_slot = app.preset.settings.preset_slot;
 
-        let effects = app.update(AppMsg::UserError(UserError::MidiError(
+        let effects = app.update(AppMsg::UserError(UserError::Midi(
             MidiError::ResponseTimeout,
         )));
 
@@ -317,7 +317,7 @@ mod tests {
         let mut app = AppState::default();
         let original_slot = app.preset.settings.preset_slot;
 
-        let effects = app.update(AppMsg::UserError(UserError::SysexParseError(
+        let effects = app.update(AppMsg::UserError(UserError::SysexParse(
             SysexParseError::InvalidStart(0x00),
         )));
 
@@ -337,7 +337,7 @@ mod tests {
         let mut app = AppState::default();
         let original_slot = app.preset.settings.preset_slot;
 
-        let effects = app.update(AppMsg::UserError(UserError::DeviceStatusParseError(
+        let effects = app.update(AppMsg::UserError(UserError::DeviceStatusParse(
             DeviceStatusParseError::InvalidCommand(0xFF),
         )));
 
