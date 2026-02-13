@@ -169,7 +169,7 @@ impl AppState {
                         received_at: Instant::now(),
                     }))],
                     Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                        msg: format!("Preset save failed: {e}"),
+                        msg: format!("Preset load failed: {e}"),
                         kind: UserMsgKind::Error,
                         received_at: Instant::now(),
                     }))],
@@ -200,6 +200,8 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::error::DeviceStatusParseError;
     use crate::error::MidiError;
@@ -218,6 +220,12 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    fn app_with_preset_dir(dir: Option<PathBuf>) -> AppState {
+        let mut app = AppState::new();
+        app.config.preset_directory = dir;
+        app
     }
 
     #[test]
@@ -443,7 +451,6 @@ mod tests {
             },
         )));
 
-        // Failure should produce an error message
         let effect = effects.into_iter().next().unwrap();
         assert!(matches!(
             effect,
@@ -451,6 +458,201 @@ mod tests {
                 kind: UserMsgKind::Error,
                 ..
             }))
+        ));
+    }
+
+    #[test]
+    fn load_persisted_preset_with_config_path() {
+        let mut app = app_with_preset_dir(Some(PathBuf::from("/test/path")));
+
+        let effects = app.update(AppMsg::Ui(UiEffect::LoadPersistedPreset));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Io(ref msg) if matches!(**msg, IoMsg::LoadPreset { ref path } if path.ends_with("akai_mpd226_preset"))
+        ));
+    }
+
+    #[test]
+    fn load_persisted_preset_without_config_path() {
+        let mut app = app_with_preset_dir(None);
+
+        let effects = app.update(AppMsg::Ui(UiEffect::LoadPersistedPreset));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::ShowDirectoryPicker {
+                for_action: PendingFileAction::Load
+            })
+        ));
+    }
+
+    #[test]
+    fn persist_preset_with_config_path() {
+        let mut app = app_with_preset_dir(Some(PathBuf::from("/test/path")));
+        let preset = preset_with_slot(PresetSlot::Slot2);
+
+        let effects = app.update(AppMsg::Ui(UiEffect::PersistPreset(Box::new(preset))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Io(ref msg) if matches!(**msg, IoMsg::SavePreset { ref path, .. } if path.ends_with("akai_mpd226_preset"))
+        ));
+        assert!(app.pending_save_preset.is_none());
+    }
+
+    #[test]
+    fn persist_preset_without_config_path() {
+        let mut app = app_with_preset_dir(None);
+        let preset = preset_with_slot(PresetSlot::Slot2);
+
+        let effects = app.update(AppMsg::Ui(UiEffect::PersistPreset(Box::new(preset))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::ShowDirectoryPicker {
+                for_action: PendingFileAction::Save
+            })
+        ));
+        assert!(app.pending_save_preset.is_some());
+        assert_eq!(
+            app.pending_save_preset
+                .as_ref()
+                .unwrap()
+                .settings
+                .preset_slot,
+            PresetSlot::Slot2
+        );
+    }
+
+    #[test]
+    fn set_preset_directory() {
+        let mut app = AppState::default();
+
+        let effects = app.update(AppMsg::Ui(UiEffect::SetPresetDirectory));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::ShowDirectoryPicker {
+                for_action: PendingFileAction::ManualSet
+            })
+        ));
+    }
+
+    #[test]
+    fn preset_directory_selected_without_pending_save() {
+        let mut app = AppState::default();
+        let dir = PathBuf::from("/new/path");
+
+        let effects = app.update(AppMsg::Ui(UiEffect::PresetDirectorySelected(dir.clone())));
+
+        assert_eq!(app.config.preset_directory, Some(dir.clone()));
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::DirectoryConfigured(ref d)) if d == &dir
+        ));
+    }
+
+    #[test]
+    fn preset_directory_selected_with_pending_save() {
+        let mut app = AppState::default();
+        let preset = preset_with_slot(PresetSlot::Slot5);
+        app.pending_save_preset = Some(Box::new(preset));
+        let dir = PathBuf::from("/new/path");
+
+        let effects = app.update(AppMsg::Ui(UiEffect::PresetDirectorySelected(dir.clone())));
+
+        assert_eq!(app.config.preset_directory, Some(dir.clone()));
+        assert_eq!(effects.len(), 2);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::DirectoryConfigured(ref d)) if d == &dir
+        ));
+        assert!(matches!(
+            effects[1],
+            AppEffect::Io(ref msg) if matches!(**msg, IoMsg::SavePreset { ref preset, .. } if preset.settings.preset_slot == PresetSlot::Slot5)
+        ));
+        assert!(app.pending_save_preset.is_none());
+    }
+
+    #[test]
+    fn io_preset_save_success() {
+        let mut app = AppState::default();
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetSaveResult(Ok(())))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Status,
+                msg: ref m,
+                ..
+            })) if m.contains("saved")
+        ));
+    }
+
+    #[test]
+    fn io_preset_save_failure() {
+        let mut app = AppState::default();
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetSaveResult(Err(
+            "disk full".to_string(),
+        )))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Error,
+                msg: ref m,
+                ..
+            })) if m.contains("disk full")
+        ));
+    }
+
+    #[test]
+    fn io_preset_load_success() {
+        let mut app = AppState::default();
+        let preset = preset_with_slot(PresetSlot::Slot6);
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetLoadResult(Ok(
+            Box::new(preset),
+        )))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Status,
+                msg: ref m,
+                ..
+            })) if m.contains("loaded")
+        ));
+    }
+
+    #[test]
+    fn io_preset_load_failure() {
+        let mut app = AppState::default();
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetLoadResult(Err(
+            "file not found".to_string(),
+        )))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Error,
+                msg: ref m,
+                ..
+            })) if m.contains("file not found")
         ));
     }
 }
