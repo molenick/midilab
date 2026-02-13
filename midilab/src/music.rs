@@ -5,56 +5,6 @@ use strum_macros::EnumIter;
 
 use crate::midi::Note;
 
-#[derive(Clone, Copy, Debug)]
-pub struct IntervalRowSequence {
-    pub base_note: Note,
-    pub interval: u8,
-    pub direction: SequenceDirection,
-    pub length: usize,
-}
-
-impl Default for IntervalRowSequence {
-    fn default() -> Self {
-        Self {
-            base_note: Note::N36,
-            interval: 5,
-            direction: SequenceDirection::Ascending,
-            length: 64,
-        }
-    }
-}
-
-impl IntervalRowSequence {
-    pub fn as_midi_notes(&self) -> Vec<u8> {
-        let base: u8 = self.base_note.into();
-        let mut notes = Vec::new();
-        let mut row_note = base as i16;
-        let mut last_valid_note = row_note;
-
-        while notes.len() < self.length {
-            if (0..=127).contains(&row_note) {
-                last_valid_note = row_note;
-                for _ in 0..4 {
-                    if notes.len() < self.length {
-                        notes.push(row_note as u8);
-                    }
-                }
-            } else {
-                while notes.len() < self.length {
-                    notes.push(last_valid_note as u8);
-                }
-                break;
-            }
-            row_note = match self.direction {
-                SequenceDirection::Ascending => row_note + self.interval as i16,
-                SequenceDirection::Descending => row_note - self.interval as i16,
-            };
-        }
-
-        notes
-    }
-}
-
 #[derive(Clone, Copy, Debug, Display, EnumIter, PartialEq, Eq)]
 pub enum ChordVoicing {
     Triad,
@@ -89,7 +39,11 @@ impl ChordVoicing {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+// todo: it's possible some chords be wrong if they are too
+// close to the midi boundary and its using an agressive voicing -
+// it'll saturate at either boundary.
+// if behavior stays we probably want to surface to user some
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ChordRowSequence {
     pub tonic: PitchClass,
     pub scale: ScaleKind,
@@ -114,20 +68,8 @@ impl Default for ChordRowSequence {
 
 impl ChordRowSequence {
     pub fn as_midi_notes(&self) -> Vec<u8> {
-        // Build a long run of scale tones from (tonic, octave)
         let start = 12 * (self.octave as i8 + 1) as u8 + (self.tonic as u8);
-        let partial_intervals = self.scale.intervals();
-
-        // ScaleKind::intervals() omits the final interval back to the tonic.
-        // We need the full octave cycle for correct chord spelling.
-        let partial_sum: u8 = partial_intervals.iter().sum();
-        let closing_interval = 12u8.saturating_sub(partial_sum);
-        let mut full_intervals: Vec<u8> = partial_intervals.to_vec();
-        if closing_interval > 0 {
-            full_intervals.push(closing_interval);
-        }
-
-        // Generate enough scale tones to cover all needed chord tones
+        let intervals = self.scale.intervals();
         let needed_degrees = (self.length / 4) + 12;
         let mut scale_notes: Vec<u8> = Vec::with_capacity(needed_degrees);
 
@@ -139,7 +81,7 @@ impl ChordRowSequence {
                     if scale_notes.len() >= needed_degrees {
                         break;
                     }
-                    let step = full_intervals[i % full_intervals.len()];
+                    let step = intervals[i % intervals.len()];
                     cur = cur.saturating_add(step).min(127);
                     scale_notes.push(cur);
                 }
@@ -151,7 +93,7 @@ impl ChordRowSequence {
                     if scale_notes.len() >= needed_degrees {
                         break;
                     }
-                    let step = full_intervals[i % full_intervals.len()];
+                    let step = intervals[i % intervals.len()];
                     cur = cur.saturating_sub(step);
                     scale_notes.push(cur);
                 }
@@ -193,11 +135,82 @@ impl ChordRowSequence {
 
         notes
     }
+
+    pub fn as_pitches(&self) -> Vec<Pitch> {
+        let intervals = self.scale.sequence_intervals();
+        let needed_degrees = (self.length / 4) + 12;
+        let mut scale_pitches: Vec<Pitch> = Vec::with_capacity(needed_degrees);
+
+        let mut current_pitch = Pitch {
+            class: self.tonic,
+            octave: self.octave,
+        };
+
+        // Build scale pitches for both directions
+        match self.direction {
+            SequenceDirection::Ascending => {
+                scale_pitches.push(current_pitch);
+                for i in 0.. {
+                    if scale_pitches.len() >= needed_degrees {
+                        break;
+                    }
+                    let step = intervals[i % intervals.len()];
+                    current_pitch = current_pitch.advance(self.tonic, self.direction, step);
+                    scale_pitches.push(current_pitch);
+                }
+            }
+            SequenceDirection::Descending => {
+                scale_pitches.push(current_pitch);
+                for i in 0.. {
+                    if scale_pitches.len() >= needed_degrees {
+                        break;
+                    }
+                    let step = intervals[i % intervals.len()];
+                    current_pitch = current_pitch.advance(self.tonic, self.direction, step);
+                    scale_pitches.push(current_pitch);
+                }
+            }
+        }
+
+        let mut pitches = Vec::with_capacity(self.length);
+        let mut degree = 0usize;
+
+        let offsets = self.voicing.chord_offsets();
+        let max_offset = offsets.iter().map(|(o, _)| *o).max().unwrap();
+
+        while pitches.len() < self.length {
+            if degree + max_offset >= scale_pitches.len() {
+                break;
+            }
+            for &(off, shift) in &offsets {
+                if pitches.len() < self.length {
+                    let base_midi = scale_pitches[degree + off].as_midi_note();
+                    let adjusted_midi = (base_midi as i16 + shift as i16).clamp(0, 127) as u8;
+                    pitches.push(Pitch::from(adjusted_midi));
+                }
+            }
+            degree += 1;
+        }
+
+        if pitches.len() < self.length && !pitches.is_empty() {
+            let last_chord_start = (pitches.len() / 4).saturating_sub(1) * 4;
+            let last_chord: Vec<Pitch> = pitches[last_chord_start..last_chord_start + 4].to_vec();
+            while pitches.len() < self.length {
+                for &p in &last_chord {
+                    if pitches.len() < self.length {
+                        pitches.push(p);
+                    }
+                }
+            }
+        }
+
+        pitches
+    }
 }
 
 /// ScaleSequences allow for the creation of note-mapping patterns from
 /// common musical scales
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScaleSequence {
     /// the tonic of the scale
     pub tonic: PitchClass,
@@ -223,73 +236,33 @@ impl Default for ScaleSequence {
 }
 
 impl ScaleSequence {
-    /// Uses the field config values from self to produce a Vec<u8> of midi notes
     pub fn as_midi_notes(&self) -> Vec<u8> {
-        let start = 12 * (self.octave as i8 + 1) as u8 + (self.tonic as u8);
-        let intervals = self.scale.intervals();
-
+        let pitches: Vec<Pitch> = self.as_pitches();
         let mut notes = Vec::with_capacity(self.length);
-        let mut cur = start;
+
+        for pitch in pitches {
+            notes.push(pitch.as_midi_note());
+        }
+
+        notes
+    }
+
+    pub fn as_pitches(&self) -> Vec<Pitch> {
+        let intervals = self.scale.sequence_intervals();
+        let mut pitches = Vec::with_capacity(self.length);
+        let mut current_pitch = Pitch {
+            class: self.tonic,
+            octave: self.octave,
+        };
 
         for i in 0..self.length {
-            notes.push(cur);
+            pitches.push(current_pitch);
 
             let step = intervals[i % intervals.len()];
-            match self.direction {
-                SequenceDirection::Ascending => cur = cur.saturating_add(step),
-                SequenceDirection::Descending => cur = cur.saturating_sub(step),
-            }
+            current_pitch = current_pitch.advance(self.tonic, self.direction, step);
         }
 
-        notes
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct OctaveRowSequence {
-    pub base_note: Note,
-    pub direction: SequenceDirection,
-    pub length: usize,
-}
-
-impl Default for OctaveRowSequence {
-    fn default() -> Self {
-        Self {
-            base_note: Note::N36,
-            direction: SequenceDirection::Ascending,
-            length: 64,
-        }
-    }
-}
-
-impl OctaveRowSequence {
-    pub fn as_midi_notes(&self) -> Vec<u8> {
-        let base: u8 = self.base_note.into();
-        let mut notes = Vec::new();
-        let mut row_note = base as i16;
-        let mut last_valid_note = row_note;
-
-        while notes.len() < self.length {
-            if (0..=127).contains(&row_note) {
-                last_valid_note = row_note;
-                for _ in 0..4 {
-                    if notes.len() < self.length {
-                        notes.push(row_note as u8);
-                    }
-                }
-            } else {
-                while notes.len() < self.length {
-                    notes.push(last_valid_note as u8);
-                }
-                break;
-            }
-            row_note = match self.direction {
-                SequenceDirection::Ascending => row_note + 12,
-                SequenceDirection::Descending => row_note - 12,
-            };
-        }
-
-        notes
+        pitches
     }
 }
 
@@ -310,6 +283,28 @@ pub enum Octave {
     O8 = 8,
     O9 = 9,
 }
+
+/// Saturates on the low end at Osub2 and on the high end at O9.
+impl From<i8> for Octave {
+    fn from(value: i8) -> Self {
+        match value {
+            i if i <= -2 => Octave::Osub2,
+            -1 => Octave::Osub1,
+            0 => Octave::O0,
+            1 => Octave::O1,
+            2 => Octave::O2,
+            3 => Octave::O3,
+            4 => Octave::O4,
+            5 => Octave::O5,
+            6 => Octave::O6,
+            7 => Octave::O7,
+            8 => Octave::O8,
+            i if i >= 9 => Octave::O9,
+            _ => unreachable!("guarded arms are exhaustive"),
+        }
+    }
+}
+
 impl core::fmt::Display for Octave {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let out = (*self as i8).to_string();
@@ -318,16 +313,47 @@ impl core::fmt::Display for Octave {
     }
 }
 
-/// Determines whether the notes generated from a ScaleSequence are ascending or descending
 #[derive(Clone, Copy, Debug, Display, EnumIter, PartialEq, Eq)]
 pub enum SequenceDirection {
     Ascending,
     Descending,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Pitch {
+    pub class: PitchClass,
+    pub octave: Octave,
+}
+
+impl Pitch {
+    pub fn as_midi_note(&self) -> u8 {
+        12 * (self.octave as i8 + 1) as u8 + (self.class as u8)
+    }
+
+    pub fn advance(&self, _tonic: PitchClass, direction: SequenceDirection, step: u8) -> Self {
+        let current_midi = self.as_midi_note();
+        let new_midi = match direction {
+            SequenceDirection::Ascending => current_midi.saturating_add(step).min(127),
+            SequenceDirection::Descending => current_midi.saturating_sub(step),
+        };
+        Pitch::from(new_midi)
+    }
+}
+
+impl From<u8> for Pitch {
+    fn from(value: u8) -> Self {
+        let octave = (value / 12) as i8 - 1;
+        let octave = Octave::from(octave);
+        let class = PitchClass::from_midi_note(value);
+        Self { class, octave }
+    }
+}
+
 /// The PitchClass according to https://en.wikipedia.org/wiki/Equal_temperament
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Default, IntoPrimitive, TryFromPrimitive, EnumIter)]
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Default, IntoPrimitive, TryFromPrimitive, EnumIter, Hash,
+)]
 pub enum PitchClass {
     #[default]
     C,
@@ -366,9 +392,46 @@ impl core::fmt::Display for PitchClass {
 }
 
 impl PitchClass {
+    pub fn from_midi_note(val: u8) -> Self {
+        PitchClass::try_from(val % 12).unwrap()
+    }
+
     pub fn add_semitones(self, semitones: u8) -> Self {
         let new_value = (u8::from(self) + semitones) % 12;
         PitchClass::try_from(new_value).expect("modulo 12 guarantees valid pitch class")
+    }
+
+    pub fn next(&self, direction: SequenceDirection) -> Self {
+        match direction {
+            SequenceDirection::Ascending => match self {
+                PitchClass::C => PitchClass::Cs,
+                PitchClass::Cs => PitchClass::D,
+                PitchClass::D => PitchClass::Ds,
+                PitchClass::Ds => PitchClass::E,
+                PitchClass::E => PitchClass::F,
+                PitchClass::F => PitchClass::Fs,
+                PitchClass::Fs => PitchClass::G,
+                PitchClass::G => PitchClass::Gs,
+                PitchClass::Gs => PitchClass::A,
+                PitchClass::A => PitchClass::As,
+                PitchClass::As => PitchClass::B,
+                PitchClass::B => PitchClass::C,
+            },
+            SequenceDirection::Descending => match self {
+                PitchClass::C => PitchClass::B,
+                PitchClass::Cs => PitchClass::C,
+                PitchClass::D => PitchClass::Cs,
+                PitchClass::Ds => PitchClass::D,
+                PitchClass::E => PitchClass::Ds,
+                PitchClass::F => PitchClass::E,
+                PitchClass::Fs => PitchClass::F,
+                PitchClass::G => PitchClass::Fs,
+                PitchClass::Gs => PitchClass::G,
+                PitchClass::A => PitchClass::Gs,
+                PitchClass::As => PitchClass::A,
+                PitchClass::B => PitchClass::As,
+            },
+        }
     }
 }
 
@@ -377,6 +440,38 @@ impl From<Note> for PitchClass {
         {
             let semitone = u8::from(note) % 12;
             PitchClass::try_from_primitive(semitone).unwrap()
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Display, PartialEq)]
+pub enum NotePattern {
+    #[strum(to_string = "Scale")]
+    Scale(ScaleSequence),
+    #[strum(to_string = "Chord")]
+    ChordRow(ChordRowSequence),
+}
+
+impl NotePattern {
+    pub fn as_pitches(&self) -> Vec<Pitch> {
+        match self {
+            NotePattern::Scale(sequence) => sequence.as_pitches(),
+            NotePattern::ChordRow(sequence) => sequence.as_pitches(),
+        }
+    }
+
+    pub fn as_midi_notes(&self) -> Vec<u8> {
+        match self {
+            NotePattern::Scale(seq) => seq.as_midi_notes(),
+            NotePattern::ChordRow(seq) => seq.as_midi_notes(),
+        }
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        match self {
+            NotePattern::Scale(sequence) => sequence.length,
+            NotePattern::ChordRow(sequence) => sequence.length,
         }
     }
 }
@@ -402,33 +497,35 @@ pub enum ScaleKind {
 }
 
 impl ScaleKind {
-    /// Represents the intervals of a scale without repeating the tonic. Since these
-    /// are used for note pattern generation, we deviate from the norm of including
-    /// the final interval that leads back to the tonic since it's not what we want
-    /// when generating notes from a ScaleSequence.
+    // When building a contiguous sequence of notes, we don't want the repeating tonic
+    pub fn sequence_intervals(self) -> &'static [u8] {
+        let intervals = self.intervals();
+        &intervals[..intervals.len().saturating_sub(1)]
+    }
+
     pub fn intervals(self) -> &'static [u8] {
         match self {
-            ScaleKind::Major => &[2, 2, 1, 2, 2, 2],
-            ScaleKind::NaturalMinor => &[2, 1, 2, 2, 1, 2],
-            ScaleKind::HarmonicMinor => &[2, 1, 2, 2, 1, 3],
-            ScaleKind::MelodicMinor => &[2, 1, 2, 2, 2, 2],
-            ScaleKind::Dorian => &[2, 1, 2, 2, 2, 1],
-            ScaleKind::Phrygian => &[1, 2, 2, 2, 1, 2],
-            ScaleKind::Lydian => &[2, 2, 2, 1, 2, 2],
-            ScaleKind::Mixolydian => &[2, 2, 1, 2, 2, 1],
-            ScaleKind::Locrian => &[1, 2, 2, 1, 2, 2],
-            ScaleKind::MajorPentatonic => &[2, 2, 3, 2],
-            ScaleKind::MinorPentatonic => &[3, 2, 2, 3],
-            ScaleKind::WholeTone => &[2, 2, 2, 2, 2],
-            ScaleKind::DiminishedHalfWhole => &[1, 2, 1, 2, 1, 2, 1],
-            ScaleKind::DiminishedWholeHalf => &[2, 1, 2, 1, 2, 1, 2],
-            ScaleKind::Chromatic => &[1; 11],
+            ScaleKind::Major => &[2, 2, 1, 2, 2, 2, 1],
+            ScaleKind::NaturalMinor => &[2, 1, 2, 2, 1, 2, 2],
+            ScaleKind::HarmonicMinor => &[2, 1, 2, 2, 1, 3, 1],
+            ScaleKind::MelodicMinor => &[2, 1, 2, 2, 2, 2, 1],
+            ScaleKind::Dorian => &[2, 1, 2, 2, 2, 1, 2],
+            ScaleKind::Phrygian => &[1, 2, 2, 2, 1, 2, 2],
+            ScaleKind::Lydian => &[2, 2, 2, 1, 2, 2, 1],
+            ScaleKind::Mixolydian => &[2, 2, 1, 2, 2, 1, 2],
+            ScaleKind::Locrian => &[1, 2, 2, 1, 2, 2, 2],
+            ScaleKind::MajorPentatonic => &[2, 2, 3, 2, 3],
+            ScaleKind::MinorPentatonic => &[3, 2, 2, 3, 2],
+            ScaleKind::WholeTone => &[2, 2, 2, 2, 2, 2],
+            ScaleKind::DiminishedHalfWhole => &[1, 2, 1, 2, 1, 2, 1, 2],
+            ScaleKind::DiminishedWholeHalf => &[2, 1, 2, 1, 2, 1, 2, 1],
+            ScaleKind::Chromatic => &[1; 12],
         }
     }
 
     /// Returns all pitch classes in this scale starting from the given tonic.
     pub fn pitch_classes_from_tonic(self, tonic: &PitchClass) -> Vec<PitchClass> {
-        let intervals = self.intervals();
+        let intervals = self.sequence_intervals();
         let mut pitch_classes = Vec::with_capacity(intervals.len() + 1);
 
         let mut current_pitch = *tonic;
@@ -466,7 +563,7 @@ mod tests {
             octave: Octave::O4,
             length: 16,
         };
-        let notes = ss.as_midi_notes();
+        let notes: Vec<u8> = ss.as_midi_notes();
 
         assert_eq!(
             notes,
@@ -576,56 +673,6 @@ mod tests {
                 PitchClass::B,
             ]
         );
-    }
-
-    #[test]
-    fn test_interval_row_fourths() {
-        let seq = IntervalRowSequence {
-            base_note: Note::N60,
-            interval: 5,
-            direction: SequenceDirection::Ascending,
-            length: 16,
-        };
-        let notes = seq.as_midi_notes();
-        assert_eq!(
-            notes,
-            vec![
-                60, 60, 60, 60, 65, 65, 65, 65, 70, 70, 70, 70, 75, 75, 75, 75
-            ]
-        );
-    }
-
-    #[test]
-    fn test_interval_row_saturates() {
-        let seq = IntervalRowSequence {
-            base_note: Note::N120,
-            interval: 5,
-            direction: SequenceDirection::Ascending,
-            length: 16,
-        };
-        let notes = seq.as_midi_notes();
-        assert_eq!(notes.len(), 16);
-        assert_eq!(&notes[0..4], &[120, 120, 120, 120]);
-        assert_eq!(&notes[4..8], &[125, 125, 125, 125]);
-        // 130 > 127 so saturates at 125
-        assert_eq!(&notes[8..12], &[125, 125, 125, 125]);
-        assert_eq!(&notes[12..16], &[125, 125, 125, 125]);
-    }
-
-    #[test]
-    fn test_interval_row_octave_matches_octave_row() {
-        let interval_seq = IntervalRowSequence {
-            base_note: Note::N36,
-            interval: 12,
-            direction: SequenceDirection::Ascending,
-            length: 64,
-        };
-        let octave_seq = OctaveRowSequence {
-            base_note: Note::N36,
-            direction: SequenceDirection::Ascending,
-            length: 64,
-        };
-        assert_eq!(interval_seq.as_midi_notes(), octave_seq.as_midi_notes());
     }
 
     #[test]

@@ -1,18 +1,17 @@
 use crate::manufacturer::akai::mpd226::ColorPattern;
+use crate::manufacturer::akai::mpd226::NoteColorMap;
 use crate::manufacturer::akai::mpd226::NotePattern;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
 use crate::manufacturer::akai::mpd226::control::Dial;
 use crate::manufacturer::akai::mpd226::control::Fader;
 use crate::manufacturer::akai::mpd226::control::Pad;
 use crate::manufacturer::akai::mpd226::control::Switch;
-use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::raw::RawDials;
 use crate::manufacturer::akai::mpd226::raw::RawFaders;
 use crate::manufacturer::akai::mpd226::raw::RawPads;
 use crate::manufacturer::akai::mpd226::raw::RawSwitches;
 use crate::midi::Note;
-use crate::scale::PitchClass;
-use crate::scale::ScaleSequence;
+use crate::music::ScaleSequence;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -33,6 +32,18 @@ impl PadRepository {
                 pad.note = note;
             }
         }
+    }
+
+    pub fn set_note_pattern_with_off_colors(
+        &mut self,
+        starting_position: usize,
+        note_pattern: NotePattern,
+        off_pad_color_map: NoteColorMap,
+    ) {
+        self.set_note_pattern(starting_position, note_pattern);
+
+        let color_pattern = ColorPattern::from((note_pattern, off_pad_color_map));
+        self.set_off_color_pattern(starting_position, note_pattern.len(), color_pattern);
     }
 
     pub fn set_off_color_pattern(
@@ -70,26 +81,6 @@ impl PadRepository {
 
         for (i, pad) in changing_pads.iter_mut().enumerate() {
             pad.on_color = pattern.color_at_index(i);
-        }
-    }
-
-    pub fn highlight_tonics(
-        &mut self,
-        starting_position: usize,
-        length: usize,
-        tonic_color: (PitchClass, PadColor),
-    ) {
-        let clamped_starting_position = starting_position.min(TOTAL_PADS);
-        let end = (clamped_starting_position + length).min(TOTAL_PADS);
-        let changing_pads = &mut self.pads[clamped_starting_position..end];
-
-        let (tonic, color) = tonic_color;
-        for pad in changing_pads.iter_mut() {
-            let pitch_class = PitchClass::from(pad.note);
-
-            if pitch_class == tonic {
-                pad.off_color = color;
-            }
         }
     }
 }
@@ -224,20 +215,20 @@ mod tests {
     use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
+    use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
     use crate::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
     use crate::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
     use crate::manufacturer::akai::mpd226::raw::RawDial;
     use crate::manufacturer::akai::mpd226::raw::RawFader;
     use crate::manufacturer::akai::mpd226::raw::RawPad;
     use crate::manufacturer::akai::mpd226::raw::RawSwitch;
-    use crate::scale::ChordRowSequence;
-    use crate::scale::ChordVoicing;
-    use crate::scale::IntervalRowSequence;
-    use crate::scale::Octave;
-    use crate::scale::OctaveRowSequence;
-    use crate::scale::ScaleKind;
-    use crate::scale::ScaleSequence;
-    use crate::scale::SequenceDirection;
+    use crate::music::ChordRowSequence;
+    use crate::music::ChordVoicing;
+    use crate::music::Octave;
+    use crate::music::PitchClass;
+    use crate::music::ScaleKind;
+    use crate::music::ScaleSequence;
+    use crate::music::SequenceDirection;
 
     #[test]
     fn test_pad_repository_set_note_pattern_chromatic() {
@@ -382,48 +373,6 @@ mod tests {
         for i in 60..TOTAL_PADS {
             assert_eq!(repo.pads[i].off_color, PadColor::Yellow);
         }
-    }
-
-    #[test]
-    fn test_pad_repository_highlight_tonics() {
-        let mut repo = PadRepository::default();
-
-        let scale_seq = ScaleSequence {
-            tonic: PitchClass::C,
-            scale: ScaleKind::Chromatic,
-            direction: SequenceDirection::Ascending,
-            octave: Octave::O4,
-            length: 24,
-        };
-
-        repo.set_note_pattern(0, NotePattern::Scale(scale_seq));
-        repo.highlight_tonics(0, 24, (PitchClass::C, PadColor::Red));
-
-        assert_eq!(repo.pads[0].off_color, PadColor::Red);
-        assert_eq!(repo.pads[12].off_color, PadColor::Red);
-
-        assert_eq!(repo.pads[1].off_color, PadColor::default());
-        assert_eq!(repo.pads[5].off_color, PadColor::default());
-    }
-
-    #[test]
-    fn test_pad_repository_highlight_tonics_different_tonic() {
-        let mut repo = PadRepository::default();
-
-        let scale_seq = ScaleSequence {
-            tonic: PitchClass::C,
-            scale: ScaleKind::Chromatic,
-            direction: SequenceDirection::Ascending,
-            octave: Octave::O4,
-            length: 12,
-        };
-
-        repo.set_note_pattern(0, NotePattern::Scale(scale_seq));
-        repo.highlight_tonics(0, 12, (PitchClass::E, PadColor::Blue));
-
-        assert_eq!(repo.pads[4].off_color, PadColor::Blue);
-
-        assert_eq!(repo.pads[0].off_color, PadColor::default());
     }
 
     #[test]
@@ -749,53 +698,6 @@ mod tests {
         for i in 0..8 {
             assert_eq!(repo.pads[i].off_color, PadColor::Aqua);
         }
-    }
-
-    #[test]
-    fn test_pad_repository_set_note_pattern_octave_row() {
-        let mut repo = PadRepository::default();
-
-        repo.set_note_pattern(
-            0,
-            NotePattern::OctaveRow(OctaveRowSequence {
-                base_note: Note::N36,
-                direction: SequenceDirection::Ascending,
-                length: 64,
-            }),
-        );
-
-        assert_eq!(repo.pads[0].note, Note::N36);
-        assert_eq!(repo.pads[1].note, Note::N36);
-        assert_eq!(repo.pads[2].note, Note::N36);
-        assert_eq!(repo.pads[3].note, Note::N36);
-        assert_eq!(repo.pads[4].note, Note::N48);
-        assert_eq!(repo.pads[5].note, Note::N48);
-        assert_eq!(repo.pads[6].note, Note::N48);
-        assert_eq!(repo.pads[7].note, Note::N48);
-    }
-
-    #[test]
-    fn test_pad_repository_set_note_pattern_interval_row() {
-        let mut repo = PadRepository::default();
-
-        repo.set_note_pattern(
-            0,
-            NotePattern::IntervalRow(IntervalRowSequence {
-                base_note: Note::N60,
-                interval: 5,
-                direction: SequenceDirection::Ascending,
-                length: 8,
-            }),
-        );
-
-        assert_eq!(repo.pads[0].note, Note::N60);
-        assert_eq!(repo.pads[1].note, Note::N60);
-        assert_eq!(repo.pads[2].note, Note::N60);
-        assert_eq!(repo.pads[3].note, Note::N60);
-        assert_eq!(repo.pads[4].note, Note::N65);
-        assert_eq!(repo.pads[5].note, Note::N65);
-        assert_eq!(repo.pads[6].note, Note::N65);
-        assert_eq!(repo.pads[7].note, Note::N65);
     }
 
     #[test]
