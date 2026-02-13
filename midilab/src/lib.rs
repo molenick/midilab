@@ -12,6 +12,7 @@ pub mod message;
 pub mod midi;
 /// Music theory
 pub mod music;
+pub mod state;
 ///  Sysex deserialization
 pub mod sysex;
 

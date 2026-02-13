@@ -10,12 +10,12 @@ use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::message::AppEffect;
 use midilab::message::AppMsg;
-use midilab::message::AppState;
 use midilab::message::DeviceMsg;
 use midilab::message::IoEffect;
 use midilab::message::IoMsg;
 use midilab::message::UiMsg;
 use midilab::message::UserError;
+use midilab::state::AppState;
 use midilab_gui::AkaiMpd226Editor;
 use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
 use midilab_io::find_input_port;
@@ -67,10 +67,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let msg = match result {
                 Ok(bytes) => match DeviceStatus::try_from(bytes.as_slice()) {
                     Ok(msg) => AppMsg::Device(msg),
-                    Err(e) => AppMsg::UserError(UserError::DeviceStatusParseError(e)),
+                    Err(e) => AppMsg::UserError(UserError::DeviceStatusParse(e)),
                 },
 
-                Err(e) => AppMsg::UserError(UserError::MidiError(e)),
+                Err(e) => AppMsg::UserError(UserError::Midi(e)),
             };
 
             midi_app_tx.send(msg).unwrap();
