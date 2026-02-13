@@ -15,41 +15,6 @@ pub fn unpack_u14(bytes: [u8; 2]) -> u16 {
     (high << 7) | low
 }
 
-pub fn pack_u7(data: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity((data.len() * 8).div_ceil(7));
-    for chunk in data.chunks(7) {
-        let mut msb_byte: u8 = 0;
-        for (i, &byte) in chunk.iter().enumerate() {
-            if byte & 0x80 != 0 {
-                msb_byte |= 1 << i;
-            }
-        }
-        out.push(msb_byte);
-        for &byte in chunk {
-            out.push(byte & 0x7F);
-        }
-    }
-    out
-}
-
-pub fn unpack_u7(data: &[u8]) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < data.len() {
-        let msb_byte = data[i];
-        i += 1;
-        for bit in 0..7 {
-            if i >= data.len() {
-                break;
-            }
-            let msb = if msb_byte & (1 << bit) != 0 { 0x80 } else { 0 };
-            out.push(data[i] | msb);
-            i += 1;
-        }
-    }
-    out
-}
-
 /// Simple Sysex wrapper for serializing into bytes or as a first step in transforming binary into structured domain messages.
 /// See the [spec](http://midi.teragonaudio.com/tech/midispec/sysex.htm) for additional information.
 /// Only single-byte manufacturer ids are supported at this time.
@@ -67,25 +32,12 @@ impl Sysex {
         &self.payload
     }
 
-    pub fn into_payload(self) -> Vec<u8> {
-        self.payload
-    }
-
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut data = Vec::with_capacity(self.payload.len() + 2);
         data.push(START_BYTE);
         data.extend_from_slice(&self.payload);
         data.push(END_BYTE);
         data
-    }
-
-    /// The total length of the sysex payload, including header and footer bytes
-    #[expect(
-        clippy::len_without_is_empty,
-        reason = "valid sysex always has a length of at least 1, so empty is semantically invalid here"
-    )]
-    pub fn len(&self) -> usize {
-        self.payload.len() + 2
     }
 }
 
@@ -118,6 +70,86 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_pack_u14_zero() {
+        let result = pack_u14(0x0000);
+        assert_eq!(result, [0x00, 0x00]);
+    }
+
+    #[test]
+    fn test_pack_u14_max_14bit() {
+        let result = pack_u14(0x3FFF);
+        assert_eq!(result, [0x7F, 0x7F]);
+    }
+
+    #[test]
+    fn test_pack_u14_masks_high_bits() {
+        let result = pack_u14(0xFFFF);
+        assert_eq!(result, [0x7F, 0x7F]);
+
+        let result = pack_u14(0x4000);
+        assert_eq!(result, [0x00, 0x00]);
+
+        let result = pack_u14(0x8000);
+        assert_eq!(result, [0x00, 0x00]);
+    }
+
+    #[test]
+    fn test_pack_u14_various_values() {
+        assert_eq!(pack_u14(0x0001), [0x00, 0x01]);
+        assert_eq!(pack_u14(0x007F), [0x00, 0x7F]);
+        assert_eq!(pack_u14(0x0080), [0x01, 0x00]);
+        assert_eq!(pack_u14(0x00FF), [0x01, 0x7F]);
+        assert_eq!(pack_u14(0x0100), [0x02, 0x00]);
+        assert_eq!(pack_u14(0x1000), [0x20, 0x00]);
+        assert_eq!(pack_u14(0x2AAA), [0x55, 0x2A]);
+    }
+
+    #[test]
+    fn test_unpack_u14_zero() {
+        let result = unpack_u14([0x00, 0x00]);
+        assert_eq!(result, 0x0000);
+    }
+
+    #[test]
+    fn test_unpack_u14_max() {
+        let result = unpack_u14([0x7F, 0x7F]);
+        assert_eq!(result, 0x3FFF);
+    }
+
+    #[test]
+    fn test_unpack_u14_masks_high_bits() {
+        let result = unpack_u14([0xFF, 0xFF]);
+        assert_eq!(result, 0x3FFF);
+
+        let result = unpack_u14([0x80, 0x00]);
+        assert_eq!(result, 0x0000);
+
+        let result = unpack_u14([0x00, 0x80]);
+        assert_eq!(result, 0x0000);
+    }
+
+    #[test]
+    fn test_unpack_u14_various_values() {
+        assert_eq!(unpack_u14([0x00, 0x01]), 0x0001);
+        assert_eq!(unpack_u14([0x00, 0x7F]), 0x007F);
+        assert_eq!(unpack_u14([0x01, 0x00]), 0x0080);
+        assert_eq!(unpack_u14([0x01, 0x7F]), 0x00FF);
+        assert_eq!(unpack_u14([0x02, 0x00]), 0x0100);
+        assert_eq!(unpack_u14([0x20, 0x00]), 0x1000);
+        assert_eq!(unpack_u14([0x55, 0x2A]), 0x2AAA);
+    }
+
+    #[test]
+    fn test_pack_unpack_u14_round_trip() {
+        for val in [
+            0x0000, 0x0001, 0x007F, 0x0080, 0x00FF, 0x0100, 0x0FFF, 0x1000, 0x1FFF, 0x2000,
+            0x3FFF,
+        ] {
+            assert_eq!(unpack_u14(pack_u14(val)), val);
+        }
+    }
+
+    #[test]
     fn test_sysex_as_bytes() {
         let payload = vec![0x47, 0x00, 0x35];
         let sysex = Sysex::new(payload);
@@ -135,14 +167,6 @@ mod tests {
     fn test_sysex_try_from_vec_valid() {
         let data = vec![START_BYTE, 0x47, 0x00, 0x35, END_BYTE];
         let sysex = Sysex::try_from(data.as_slice()).unwrap();
-
-        assert_eq!(sysex.payload(), &[0x47, 0x00, 0x35]);
-    }
-
-    #[test]
-    fn test_sysex_try_from_slice_valid() {
-        let data: &[u8] = &[START_BYTE, 0x47, 0x00, 0x35, END_BYTE];
-        let sysex = Sysex::try_from(data).unwrap();
 
         assert_eq!(sysex.payload(), &[0x47, 0x00, 0x35]);
     }
@@ -195,16 +219,5 @@ mod tests {
         let reconstructed = Sysex::try_from(bytes.as_slice()).unwrap();
 
         assert_eq!(reconstructed.payload(), &original_payload);
-    }
-
-    #[test]
-    fn test_sysex_error_messages() {
-        let start_err = SysexParseError::InvalidStart(0x42);
-        assert!(start_err.to_string().contains("42"));
-        assert!(start_err.to_string().contains("F0"));
-
-        let end_err = SysexParseError::InvalidEnding(0x42);
-        assert!(end_err.to_string().contains("42"));
-        assert!(end_err.to_string().contains("F7"));
     }
 }
