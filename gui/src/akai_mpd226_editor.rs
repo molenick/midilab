@@ -69,9 +69,50 @@ use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
+const APP_X: f32 = 1200.;
+const APP_Y: f32 = 600.;
+pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
+
+const DEFAULT_CONTROL_X: f32 = 42.;
+
+const PAD_X: f32 = 48.;
+const PAD_Y: f32 = 48.;
+const PAD_DIMENSIONS: Vec2 = Vec2 { x: PAD_X, y: PAD_Y };
+
+const DIAL_X: f32 = DEFAULT_CONTROL_X;
+const DIAL_Y: f32 = 40.;
+const DIAL_DIMENSIONS: Vec2 = Vec2 {
+    x: DIAL_X,
+    y: DIAL_Y,
+};
+
+const FADER_X: f32 = DEFAULT_CONTROL_X;
+const FADER_Y: f32 = 80.;
+const FADER_DIMENSIONS: Vec2 = Vec2 {
+    x: FADER_X,
+    y: FADER_Y,
+};
+
+const SWITCH_X: f32 = DEFAULT_CONTROL_X;
+const SWITCH_Y: f32 = 24.;
+const SWITCH_DIMENSIONS: Vec2 = Vec2 {
+    x: SWITCH_X,
+    y: SWITCH_Y,
+};
+
+const BANKS: [&str; 4] = ["A", "B", "C", "D"];
+const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
+
+/// There is some extra space I haven't tracked down yet that happens
+/// to be 24., which is also half of the control x.
+const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.5;
+const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4. + CONTROL_BANK_X_ADJUSTMENT;
 const SIDE_BAR_X: f32 = 240.;
 
-/// Golden ratio spacing function with a base of f32: 8
+#[expect(
+    unused,
+    reason = "its hip, its cool, we're going to want to make the app look nice one day"
+)]
 fn spacing(n: i32) -> f32 {
     let phi = (1.0 + 5_f32.sqrt()) / 2.0;
     8_f32 * phi.powi(n)
@@ -141,7 +182,6 @@ impl AkaiMpd226Editor {
     pub fn render_ui(&mut self, ctx: &Context) {
         TopBottomPanel::top("selected_item_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.add_space(spacing(0));
                 ui.label("Akai MPD226 Editor");
                 ui.separator();
                 ui.label("Status:");
@@ -158,7 +198,6 @@ impl AkaiMpd226Editor {
                 }
             });
             render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
-            ui.add_space(spacing(-4));
         });
 
         CentralPanel::default().show(ctx, |ui| {
@@ -206,37 +245,30 @@ impl eframe::App for AkaiMpd226Editor {
     }
 }
 
-const APP_X: f32 = 1200.;
-const APP_Y: f32 = 600.;
-pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
+mod accessibility {
+    use super::*;
 
-const PAD_X: f32 = 48.;
-const PAD_Y: f32 = 48.;
-const PAD_DIMENSIONS: Vec2 = Vec2 { x: PAD_X, y: PAD_Y };
+    pub fn draw_focus_indicator(
+        ui: &egui::Ui,
+        rect: egui::Rect,
+        has_focus: bool,
+        corner_radius: f32,
+    ) {
+        if has_focus {
+            ui.painter().rect_stroke(
+                rect.expand(2.0),
+                corner_radius,
+                egui::Stroke::new(2.0, egui::Color32::from_rgb(100, 150, 255)),
+                egui::StrokeKind::Outside,
+            );
+        }
+    }
 
-const DIAL_X: f32 = 48.;
-const DIAL_Y: f32 = 48.;
-const DIAL_DIMENSIONS: Vec2 = Vec2 {
-    x: DIAL_X,
-    y: DIAL_Y,
-};
-
-const FADER_X: f32 = 48.;
-const FADER_Y: f32 = 80.;
-const FADER_DIMENSIONS: Vec2 = Vec2 {
-    x: FADER_X,
-    y: FADER_Y,
-};
-
-const SWITCH_X: f32 = 48.;
-const SWITCH_Y: f32 = 24.;
-const SWITCH_DIMENSIONS: Vec2 = Vec2 {
-    x: SWITCH_X,
-    y: SWITCH_Y,
-};
-
-const BANKS: [&str; 4] = ["A", "B", "C", "D"];
-const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
+    pub fn is_keyboard_activated(resp: &egui::Response, ctx: &egui::Context) -> bool {
+        resp.has_focus()
+            && ctx.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Space))
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UserSelection {
@@ -734,7 +766,6 @@ fn render_all_pad_banks(
         for (bank_id, bank) in banks.into_iter().enumerate() {
             let bank_label = BANKS[bank_id].to_string();
             render_pad_bank(ui, selected_item, bank, bank_label);
-            ui.add_space(spacing(0));
         }
     });
 }
@@ -745,27 +776,58 @@ fn render_pad_bank(
     pads: Vec<Pad>,
     label: String,
 ) {
-    let reordered: Vec<Pad> = pads.chunks(4).rev().flatten().cloned().collect();
-
     ui.vertical(|ui| {
         ui.label(format!("Pad Bank {label}"));
-        ui.add_space(spacing(-2));
-        Grid::new(format!("pad_bank_{}", label))
-            .num_columns(4)
-            .spacing([8.0, 8.0])
-            .show(ui, |ui| {
-                for (i, pad) in reordered.into_iter().enumerate() {
-                    render_pad(ui, selected_item, pad);
-                    if (i + 1) % 4 == 0 {
-                        ui.end_row();
-                    }
-                }
-            });
+
+        let grid_rect = ui
+            .allocate_exact_size(Vec2::new(PAD_X * 4., PAD_Y * 4.), egui::Sense::hover())
+            .0;
+        let top_left = grid_rect.min;
+
+        for (i, pad) in pads.into_iter().enumerate() {
+            let col = i % 4;
+            let row = i / 4;
+            let visual_row = 3 - row;
+
+            let x = top_left.x + col as f32 * (PAD_X);
+            let y = top_left.y + visual_row as f32 * (PAD_Y);
+
+            let rect = egui::Rect::from_min_size(egui::Pos2::new(x, y), PAD_DIMENSIONS);
+
+            let mut child_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(rect)
+                    .layout(egui::Layout::default()),
+            );
+            render_pad(&mut child_ui, selected_item, pad);
+        }
     });
 }
 
 fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) {
-    let (rect, resp) = ui.allocate_exact_size(PAD_DIMENSIONS, egui::Sense::click());
+    let cursor_pos = ui.cursor().min;
+    let rect = egui::Rect::from_min_size(cursor_pos, PAD_DIMENSIONS);
+
+    let label = format!("Pad {}", pad.id);
+    let (resp, clicked) = {
+        let label: &str = &label;
+        let button = egui::Button::new(label)
+            .fill(egui::Color32::TRANSPARENT)
+            .stroke(egui::Stroke::NONE)
+            .min_size(PAD_DIMENSIONS);
+
+        let resp = ui.add(button);
+        let clicked = resp.clicked();
+
+        (resp, clicked)
+    };
+
+    let resp = resp.on_hover_text(format!(
+        "Pad {} - Note: {}\nOff: {}, On: {}\nChannel: {}",
+        pad.id, pad.note, pad.off_color, pad.on_color, pad.channel
+    ));
+
+    accessibility::draw_focus_indicator(ui, rect, resp.has_focus(), 4.0);
 
     let half_w = rect.width() * 0.5;
 
@@ -816,14 +878,14 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
         Color32::from_rgb(231, 231, 231),
     );
 
-    if resp.clicked() {
+    if clicked || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
         click_pad(pad.id, selected_item);
     }
 }
 
 fn render_controls(ui: &mut Ui, ui_state: &mut UiState) {
     render_all_pad_banks(ui, &mut ui_state.selected_item, &mut ui_state.preset.pads);
-    ui.add_space(spacing(1));
+
     render_all_control_banks(
         ui,
         &mut ui_state.selected_item,
@@ -848,90 +910,82 @@ fn render_all_control_banks(
     fader_repo: &mut FaderRepository,
     switch_repo: &mut SwitchRepository,
 ) {
+    // painting to force layout
     ui.horizontal(|ui| {
-        for (bank_idx, bank_label) in CONTROL_BANKS.iter().enumerate() {
-            render_control_bank(
-                ui,
-                selected_item,
-                dial_repo,
-                fader_repo,
-                switch_repo,
-                bank_idx,
-                bank_label,
+        for bank_label in CONTROL_BANKS.iter() {
+            let (rect, _) =
+                ui.allocate_exact_size(vec2(CONTROL_BANK_X, 20.0), egui::Sense::hover());
+            ui.painter().text(
+                rect.left_center() + vec2(4.0, 0.0),
+                egui::Align2::LEFT_CENTER,
+                format!("Control Bank {}", bank_label),
+                egui::FontId::default(),
+                ui.style().visuals.text_color(),
             );
-            ui.add_space(spacing(0));
         }
     });
-}
 
-fn render_control_bank(
-    ui: &mut Ui,
-    selected_item: &mut Option<UserSelection>,
-    dial_repo: &mut DialRepository,
-    fader_repo: &mut FaderRepository,
-    switch_repo: &mut SwitchRepository,
-    bank_idx: usize,
-    label: &str,
-) {
-    ui.vertical(|ui| {
-        ui.label(format!("Control Bank {label}"));
-        ui.add_space(spacing(-2));
-        ui.horizontal(|ui| {
+    ui.horizontal_top(|ui| {
+        for bank_idx in 0..3 {
             for dial_offset in 0..4 {
                 let dial_id = bank_idx * 4 + dial_offset;
                 let dial = dial_repo.0[dial_id];
                 render_dial(ui, selected_item, dial, dial_id);
             }
-        });
+        }
+    });
 
-        ui.horizontal(|ui| {
+    ui.horizontal_top(|ui| {
+        for bank_idx in 0..3 {
             for fader_offset in 0..4 {
                 let fader_id = bank_idx * 4 + fader_offset;
                 let fader = fader_repo.0[fader_id];
                 render_fader(ui, selected_item, fader, fader_id);
             }
-        });
+        }
+    });
 
-        ui.horizontal(|ui| {
+    ui.horizontal_top(|ui| {
+        for bank_idx in 0..3 {
             for switch_offset in 0..4 {
                 let switch_id = bank_idx * 4 + switch_offset;
                 let switch = switch_repo.0[switch_id];
                 render_switch(ui, selected_item, switch, switch_id);
             }
-        });
+        }
     });
 }
 
-fn render_dial(
-    ui: &mut Ui,
-    selected_item: &mut Option<UserSelection>,
-    _dial: Dial,
-    dial_id: usize,
-) {
-    let (rect, resp) = ui.allocate_exact_size(DIAL_DIMENSIONS, egui::Sense::click());
+fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dial, dial_id: usize) {
+    let bank = CONTROL_BANKS[dial_id / 4];
+    let num = (dial_id % 4) + 1;
+    let full_label = format!("Dial {}{}", bank, num);
 
-    ui.painter().rect_filled(rect, 24.0, Color32::DARK_GRAY);
+    let mut button = egui::Button::new(full_label.clone())
+        .min_size(DIAL_DIMENSIONS)
+        .fill(Color32::DARK_GRAY)
+        .corner_radius(24.0)
+        .wrap();
 
     if let Some(UserSelection::Dial { id }) = selected_item
         && dial_id == *id
     {
-        ui.painter().rect_stroke(
-            rect,
-            24.0,
-            egui::Stroke::new(1.5, Color32::WHITE),
-            egui::StrokeKind::Outside,
-        );
+        button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
 
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        dial_id.to_string(),
-        egui::FontId::proportional(12.0),
-        Color32::WHITE,
-    );
+    let resp = ui.add_sized(DIAL_DIMENSIONS, button);
 
-    if resp.clicked() {
+    let cc_val: u8 = dial.midicc.into();
+    let min_val: u8 = dial.min.into();
+    let max_val: u8 = dial.max.into();
+    let resp = resp.on_hover_text(format!(
+        "Dial {} - CC: {}\nChannel: {}\nRange: {}-{}",
+        full_label, cc_val, dial.channel, min_val, max_val
+    ));
+
+    accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 24.0);
+
+    if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
         click_dial(dial_id, selected_item);
     }
 }
@@ -947,33 +1001,38 @@ fn click_dial(id: usize, selected_item: &mut Option<UserSelection>) {
 fn render_fader(
     ui: &mut Ui,
     selected_item: &mut Option<UserSelection>,
-    _fader: Fader,
+    fader: Fader,
     fader_id: usize,
 ) {
-    let (rect, resp) = ui.allocate_exact_size(FADER_DIMENSIONS, egui::Sense::click());
+    let bank = CONTROL_BANKS[fader_id / 4];
+    let num = (fader_id % 4) + 1;
+    let full_label = format!("Fader {}{}", bank, num);
 
-    ui.painter().rect_filled(rect, 4.0, Color32::DARK_GRAY);
+    let mut button: egui::Button<'_> = egui::Button::new(full_label.clone())
+        .min_size(FADER_DIMENSIONS)
+        .fill(Color32::DARK_GRAY)
+        .corner_radius(4.0)
+        .wrap();
 
     if let Some(UserSelection::Fader { id }) = selected_item
         && fader_id == *id
     {
-        ui.painter().rect_stroke(
-            rect,
-            4.0,
-            egui::Stroke::new(1.5, Color32::WHITE),
-            egui::StrokeKind::Outside,
-        );
+        button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
 
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        fader_id.to_string(),
-        egui::FontId::proportional(10.0),
-        Color32::WHITE,
-    );
+    let resp = ui.add_sized(FADER_DIMENSIONS, button);
 
-    if resp.clicked() {
+    let cc_val: u8 = fader.midicc.into();
+    let min_val: u8 = fader.min.into();
+    let max_val: u8 = fader.max.into();
+    let resp = resp.on_hover_text(format!(
+        "Fader {} - CC: {}\nChannel: {}\nRange: {}-{}",
+        full_label, cc_val, fader.channel, min_val, max_val
+    ));
+
+    accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
+
+    if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
         click_fader(fader_id, selected_item);
     }
 }
@@ -989,33 +1048,36 @@ fn click_fader(id: usize, selected_item: &mut Option<UserSelection>) {
 fn render_switch(
     ui: &mut Ui,
     selected_item: &mut Option<UserSelection>,
-    _switch: Switch,
+    switch: Switch,
     switch_id: usize,
 ) {
-    let (rect, resp) = ui.allocate_exact_size(SWITCH_DIMENSIONS, egui::Sense::click());
+    let bank = CONTROL_BANKS[switch_id / 4];
+    let num = (switch_id % 4) + 1;
+    let full_label = format!("Switch {}{}", bank, num);
 
-    ui.painter().rect_filled(rect, 4.0, Color32::DARK_GRAY);
+    let mut button = egui::Button::new(full_label.clone())
+        .min_size(SWITCH_DIMENSIONS)
+        .fill(Color32::DARK_GRAY)
+        .corner_radius(4.0)
+        .wrap();
 
     if let Some(UserSelection::Switch { id }) = selected_item
         && switch_id == *id
     {
-        ui.painter().rect_stroke(
-            rect,
-            4.0,
-            egui::Stroke::new(1.5, Color32::WHITE),
-            egui::StrokeKind::Outside,
-        );
+        button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
 
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        switch_id.to_string(),
-        egui::FontId::proportional(10.0),
-        Color32::WHITE,
-    );
+    let resp = ui.add_sized(SWITCH_DIMENSIONS, button);
 
-    if resp.clicked() {
+    let cc_val: u8 = switch.midicc.into();
+    let resp = resp.on_hover_text(format!(
+        "Switch {} - Mode: {}\nChannel: {}\nCC: {}",
+        full_label, switch.mode, switch.channel, cc_val
+    ));
+
+    accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
+
+    if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
         click_switch(switch_id, selected_item);
     }
 }
@@ -1028,7 +1090,6 @@ fn click_switch(id: usize, selected_item: &mut Option<UserSelection>) {
     }
 }
 
-// todo: refactor by kind
 fn selection_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
         let selection_label = match ui_state.selected_item {
