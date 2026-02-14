@@ -373,7 +373,6 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
         .show(ui, |ui| {
             Grid::new("preset_settings_grid")
                 .striped(true)
-                .spacing([16.0, 6.0])
                 .show(ui, |ui| {
                     row_edit_preset_slot(
                         ui,
@@ -418,7 +417,6 @@ fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState) {
         .show(ui, |ui| {
             Grid::new("global_settings_grid")
                 .striped(true)
-                .spacing([16.0, 6.0])
                 .show(ui, |ui| {
                     row_edit_usb_channel(ui, "Common Channel", &mut ui_state.global.common_channel);
                     row_edit_u8_clamped(
@@ -615,7 +613,6 @@ fn render_note_color_map_editor(ui: &mut Ui, color_map: &mut NoteColorMap) {
         .show(ui, |ui| {
             Grid::new("note_color_map_grid")
                 .striped(true)
-                .spacing([16.0, 6.0])
                 .show(ui, |ui| {
                     for pitch_class in PitchClass::iter() {
                         ui.label(pitch_class.to_string());
@@ -1143,7 +1140,6 @@ fn render_pad_compare_grid(ui: &mut Ui, pad: &mut Pad) {
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("pad_compare_grid_l")
             .striped(true)
-            .spacing([16.0, 6.0])
             .show(ui, |ui| {
                 row_edit_pad_kind(ui, "kind", &mut pad.kind);
                 row_edit_midi_channel(ui, "channel", &mut pad.channel);
@@ -1164,7 +1160,6 @@ fn render_dial_compare_grid(ui: &mut Ui, dial: &mut Dial) {
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("dial_compare_grid_l")
             .striped(true)
-            .spacing([16.0, 6.0])
             .show(ui, |ui| {
                 row_edit_dial_kind(ui, "kind", &mut dial.kind);
                 row_edit_midi_channel(ui, "channel", &mut dial.channel);
@@ -1183,7 +1178,6 @@ fn render_fader_compare_grid(ui: &mut Ui, fader: &mut Fader) {
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("fader_compare_grid_l")
             .striped(true)
-            .spacing([16.0, 6.0])
             .show(ui, |ui| {
                 row_edit_fader_kind(ui, "kind", &mut fader.kind);
                 row_edit_midi_channel(ui, "channel", &mut fader.channel);
@@ -1199,7 +1193,6 @@ fn render_switch_compare_grid(ui: &mut Ui, switch: &mut Switch) {
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("switch_compare_grid_l")
             .striped(true)
-            .spacing([16.0, 6.0])
             .show(ui, |ui| {
                 row_edit_switch_kind(ui, "kind", &mut switch.kind);
                 row_edit_midi_channel(ui, "channel", &mut switch.channel);
