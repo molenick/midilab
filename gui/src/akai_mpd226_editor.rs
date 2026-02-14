@@ -27,10 +27,8 @@ use midilab::manufacturer::akai::mpd226::control::Dial;
 use midilab::manufacturer::akai::mpd226::control::Fader;
 use midilab::manufacturer::akai::mpd226::control::Pad;
 use midilab::manufacturer::akai::mpd226::control::Switch;
-use midilab::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
-use midilab::manufacturer::akai::mpd226::control::value_kind::Tempo;
 use midilab::manufacturer::akai::mpd226::repository::DialRepository;
 use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
@@ -42,7 +40,6 @@ use midilab::message::UiMsg;
 use midilab::message::UserMsg;
 use midilab::midi::Note;
 use midilab::music::ChordRowSequence;
-use midilab::music::ChordVoicing;
 use midilab::music::NotePattern;
 use midilab::music::Octave;
 use midilab::music::PitchClass;
@@ -363,7 +360,12 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
                         "Preset Name",
                         &mut ui_state.preset.settings.preset_name,
                     );
-                    row_edit_tempo(ui, "Tempo", &mut ui_state.preset.settings.tempo);
+                    row_edit_u16_clamped(
+                        ui,
+                        "Tempo",
+                        &mut ui_state.preset.settings.tempo.0,
+                        30..=300,
+                    );
                     row_edit_enum(ui, "Division", &mut ui_state.preset.settings.time_division);
                     row_edit_enum(
                         ui,
@@ -375,7 +377,12 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
                         "Note Repeat",
                         &mut ui_state.preset.settings.note_repeat_switch,
                     );
-                    row_edit_gate(ui, "Gate", &mut ui_state.preset.settings.gate);
+                    row_edit_u8_clamped(
+                        ui,
+                        "Gate",
+                        &mut ui_state.preset.settings.gate.value,
+                        1..=99,
+                    );
                     row_edit_enum(ui, "Swing", &mut ui_state.preset.settings.swing);
                     row_edit_enum(ui, "Transport", &mut ui_state.preset.settings.transport);
                 });
@@ -448,46 +455,22 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                 NotePattern::Scale(seq) => {
                     ui.horizontal(|ui| {
                         ui.label("Tonic");
-                        ComboBox::from_id_salt("note_mapping_tonic")
-                            .selected_text(seq.tonic.to_string())
-                            .show_ui(ui, |ui| {
-                                for p in PitchClass::iter() {
-                                    ui.selectable_value(&mut seq.tonic, p, p.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "note_mapping_tonic", &mut seq.tonic, None);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Scale");
-                        ComboBox::from_id_salt("note_mapping_scale")
-                            .selected_text(seq.scale.to_string())
-                            .show_ui(ui, |ui| {
-                                for s in ScaleKind::iter() {
-                                    ui.selectable_value(&mut seq.scale, s, s.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "note_mapping_scale", &mut seq.scale, None);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Octave");
-                        ComboBox::from_id_salt("note_mapping_octave")
-                            .selected_text(seq.octave.to_string())
-                            .show_ui(ui, |ui| {
-                                for s in Octave::iter() {
-                                    ui.selectable_value(&mut seq.octave, s, s.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "note_mapping_octave", &mut seq.octave, None);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Direction");
-                        ComboBox::from_id_salt("note_mapping_direction")
-                            .selected_text(seq.direction.to_string())
-                            .show_ui(ui, |ui| {
-                                for s in SequenceDirection::iter() {
-                                    ui.selectable_value(&mut seq.direction, s, s.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "note_mapping_direction", &mut seq.direction, None);
                     });
 
                     ui.horizontal(|ui| {
@@ -499,57 +482,27 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
                 NotePattern::ChordRow(seq) => {
                     ui.horizontal(|ui| {
                         ui.label("Tonic");
-                        ComboBox::from_id_salt("chord_row_tonic")
-                            .selected_text(seq.tonic.to_string())
-                            .show_ui(ui, |ui| {
-                                for p in PitchClass::iter() {
-                                    ui.selectable_value(&mut seq.tonic, p, p.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "chord_row_tonic", &mut seq.tonic, None);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Scale");
-                        ComboBox::from_id_salt("chord_row_scale")
-                            .selected_text(seq.scale.to_string())
-                            .show_ui(ui, |ui| {
-                                for s in ScaleKind::iter() {
-                                    ui.selectable_value(&mut seq.scale, s, s.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "chord_row_scale", &mut seq.scale, None);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Octave");
-                        ComboBox::from_id_salt("chord_row_octave")
-                            .selected_text(seq.octave.to_string())
-                            .show_ui(ui, |ui| {
-                                for o in Octave::iter() {
-                                    ui.selectable_value(&mut seq.octave, o, o.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "chord_row_octave", &mut seq.octave, None);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Voicing");
-                        ComboBox::from_id_salt("chord_row_voicing")
-                            .selected_text(seq.voicing.to_string())
-                            .show_ui(ui, |ui| {
-                                for v in ChordVoicing::iter() {
-                                    ui.selectable_value(&mut seq.voicing, v, v.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "chord_row_voicing", &mut seq.voicing, None);
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Direction");
-                        ComboBox::from_id_salt("chord_row_direction")
-                            .selected_text(seq.direction.to_string())
-                            .show_ui(ui, |ui| {
-                                for d in SequenceDirection::iter() {
-                                    ui.selectable_value(&mut seq.direction, d, d.to_string());
-                                }
-                            });
+                        enum_combo_box(ui, "chord_row_direction", &mut seq.direction, None);
                     });
 
                     ui.horizontal(|ui| {
@@ -694,14 +647,12 @@ fn render_color_pattern_editor(ui: &mut Ui, id_prefix: &str, pattern: &mut Color
             let mut to_remove: Option<usize> = None;
             for (idx, seq) in sequences.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
-                    ComboBox::from_id_salt(format!("{}_{}_color", id_prefix, idx))
-                        .width(80.0)
-                        .selected_text(seq.color.to_string())
-                        .show_ui(ui, |ui| {
-                            for c in PadColor::iter() {
-                                ui.selectable_value(&mut seq.color, c, c.to_string());
-                            }
-                        });
+                    enum_combo_box(
+                        ui,
+                        format!("{}_{}_color", id_prefix, idx),
+                        &mut seq.color,
+                        Some(80.0),
+                    );
 
                     ui.label("x");
                     ui.add(DragValue::new(&mut seq.len).range(1..=64));
@@ -878,7 +829,6 @@ fn render_all_control_banks(
     fader_repo: &mut FaderRepository,
     switch_repo: &mut SwitchRepository,
 ) {
-    // painting to force layout
     ui.horizontal(|ui| {
         for bank_label in CONTROL_BANKS.iter() {
             let (rect, _) =
@@ -1172,6 +1122,38 @@ fn render_switch_compare_grid(ui: &mut Ui, switch: &mut Switch) {
     });
 }
 
+fn enum_combo_box<T>(ui: &mut Ui, id: impl Into<String>, value: &mut T, width: Option<f32>)
+where
+    T: IntoEnumIterator + std::fmt::Display + Clone + Copy + PartialEq,
+{
+    let mut combo = ComboBox::from_id_salt(id.into()).selected_text(format!("{}", value));
+
+    if let Some(w) = width {
+        combo = combo.width(w);
+    }
+
+    combo.show_ui(ui, |ui| {
+        for variant in T::iter() {
+            ui.selectable_value(value, variant, format!("{}", variant));
+        }
+    });
+}
+
+fn row_edit_enum<T>(ui: &mut Ui, name: &str, value: &mut T)
+where
+    T: IntoEnumIterator + std::fmt::Display + Clone + Copy + PartialEq,
+{
+    ui.label(name);
+    ComboBox::from_id_salt(name)
+        .selected_text(format!("{}", value))
+        .show_ui(ui, |ui| {
+            for variant in T::iter() {
+                ui.selectable_value(value, variant, format!("{}", variant));
+            }
+        });
+    ui.end_row();
+}
+
 fn row_edit_u8(ui: &mut Ui, name: &str, value: &mut u8) {
     ui.label(name);
     let mut val = *value as u32;
@@ -1192,22 +1174,13 @@ fn row_edit_note(ui: &mut Ui, name: &str, value: &mut Note) {
     ui.end_row();
 }
 
-fn row_edit_enum<T>(ui: &mut Ui, name: &str, value: &mut T)
-where
-    T: IntoEnumIterator + std::fmt::Display + Clone + Copy + PartialEq,
-{
+fn row_edit_u8_clamped(ui: &mut Ui, name: &str, value: &mut u8, range: RangeInclusive<u8>) {
     ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in T::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
+    ui.add(DragValue::new(value).range(range));
     ui.end_row();
 }
 
-fn row_edit_u8_clamped(ui: &mut Ui, name: &str, value: &mut u8, range: RangeInclusive<u8>) {
+fn row_edit_u16_clamped(ui: &mut Ui, name: &str, value: &mut u16, range: RangeInclusive<u16>) {
     ui.label(name);
     ui.add(DragValue::new(value).range(range));
     ui.end_row();
@@ -1236,30 +1209,5 @@ fn row_edit_preset_name(ui: &mut Ui, name: &str, value: &mut PresetName) {
     }
     *value = PresetName(buf);
 
-    ui.end_row();
-}
-
-fn row_edit_tempo(ui: &mut Ui, name: &str, value: &mut Tempo) {
-    ui.label(name);
-    let mut tempo_val = value.0 as u32;
-    if ui
-        .add(DragValue::new(&mut tempo_val).range(30..=300))
-        .changed()
-    {
-        *value = Tempo(tempo_val as u16);
-    }
-    ui.end_row();
-}
-
-fn row_edit_gate(ui: &mut Ui, name: &str, value: &mut GateValue) {
-    ui.label(name);
-    let mut gate_val = *value as u8;
-    if ui
-        .add(DragValue::new(&mut gate_val).range(0..=100))
-        .changed()
-        && let Ok(g) = GateValue::try_from(gate_val)
-    {
-        *value = g;
-    }
     ui.end_row();
 }

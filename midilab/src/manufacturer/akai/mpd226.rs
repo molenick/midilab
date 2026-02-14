@@ -7,7 +7,7 @@ use crate::error::DeviceStatusParseError;
 use crate::manufacturer::akai::SYSEX_MANUFACTURER_ID;
 use crate::manufacturer::akai::mpd226::control::PresetSettings;
 use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
-use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
+use crate::manufacturer::akai::mpd226::control::value_kind::Gate;
 use crate::manufacturer::akai::mpd226::control::value_kind::MidiClock;
 use crate::manufacturer::akai::mpd226::control::value_kind::NoteDisplay;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
@@ -594,7 +594,7 @@ impl TryFrom<RawPresetSettings> for PresetSettings {
                 .map_err(PresetSettingsParseError::TimeDivision)?,
             note_repeat_switch: TriggerKind::try_from(raw.note_repeat_switch)
                 .map_err(PresetSettingsParseError::NoteRepeatSwitch)?,
-            gate: GateValue::try_from(raw.gate).map_err(PresetSettingsParseError::Gate)?,
+            gate: Gate::from(raw.gate),
             swing: SwingKind::try_from(raw.swing).map_err(PresetSettingsParseError::Swing)?,
             transport: TransportKind::try_from(raw.transport)
                 .map_err(PresetSettingsParseError::Transport)?,
@@ -612,7 +612,7 @@ impl From<&PresetSettings> for RawPresetSettings {
             time_division_switch: settings.time_division_switch as u8,
             division: settings.time_division as u8,
             note_repeat_switch: settings.note_repeat_switch as u8,
-            gate: settings.gate as u8,
+            gate: settings.gate.into(),
             swing: settings.swing as u8,
             un5: 0,
             un6: 0,

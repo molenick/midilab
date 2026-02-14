@@ -226,16 +226,28 @@ pub enum SwingKind {
     Swing,
 }
 
-#[repr(u8)]
-#[derive(Default)]
-#[range_enum]
-#[derive(Clone, Copy, TryFromPrimitive, Debug, PartialEq, EnumIter, Display)]
-pub enum GateValue {
-    #[default]
-    G0 = 0,
+/// Represents gate values, saturates at boundaries 1..=99
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gate {
+    pub value: u8,
+}
+impl Gate {
+    pub const MIN_CLAMP: u8 = 1;
+    pub const MAX_CLAMP: u8 = 99;
+}
 
-    #[range(1..100)]
-    G,
+impl From<u8> for Gate {
+    fn from(value: u8) -> Self {
+        let value = value.clamp(Self::MIN_CLAMP, Self::MAX_CLAMP);
+
+        Self { value }
+    }
+}
+
+impl From<Gate> for u8 {
+    fn from(val: Gate) -> Self {
+        val.value
+    }
 }
 
 #[repr(u8)]

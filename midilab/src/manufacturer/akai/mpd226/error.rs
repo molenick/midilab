@@ -4,7 +4,6 @@ use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
-use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use crate::manufacturer::akai::mpd226::control::value_kind::KeyModifier;
 use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
 use crate::manufacturer::akai::mpd226::control::value_kind::MidiClock;
@@ -58,8 +57,6 @@ pub enum PresetSettingsParseError {
     TimeDivision(TryFromPrimitiveError<TimeDivision>),
     #[error("invalid note_repeat_switch: {0}")]
     NoteRepeatSwitch(TryFromPrimitiveError<TriggerKind>),
-    #[error("invalid gate: {0}")]
-    Gate(TryFromPrimitiveError<GateValue>),
     #[error("invalid swing: {0}")]
     Swing(TryFromPrimitiveError<SwingKind>),
     #[error("invalid transport: {0}")]
