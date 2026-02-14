@@ -2,9 +2,9 @@ use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::FaderKind;
-use crate::manufacturer::akai::mpd226::control::value_kind::GateValue;
 use crate::manufacturer::akai::mpd226::control::value_kind::KeyModifier;
 use crate::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
+use crate::manufacturer::akai::mpd226::control::value_kind::NuGateValue;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use crate::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::PresetName;
@@ -302,7 +302,7 @@ pub struct PresetSettings {
     pub time_division_switch: TriggerKind,
     pub time_division: TimeDivision,
     pub note_repeat_switch: TriggerKind,
-    pub gate: GateValue,
+    pub gate: NuGateValue,
     pub swing: SwingKind,
     pub transport: TransportKind,
 }
@@ -316,7 +316,7 @@ impl Default for PresetSettings {
             time_division_switch: TriggerKind::Toggle,
             time_division: TimeDivision::default(),
             note_repeat_switch: TriggerKind::Toggle,
-            gate: GateValue::try_from(50).unwrap(),
+            gate: NuGateValue::from(50),
             swing: SwingKind::default(),
             transport: TransportKind::default(),
         }
@@ -645,7 +645,7 @@ mod tests {
             assert_eq!(preset_settings.preset_slot, PresetSlot::RAM);
             assert_eq!(preset_settings.tempo, Tempo(120));
             assert_eq!(preset_settings.time_division, TimeDivision::Div1_16);
-            assert_eq!(preset_settings.gate, GateValue::try_from(50).unwrap());
+            assert_eq!(preset_settings.gate, NuGateValue::from(50));
         }
 
         #[test]

@@ -27,10 +27,9 @@ use midilab::manufacturer::akai::mpd226::control::Dial;
 use midilab::manufacturer::akai::mpd226::control::Fader;
 use midilab::manufacturer::akai::mpd226::control::Pad;
 use midilab::manufacturer::akai::mpd226::control::Switch;
-use midilab::manufacturer::akai::mpd226::control::value_kind::GateValue;
+use midilab::manufacturer::akai::mpd226::control::value_kind::NuGateValue;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
-use midilab::manufacturer::akai::mpd226::control::value_kind::Tempo;
 use midilab::manufacturer::akai::mpd226::repository::DialRepository;
 use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
@@ -362,7 +361,12 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
                         "Preset Name",
                         &mut ui_state.preset.settings.preset_name,
                     );
-                    row_edit_tempo(ui, "Tempo", &mut ui_state.preset.settings.tempo);
+                    row_edit_u16_clamped(
+                        ui,
+                        "Tempo",
+                        &mut ui_state.preset.settings.tempo.0,
+                        30..=300,
+                    );
                     row_edit_enum(ui, "Division", &mut ui_state.preset.settings.time_division);
                     row_edit_enum(
                         ui,
@@ -374,7 +378,12 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
                         "Note Repeat",
                         &mut ui_state.preset.settings.note_repeat_switch,
                     );
-                    row_edit_gate(ui, "Gate", &mut ui_state.preset.settings.gate);
+                    row_edit_u8_clamped(
+                        ui,
+                        "Gate",
+                        &mut ui_state.preset.settings.gate.value,
+                        1..=99,
+                    );
                     row_edit_enum(ui, "Swing", &mut ui_state.preset.settings.swing);
                     row_edit_enum(ui, "Transport", &mut ui_state.preset.settings.transport);
                 });
@@ -1172,6 +1181,12 @@ fn row_edit_u8_clamped(ui: &mut Ui, name: &str, value: &mut u8, range: RangeIncl
     ui.end_row();
 }
 
+fn row_edit_u16_clamped(ui: &mut Ui, name: &str, value: &mut u16, range: RangeInclusive<u16>) {
+    ui.label(name);
+    ui.add(DragValue::new(value).range(range));
+    ui.end_row();
+}
+
 fn row_edit_preset_name(ui: &mut Ui, name: &str, value: &mut PresetName) {
     ui.label(name);
 
@@ -1195,30 +1210,5 @@ fn row_edit_preset_name(ui: &mut Ui, name: &str, value: &mut PresetName) {
     }
     *value = PresetName(buf);
 
-    ui.end_row();
-}
-
-fn row_edit_tempo(ui: &mut Ui, name: &str, value: &mut Tempo) {
-    ui.label(name);
-    let mut tempo_val = value.0 as u32;
-    if ui
-        .add(DragValue::new(&mut tempo_val).range(30..=300))
-        .changed()
-    {
-        *value = Tempo(tempo_val as u16);
-    }
-    ui.end_row();
-}
-
-fn row_edit_gate(ui: &mut Ui, name: &str, value: &mut GateValue) {
-    ui.label(name);
-    let mut gate_val = *value as u8;
-    if ui
-        .add(DragValue::new(&mut gate_val).range(0..=100))
-        .changed()
-        && let Ok(g) = GateValue::try_from(gate_val)
-    {
-        *value = g;
-    }
     ui.end_row();
 }
