@@ -232,9 +232,9 @@ pub enum SwingKind {
 #[derive(Clone, Copy, TryFromPrimitive, Debug, PartialEq, EnumIter, Display)]
 pub enum GateValue {
     #[default]
-    G0 = 0,
+    G1 = 1,
 
-    #[range(1..100)]
+    #[range(2..100)]
     G,
 }
 
