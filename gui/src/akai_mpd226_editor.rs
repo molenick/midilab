@@ -357,22 +357,14 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
             Grid::new("preset_settings_grid")
                 .striped(true)
                 .show(ui, |ui| {
-                    row_edit_enum(
-                        ui,
-                        "Preset Slot",
-                        &mut ui_state.preset.settings.preset_slot,
-                    );
+                    row_edit_enum(ui, "Preset Slot", &mut ui_state.preset.settings.preset_slot);
                     row_edit_preset_name(
                         ui,
                         "Preset Name",
                         &mut ui_state.preset.settings.preset_name,
                     );
                     row_edit_tempo(ui, "Tempo", &mut ui_state.preset.settings.tempo);
-                    row_edit_enum(
-                        ui,
-                        "Division",
-                        &mut ui_state.preset.settings.time_division,
-                    );
+                    row_edit_enum(ui, "Division", &mut ui_state.preset.settings.time_division);
                     row_edit_enum(
                         ui,
                         "Div Switch",
@@ -385,11 +377,7 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
                     );
                     row_edit_gate(ui, "Gate", &mut ui_state.preset.settings.gate);
                     row_edit_enum(ui, "Swing", &mut ui_state.preset.settings.swing);
-                    row_edit_enum(
-                        ui,
-                        "Transport",
-                        &mut ui_state.preset.settings.transport,
-                    );
+                    row_edit_enum(ui, "Transport", &mut ui_state.preset.settings.transport);
                 });
         });
 }
