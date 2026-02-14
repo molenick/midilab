@@ -1030,15 +1030,11 @@ fn render_fader(
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
     if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
-        click_fader(fader_id, selected_item);
-    }
-}
-
-fn click_fader(id: usize, selected_item: &mut Option<UserSelection>) {
-    if *selected_item == Some(UserSelection::Fader { id }) {
-        *selected_item = None;
-    } else {
-        *selected_item = Some(UserSelection::Fader { id });
+        if *selected_item == Some(UserSelection::Fader { id: fader_id }) {
+            *selected_item = None;
+        } else {
+            *selected_item = Some(UserSelection::Fader { id: fader_id });
+        };
     }
 }
 
@@ -1075,15 +1071,11 @@ fn render_switch(
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
     if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
-        click_switch(switch_id, selected_item);
-    }
-}
-
-fn click_switch(id: usize, selected_item: &mut Option<UserSelection>) {
-    if *selected_item == Some(UserSelection::Switch { id }) {
-        *selected_item = None;
-    } else {
-        *selected_item = Some(UserSelection::Switch { id });
+        if *selected_item == Some(UserSelection::Switch { id: switch_id }) {
+            *selected_item = None;
+        } else {
+            *selected_item = Some(UserSelection::Switch { id: switch_id });
+        };
     }
 }
 
