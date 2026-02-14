@@ -56,7 +56,7 @@ impl Default for UsbChannel {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter, Display)]
 pub enum SwitchKind {
     #[default]
     CC = 0,
@@ -325,7 +325,7 @@ impl Deref for RGBColor {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter, Display)]
 pub enum FaderKind {
     #[default]
     CC = 0,
@@ -333,7 +333,7 @@ pub enum FaderKind {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, TryFromPrimitive, EnumIter, Display)]
 pub enum DialKind {
     #[default]
     CC = 0,
