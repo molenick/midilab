@@ -27,7 +27,6 @@ use midilab::manufacturer::akai::mpd226::control::Dial;
 use midilab::manufacturer::akai::mpd226::control::Fader;
 use midilab::manufacturer::akai::mpd226::control::Pad;
 use midilab::manufacturer::akai::mpd226::control::Switch;
-use midilab::manufacturer::akai::mpd226::control::value_kind::NuGateValue;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
 use midilab::manufacturer::akai::mpd226::repository::DialRepository;
@@ -1123,26 +1122,6 @@ fn render_switch_compare_grid(ui: &mut Ui, switch: &mut Switch) {
     });
 }
 
-fn row_edit_u8(ui: &mut Ui, name: &str, value: &mut u8) {
-    ui.label(name);
-    let mut val = *value as u32;
-    if ui.add(DragValue::new(&mut val).range(0..=127)).changed() {
-        *value = val as u8;
-    }
-    ui.end_row();
-}
-
-fn row_edit_note(ui: &mut Ui, name: &str, value: &mut Note) {
-    ui.label(name);
-    let mut val = *value as u32;
-    if ui.add(DragValue::new(&mut val).range(0..=127)).changed()
-        && let Ok(note) = Note::try_from(val as u8)
-    {
-        *value = note;
-    }
-    ui.end_row();
-}
-
 fn enum_combo_box<T>(ui: &mut Ui, id: impl Into<String>, value: &mut T, width: Option<f32>)
 where
     T: IntoEnumIterator + std::fmt::Display + Clone + Copy + PartialEq,
@@ -1172,6 +1151,26 @@ where
                 ui.selectable_value(value, variant, format!("{}", variant));
             }
         });
+    ui.end_row();
+}
+
+fn row_edit_u8(ui: &mut Ui, name: &str, value: &mut u8) {
+    ui.label(name);
+    let mut val = *value as u32;
+    if ui.add(DragValue::new(&mut val).range(0..=127)).changed() {
+        *value = val as u8;
+    }
+    ui.end_row();
+}
+
+fn row_edit_note(ui: &mut Ui, name: &str, value: &mut Note) {
+    ui.label(name);
+    let mut val = *value as u32;
+    if ui.add(DragValue::new(&mut val).range(0..=127)).changed()
+        && let Ok(note) = Note::try_from(val as u8)
+    {
+        *value = note;
+    }
     ui.end_row();
 }
 
