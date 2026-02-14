@@ -27,27 +27,10 @@ use midilab::manufacturer::akai::mpd226::control::Dial;
 use midilab::manufacturer::akai::mpd226::control::Fader;
 use midilab::manufacturer::akai::mpd226::control::Pad;
 use midilab::manufacturer::akai::mpd226::control::Switch;
-use midilab::manufacturer::akai::mpd226::control::value_kind::ActiveState;
-use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
-use midilab::manufacturer::akai::mpd226::control::value_kind::DialKind;
-use midilab::manufacturer::akai::mpd226::control::value_kind::FaderKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::GateValue;
-use midilab::manufacturer::akai::mpd226::control::value_kind::MidiChannel;
-use midilab::manufacturer::akai::mpd226::control::value_kind::MidiClock;
-use midilab::manufacturer::akai::mpd226::control::value_kind::NoteDisplay;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
-use midilab::manufacturer::akai::mpd226::control::value_kind::PadCurve;
-use midilab::manufacturer::akai::mpd226::control::value_kind::PadKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
-use midilab::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
-use midilab::manufacturer::akai::mpd226::control::value_kind::SwingKind;
-use midilab::manufacturer::akai::mpd226::control::value_kind::SwitchKind;
-use midilab::manufacturer::akai::mpd226::control::value_kind::TapAverage;
 use midilab::manufacturer::akai::mpd226::control::value_kind::Tempo;
-use midilab::manufacturer::akai::mpd226::control::value_kind::TimeDivision;
-use midilab::manufacturer::akai::mpd226::control::value_kind::TransportKind;
-use midilab::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
-use midilab::manufacturer::akai::mpd226::control::value_kind::UsbChannel;
 use midilab::manufacturer::akai::mpd226::repository::DialRepository;
 use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
@@ -374,7 +357,7 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
             Grid::new("preset_settings_grid")
                 .striped(true)
                 .show(ui, |ui| {
-                    row_edit_preset_slot(
+                    row_edit_enum(
                         ui,
                         "Preset Slot",
                         &mut ui_state.preset.settings.preset_slot,
@@ -385,24 +368,24 @@ fn render_preset_settings(ui: &mut Ui, ui_state: &mut UiState) {
                         &mut ui_state.preset.settings.preset_name,
                     );
                     row_edit_tempo(ui, "Tempo", &mut ui_state.preset.settings.tempo);
-                    row_edit_time_division(
+                    row_edit_enum(
                         ui,
                         "Division",
                         &mut ui_state.preset.settings.time_division,
                     );
-                    row_edit_trigger_kind(
+                    row_edit_enum(
                         ui,
                         "Div Switch",
                         &mut ui_state.preset.settings.time_division_switch,
                     );
-                    row_edit_trigger_kind(
+                    row_edit_enum(
                         ui,
                         "Note Repeat",
                         &mut ui_state.preset.settings.note_repeat_switch,
                     );
                     row_edit_gate(ui, "Gate", &mut ui_state.preset.settings.gate);
-                    row_edit_swing_kind(ui, "Swing", &mut ui_state.preset.settings.swing);
-                    row_edit_transport_kind(
+                    row_edit_enum(ui, "Swing", &mut ui_state.preset.settings.swing);
+                    row_edit_enum(
                         ui,
                         "Transport",
                         &mut ui_state.preset.settings.transport,
@@ -418,25 +401,25 @@ fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState) {
             Grid::new("global_settings_grid")
                 .striped(true)
                 .show(ui, |ui| {
-                    row_edit_usb_channel(ui, "Common Channel", &mut ui_state.global.common_channel);
+                    row_edit_enum(ui, "Common Channel", &mut ui_state.global.common_channel);
                     row_edit_u8_clamped(
                         ui,
                         "LCD Contrast",
                         &mut ui_state.global.lcd_contrast,
                         0..=100,
                     );
-                    row_edit_tap_average(ui, "Tap Average", &mut ui_state.global.tap_average);
-                    row_edit_active_state(ui, "Tempo LED", &mut ui_state.global.tempo_led);
-                    row_edit_note_display(ui, "Note Display", &mut ui_state.global.note_display);
+                    row_edit_enum(ui, "Tap Average", &mut ui_state.global.tap_average);
+                    row_edit_enum(ui, "Tempo LED", &mut ui_state.global.tempo_led);
+                    row_edit_enum(ui, "Note Display", &mut ui_state.global.note_display);
                     row_edit_u8_clamped(
                         ui,
                         "Pad Threshold*",
                         &mut ui_state.global.pad_threshold,
                         0..=9,
                     );
-                    row_edit_pad_curve(ui, "Pad Curve", &mut ui_state.global.pad_curve);
+                    row_edit_enum(ui, "Pad Curve", &mut ui_state.global.pad_curve);
                     row_edit_u8_clamped(ui, "Pad Gain", &mut ui_state.global.pad_gain, 0..=20);
-                    row_edit_midi_clock(ui, "MIDI Clock", &mut ui_state.global.midi_clock);
+                    row_edit_enum(ui, "MIDI Clock", &mut ui_state.global.midi_clock);
                 });
         });
 }
@@ -1133,17 +1116,17 @@ fn render_pad_compare_grid(ui: &mut Ui, pad: &mut Pad) {
         Grid::new("pad_compare_grid_l")
             .striped(true)
             .show(ui, |ui| {
-                row_edit_pad_kind(ui, "kind", &mut pad.kind);
-                row_edit_midi_channel(ui, "channel", &mut pad.channel);
+                row_edit_enum(ui, "kind", &mut pad.kind);
+                row_edit_enum(ui, "channel", &mut pad.channel);
                 row_edit_note(ui, "note", &mut pad.note);
-                row_edit_midi2din(ui, "midi to din", &mut pad.midi2din);
-                row_edit_trigger_kind(ui, "trigger", &mut pad.trigger);
-                row_edit_aftertouch_kind(ui, "aftertouch", &mut pad.aftertouch);
+                row_edit_enum(ui, "midi to din", &mut pad.midi2din);
+                row_edit_enum(ui, "trigger", &mut pad.trigger);
+                row_edit_enum(ui, "aftertouch", &mut pad.aftertouch);
                 row_edit_u8(ui, "program", &mut pad.program.into());
                 row_edit_u8(ui, "msb", &mut pad.msb.into());
                 row_edit_u8(ui, "lsb", &mut pad.lsb.into());
-                row_edit_pad_color(ui, "off color", &mut pad.off_color);
-                row_edit_pad_color(ui, "on color", &mut pad.on_color);
+                row_edit_enum(ui, "off color", &mut pad.off_color);
+                row_edit_enum(ui, "on color", &mut pad.on_color);
             });
     });
 }
@@ -1153,12 +1136,12 @@ fn render_dial_compare_grid(ui: &mut Ui, dial: &mut Dial) {
         Grid::new("dial_compare_grid_l")
             .striped(true)
             .show(ui, |ui| {
-                row_edit_dial_kind(ui, "kind", &mut dial.kind);
-                row_edit_midi_channel(ui, "channel", &mut dial.channel);
+                row_edit_enum(ui, "kind", &mut dial.kind);
+                row_edit_enum(ui, "channel", &mut dial.channel);
                 row_edit_u8(ui, "midicc", &mut dial.midicc.into());
                 row_edit_u8(ui, "min", &mut dial.min.into());
                 row_edit_u8(ui, "max", &mut dial.max.into());
-                row_edit_midi2din(ui, "midi to din", &mut dial.midi2din);
+                row_edit_enum(ui, "midi to din", &mut dial.midi2din);
                 row_edit_u8(ui, "msb", &mut dial.msb.into());
                 row_edit_u8(ui, "lsb", &mut dial.lsb.into());
                 row_edit_u8(ui, "value", &mut dial.value.into());
@@ -1171,12 +1154,12 @@ fn render_fader_compare_grid(ui: &mut Ui, fader: &mut Fader) {
         Grid::new("fader_compare_grid_l")
             .striped(true)
             .show(ui, |ui| {
-                row_edit_fader_kind(ui, "kind", &mut fader.kind);
-                row_edit_midi_channel(ui, "channel", &mut fader.channel);
+                row_edit_enum(ui, "kind", &mut fader.kind);
+                row_edit_enum(ui, "channel", &mut fader.channel);
                 row_edit_u8(ui, "midicc", &mut fader.midicc.into());
                 row_edit_u8(ui, "min", &mut fader.min.into());
                 row_edit_u8(ui, "max", &mut fader.max.into());
-                row_edit_midi2din(ui, "midi to din", &mut fader.midi2din);
+                row_edit_enum(ui, "midi to din", &mut fader.midi2din);
             });
     });
 }
@@ -1186,17 +1169,17 @@ fn render_switch_compare_grid(ui: &mut Ui, switch: &mut Switch) {
         Grid::new("switch_compare_grid_l")
             .striped(true)
             .show(ui, |ui| {
-                row_edit_switch_kind(ui, "kind", &mut switch.kind);
-                row_edit_midi_channel(ui, "channel", &mut switch.channel);
+                row_edit_enum(ui, "kind", &mut switch.kind);
+                row_edit_enum(ui, "channel", &mut switch.channel);
                 row_edit_u8(ui, "midicc", &mut switch.midicc.into());
-                row_edit_trigger_kind(ui, "mode", &mut switch.mode);
+                row_edit_enum(ui, "mode", &mut switch.mode);
                 row_edit_u8(ui, "prog", &mut switch.prog.into());
                 row_edit_u8(ui, "msb", &mut switch.msb.into());
                 row_edit_u8(ui, "lsb", &mut switch.lsb.into());
-                row_edit_midi2din(ui, "midi to din", &mut switch.midi2din);
+                row_edit_enum(ui, "midi to din", &mut switch.midi2din);
                 row_edit_u8(ui, "note", &mut switch.note);
                 row_edit_u8(ui, "velo", &mut switch.velo.into());
-                row_edit_midi2din(ui, "invert", &mut switch.invert);
+                row_edit_enum(ui, "invert", &mut switch.invert);
             });
     });
 }
@@ -1221,120 +1204,15 @@ fn row_edit_note(ui: &mut Ui, name: &str, value: &mut Note) {
     ui.end_row();
 }
 
-fn row_edit_pad_kind(ui: &mut Ui, name: &str, value: &mut PadKind) {
+fn row_edit_enum<T>(ui: &mut Ui, name: &str, value: &mut T)
+where
+    T: IntoEnumIterator + std::fmt::Display + Clone + Copy + PartialEq,
+{
     ui.label(name);
     ComboBox::from_id_salt(name)
         .selected_text(format!("{}", value))
         .show_ui(ui, |ui| {
-            for variant in PadKind::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_midi_channel(ui: &mut Ui, name: &str, value: &mut MidiChannel) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in MidiChannel::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_usb_channel(ui: &mut Ui, name: &str, value: &mut UsbChannel) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in UsbChannel::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_dial_kind(ui: &mut Ui, name: &str, value: &mut DialKind) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{:?}", value))
-        .show_ui(ui, |ui| {
-            for variant in DialKind::iter() {
-                ui.selectable_value(value, variant, format!("{:?}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_fader_kind(ui: &mut Ui, name: &str, value: &mut FaderKind) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{:?}", value))
-        .show_ui(ui, |ui| {
-            for variant in FaderKind::iter() {
-                ui.selectable_value(value, variant, format!("{:?}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_switch_kind(ui: &mut Ui, name: &str, value: &mut SwitchKind) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{:?}", value))
-        .show_ui(ui, |ui| {
-            for variant in SwitchKind::iter() {
-                ui.selectable_value(value, variant, format!("{:?}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_trigger_kind(ui: &mut Ui, name: &str, value: &mut TriggerKind) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in TriggerKind::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_aftertouch_kind(ui: &mut Ui, name: &str, value: &mut AfterTouchKind) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in AfterTouchKind::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_pad_color(ui: &mut Ui, name: &str, value: &mut PadColor) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in PadColor::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_midi2din(ui: &mut Ui, name: &str, value: &mut ActiveState) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in ActiveState::iter() {
+            for variant in T::iter() {
                 ui.selectable_value(value, variant, format!("{}", variant));
             }
         });
@@ -1344,78 +1222,6 @@ fn row_edit_midi2din(ui: &mut Ui, name: &str, value: &mut ActiveState) {
 fn row_edit_u8_clamped(ui: &mut Ui, name: &str, value: &mut u8, range: RangeInclusive<u8>) {
     ui.label(name);
     ui.add(DragValue::new(value).range(range));
-    ui.end_row();
-}
-
-fn row_edit_active_state(ui: &mut Ui, name: &str, value: &mut ActiveState) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in ActiveState::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_tap_average(ui: &mut Ui, name: &str, value: &mut TapAverage) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in TapAverage::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_note_display(ui: &mut Ui, name: &str, value: &mut NoteDisplay) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in NoteDisplay::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_pad_curve(ui: &mut Ui, name: &str, value: &mut PadCurve) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in PadCurve::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_midi_clock(ui: &mut Ui, name: &str, value: &mut MidiClock) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in MidiClock::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_preset_slot(ui: &mut Ui, name: &str, value: &mut PresetSlot) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{:?}", value))
-        .show_ui(ui, |ui| {
-            for variant in PresetSlot::iter() {
-                ui.selectable_value(value, variant, format!("{:?}", variant));
-            }
-        });
     ui.end_row();
 }
 
@@ -1457,18 +1263,6 @@ fn row_edit_tempo(ui: &mut Ui, name: &str, value: &mut Tempo) {
     ui.end_row();
 }
 
-fn row_edit_time_division(ui: &mut Ui, name: &str, value: &mut TimeDivision) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in TimeDivision::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
 fn row_edit_gate(ui: &mut Ui, name: &str, value: &mut GateValue) {
     ui.label(name);
     let mut gate_val = *value as u8;
@@ -1479,29 +1273,5 @@ fn row_edit_gate(ui: &mut Ui, name: &str, value: &mut GateValue) {
     {
         *value = g;
     }
-    ui.end_row();
-}
-
-fn row_edit_swing_kind(ui: &mut Ui, name: &str, value: &mut SwingKind) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in SwingKind::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
-    ui.end_row();
-}
-
-fn row_edit_transport_kind(ui: &mut Ui, name: &str, value: &mut TransportKind) {
-    ui.label(name);
-    ComboBox::from_id_salt(name)
-        .selected_text(format!("{}", value))
-        .show_ui(ui, |ui| {
-            for variant in TransportKind::iter() {
-                ui.selectable_value(value, variant, format!("{}", variant));
-            }
-        });
     ui.end_row();
 }
