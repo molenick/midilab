@@ -83,8 +83,8 @@ const SWITCH_DIMENSIONS: Vec2 = Vec2 {
 const BANKS: [&str; 4] = ["A", "B", "C", "D"];
 const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
 
-/// There is some extra space I haven't tracked down yet that happens
-/// to be 24., which is also half of the control x.
+// There is some extra space I haven't tracked down yet that happens
+// to be 24., which is also half of the control x.
 const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.5;
 const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4. + CONTROL_BANK_X_ADJUSTMENT;
 const SIDE_BAR_X: f32 = 240.;
@@ -121,6 +121,7 @@ impl AkaiMpd226Editor {
             match msg {
                 UiMsg::UpdatePreset(preset) => {
                     self.ui_state.preset = *preset;
+                    self.ui_state.selected_item = None;
                 }
 
                 UiMsg::UserMsg(e) => {
@@ -142,6 +143,25 @@ impl AkaiMpd226Editor {
                 }
             }
 
+            // todo: fix bug and issue
+            // Problem1:
+            // user can set multiple midi-commands while waiting for responses.
+            // this should be ok, but we aren't really set up to handle it.
+            // this would be a good place to use tokio sempaphores with 1 permit
+            // to keep things synchronous for now.
+            // note for the ui: we don't want to disable ui at all - the user can tap as many times
+            // as they like, only one op will be allowed at time and others will be discarded.
+
+            // todo:
+            // Problem 2:
+            // Some change increased the roundtrip time for dumping/writing presets/globals.'
+            // this is what caused me to surface problem 1 - I could click dump 2x and it
+            // would break midi messages in the app, requiring a restart. This is a bug.
+
+            // Additional problems:
+            // - Something else is tabbable when modal is up. I will write a failing test for this.
+            // - The actual screenreader experience of the editing modal is bad.  It must be good.
+
             ctx.request_repaint();
         }
     }
@@ -162,55 +182,58 @@ impl AkaiMpd226Editor {
     }
 
     pub fn render_ui(&mut self, ctx: &Context) {
+        let modal_is_open = self.ui_state.selected_item.is_some();
+
         TopBottomPanel::top("selected_item_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Akai MPD226 Editor");
-                ui.separator();
-                ui.label("Status:");
+            ui.add_enabled_ui(!modal_is_open, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Akai MPD226 Editor");
+                    ui.separator();
+                    ui.label("Status:");
 
-                if let Some(status) = &self.ui_state.user_msg {
-                    let color = match status.kind {
-                        midilab::message::UserMsgKind::Status => Color32::GREEN,
-                        midilab::message::UserMsgKind::Error => Color32::RED,
-                    };
+                    if let Some(status) = &self.ui_state.user_msg {
+                        let color = match status.kind {
+                            midilab::message::UserMsgKind::Status => Color32::GREEN,
+                            midilab::message::UserMsgKind::Error => Color32::RED,
+                        };
 
-                    ui.colored_label(color, &status.msg);
-                } else {
-                    ui.label("None");
-                }
+                        ui.colored_label(color, &status.msg);
+                    } else {
+                        ui.label("None");
+                    }
+                });
+                render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
             });
-            render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
         });
 
         CentralPanel::default().show(ctx, |ui| {
-            let full_height = ui.available_height();
-            ui.horizontal(|ui| {
-                ui.set_min_height(full_height);
-                ui.allocate_ui(vec2(SIDE_BAR_X, full_height), |ui| {
-                    ui.set_min_width(SIDE_BAR_X);
-                    ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.vertical(|ui| {
-                                ui.allocate_ui(vec2(ui.available_width(), 180.), |ui| {
-                                    ui.set_min_height(288.);
-                                    selection_compare_table(ui, &mut self.ui_state);
+            ui.add_enabled_ui(!modal_is_open, |ui| {
+                let full_height = ui.available_height();
+                ui.horizontal(|ui| {
+                    ui.set_min_height(full_height);
+                    ui.allocate_ui(vec2(SIDE_BAR_X, full_height), |ui| {
+                        ui.set_min_width(SIDE_BAR_X);
+                        ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    render_preset_settings(ui, &mut self.ui_state);
+                                    render_global_settings(ui, &mut self.ui_state);
+                                    render_pad_patterns(ui, &mut self.ui_state);
+                                    if ui.button("Reset Preset").clicked() {
+                                        self.ui_state.preset = Preset::blank();
+                                    }
                                 });
-
-                                render_preset_settings(ui, &mut self.ui_state);
-                                render_global_settings(ui, &mut self.ui_state);
-                                render_pad_patterns(ui, &mut self.ui_state);
-                                if ui.button("Reset Preset").clicked() {
-                                    self.ui_state.preset = Preset::blank();
-                                }
                             });
-                        });
-                });
-                ui.vertical(|ui| {
-                    render_controls(ui, &mut self.ui_state);
+                    });
+                    ui.vertical(|ui| {
+                        render_controls(ui, &mut self.ui_state);
+                    });
                 });
             });
         });
+
+        render_modal_editor(ctx, &mut self.ui_state);
 
         for msg in self.outbox.drain(..) {
             let _ = self.app_tx.send(msg);
@@ -242,11 +265,6 @@ mod accessibility {
                 egui::StrokeKind::Outside,
             );
         }
-    }
-
-    pub fn is_keyboard_activated(resp: &egui::Response, ctx: &egui::Context) -> bool {
-        resp.has_focus()
-            && ctx.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Space))
     }
 }
 
@@ -673,7 +691,7 @@ fn render_color_pattern_editor(ui: &mut Ui, id_prefix: &str, pattern: &mut Color
 fn render_all_pad_banks(
     ui: &mut Ui,
     selected_item: &mut Option<UserSelection>,
-    pad_repo: &mut PadRepository,
+    pad_repo: PadRepository,
 ) {
     let banks: Vec<Vec<Pad>> = pad_repo
         .pads
@@ -797,37 +815,27 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
         Color32::from_rgb(231, 231, 231),
     );
 
-    if clicked || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
-        click_pad(pad.id, selected_item);
+    if clicked {
+        *selected_item = Some(UserSelection::Pad { id: pad.id });
     }
 }
 
 fn render_controls(ui: &mut Ui, ui_state: &mut UiState) {
-    render_all_pad_banks(ui, &mut ui_state.selected_item, &mut ui_state.preset.pads);
+    let pads = ui_state.preset.pads;
+    let dials = ui_state.preset.dials;
+    let faders = ui_state.preset.faders;
+    let switches = ui_state.preset.switches;
 
-    render_all_control_banks(
-        ui,
-        &mut ui_state.selected_item,
-        &mut ui_state.preset.dials,
-        &mut ui_state.preset.faders,
-        &mut ui_state.preset.switches,
-    );
-}
-
-fn click_pad(id: usize, selected_item: &mut Option<UserSelection>) {
-    if *selected_item == Some(UserSelection::Pad { id }) {
-        *selected_item = None;
-    } else {
-        *selected_item = Some(UserSelection::Pad { id });
-    }
+    render_all_pad_banks(ui, &mut ui_state.selected_item, pads);
+    render_all_control_banks(ui, &mut ui_state.selected_item, dials, faders, switches);
 }
 
 fn render_all_control_banks(
     ui: &mut Ui,
     selected_item: &mut Option<UserSelection>,
-    dial_repo: &mut DialRepository,
-    fader_repo: &mut FaderRepository,
-    switch_repo: &mut SwitchRepository,
+    dial_repo: DialRepository,
+    fader_repo: FaderRepository,
+    switch_repo: SwitchRepository,
 ) {
     ui.horizontal(|ui| {
         for bank_label in CONTROL_BANKS.iter() {
@@ -903,16 +911,8 @@ fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dia
 
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 24.0);
 
-    if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
-        click_dial(dial_id, selected_item);
-    }
-}
-
-fn click_dial(id: usize, selected_item: &mut Option<UserSelection>) {
-    if *selected_item == Some(UserSelection::Dial { id }) {
-        *selected_item = None;
-    } else {
-        *selected_item = Some(UserSelection::Dial { id });
+    if resp.clicked() {
+        *selected_item = Some(UserSelection::Dial { id: dial_id });
     }
 }
 
@@ -950,12 +950,8 @@ fn render_fader(
 
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
-    if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
-        if *selected_item == Some(UserSelection::Fader { id: fader_id }) {
-            *selected_item = None;
-        } else {
-            *selected_item = Some(UserSelection::Fader { id: fader_id });
-        };
+    if resp.clicked() {
+        *selected_item = Some(UserSelection::Fader { id: fader_id });
     }
 }
 
@@ -991,16 +987,111 @@ fn render_switch(
 
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
-    if resp.clicked() || accessibility::is_keyboard_activated(&resp, ui.ctx()) {
-        if *selected_item == Some(UserSelection::Switch { id: switch_id }) {
-            *selected_item = None;
-        } else {
-            *selected_item = Some(UserSelection::Switch { id: switch_id });
-        };
+    if resp.clicked() {
+        *selected_item = Some(UserSelection::Switch { id: switch_id });
     }
 }
 
-fn selection_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
+fn render_modal_editor(ctx: &Context, ui_state: &mut UiState) {
+    let Some(selected_item) = ui_state.selected_item else {
+        return;
+    };
+
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        ui_state.selected_item = None;
+        return;
+    }
+
+    egui::Area::new(egui::Id::new("modal_backdrop_area"))
+        .order(egui::Order::Middle)
+        .fixed_pos(egui::Pos2::ZERO)
+        .show(ctx, |ui| {
+            let screen_rect = ui.ctx().content_rect();
+
+            let backdrop_response = ui.allocate_rect(screen_rect, egui::Sense::click());
+            ui.painter()
+                .rect_filled(screen_rect, 0.0, Color32::from_black_alpha(180));
+
+            if backdrop_response.clicked() {
+                ui_state.selected_item = None;
+            }
+        });
+
+    if ui_state.selected_item.is_none() {
+        return;
+    }
+
+    let title = match selected_item {
+        UserSelection::Pad { id } => format!("Edit Pad {}", id),
+        UserSelection::Dial { id } => {
+            let bank = CONTROL_BANKS[id / 4];
+            let num = (id % 4) + 1;
+            format!("Edit Dial {}{}", bank, num)
+        }
+        UserSelection::Fader { id } => {
+            let bank = CONTROL_BANKS[id / 4];
+            let num = (id % 4) + 1;
+            format!("Edit Fader {}{}", bank, num)
+        }
+        UserSelection::Switch { id } => {
+            let bank = CONTROL_BANKS[id / 4];
+            let num = (id % 4) + 1;
+            format!("Edit Switch {}{}", bank, num)
+        }
+    };
+
+    let mut is_open = true;
+    let mut close_clicked = false;
+
+    egui::Window::new(title)
+        .open(&mut is_open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            render_modal_content(ui, ui_state);
+
+            ui.add_space(8.0);
+            ui.separator();
+
+            if ui.button("Close").clicked() {
+                close_clicked = true;
+            }
+        });
+
+    if !is_open || close_clicked {
+        ui_state.selected_item = None;
+    }
+}
+
+fn render_modal_content(ui: &mut Ui, ui_state: &mut UiState) {
+    match ui_state.selected_item {
+        Some(UserSelection::Pad { id: index }) => {
+            if let Some(pad) = ui_state.preset.pads.pads.iter_mut().find(|p| p.id == index) {
+                render_pad_compare_grid(ui, pad);
+            }
+        }
+        Some(UserSelection::Dial { id: index }) => {
+            if let Some(dial) = ui_state.preset.dials.0.get_mut(index) {
+                render_dial_compare_grid(ui, dial);
+            }
+        }
+        Some(UserSelection::Fader { id: index }) => {
+            if let Some(fader) = ui_state.preset.faders.0.get_mut(index) {
+                render_fader_compare_grid(ui, fader);
+            }
+        }
+        Some(UserSelection::Switch { id: index }) => {
+            if let Some(switch) = ui_state.preset.switches.0.get_mut(index) {
+                render_switch_compare_grid(ui, switch);
+            }
+        }
+        None => {}
+    }
+}
+
+#[allow(dead_code)]
+fn selection_editor(ui: &mut Ui, ui_state: &mut UiState) {
     ui.vertical(|ui| {
         let selection_label = match ui_state.selected_item {
             Some(UserSelection::Pad { id }) => format!("Pad {}", id),
@@ -1021,7 +1112,7 @@ fn selection_compare_table(ui: &mut Ui, ui_state: &mut UiState) {
             }
             None => "None".to_string(),
         };
-        ui.label(format!("Selected: {}", selection_label));
+        ui.label(format!("Editing: {}", selection_label));
 
         match ui_state.selected_item {
             Some(UserSelection::Pad { id: index }) => {
