@@ -116,7 +116,7 @@ impl AkaiMpd226Editor {
         }
     }
 
-    fn poll_ui_msgs(&mut self) {
+    fn poll_ui_msgs(&mut self, ctx: &Context) {
         while let Ok(msg) = self.ui_rx.try_recv() {
             match msg {
                 UiMsg::UpdatePreset(preset) => {
@@ -141,6 +141,8 @@ impl AkaiMpd226Editor {
                     self.ui_state.global = *global;
                 }
             }
+
+            ctx.request_repaint();
         }
     }
 
@@ -213,14 +215,12 @@ impl AkaiMpd226Editor {
         for msg in self.outbox.drain(..) {
             let _ = self.app_tx.send(msg);
         }
-
-        ctx.request_repaint_after(std::time::Duration::from_millis(17));
     }
 }
 
 impl eframe::App for AkaiMpd226Editor {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        self.poll_ui_msgs();
+        self.poll_ui_msgs(ctx);
         self.render_ui(ctx);
     }
 }
