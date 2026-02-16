@@ -12,7 +12,6 @@ use eframe::egui::DragValue;
 use eframe::egui::Grid;
 use eframe::egui::Layout;
 use eframe::egui::MenuBar;
-use eframe::egui::ScrollArea;
 use eframe::egui::TextEdit;
 use eframe::egui::TopBottomPanel;
 use eframe::egui::Ui;
@@ -53,8 +52,8 @@ use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
-const APP_X: f32 = 800.;
-const APP_Y: f32 = 600.;
+const APP_X: f32 = 960.;
+const APP_Y: f32 = 640.;
 pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
 
 const DEFAULT_CONTROL_X: f32 = 42.;
@@ -92,13 +91,13 @@ const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
 const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.5;
 const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4. + CONTROL_BANK_X_ADJUSTMENT;
 
-#[expect(
-    unused,
-    reason = "its hip, its cool, we're going to want to make the app look nice one day"
-)]
 fn spacing(n: i32) -> f32 {
     let phi = (1.0 + 5_f32.sqrt()) / 2.0;
     8_f32 * phi.powi(n)
+}
+
+fn add_space(ui: &mut Ui, n: i32) {
+    ui.add_space(spacing(n));
 }
 
 pub struct AkaiMpd226Editor {
@@ -663,12 +662,10 @@ fn render_all_pad_banks(
         .collect();
 
     ui.horizontal(|ui| {
-        ScrollArea::horizontal().show(ui, |ui| {
-            for (bank_id, bank) in banks.into_iter().enumerate() {
-                let bank_label = BANKS[bank_id].to_string();
-                render_pad_bank(ui, selected_item, bank, bank_label);
-            }
-        });
+        for (bank_id, bank) in banks.into_iter().enumerate() {
+            let bank_label = BANKS[bank_id].to_string();
+            render_pad_bank(ui, selected_item, bank, bank_label);
+        }
     });
 }
 
