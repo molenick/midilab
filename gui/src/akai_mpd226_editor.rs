@@ -182,11 +182,13 @@ impl AkaiMpd226Editor {
                         ui.label("None");
                     }
                 });
-                render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
+                // render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
 
                 //             if ui.button("Reset Preset").clicked() {
                 //                 self.ui_state.preset = Preset::blank();
                 //             }
+
+                render_preset_quick_actions(ui, &mut self.ui_state, &mut self.outbox);
 
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -324,6 +326,27 @@ impl Default for ColorMappingState {
             starting_from_pad: 0,
         }
     }
+}
+
+fn render_preset_quick_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+    ui.vertical(|ui| {
+        ui.label("Preset Quick Actions");
+        ui.horizontal(|ui| {
+            row_edit_enum(ui, "Slot", &mut ui_state.preset.settings.preset_slot);
+
+            if ui.button("Dump").clicked() {
+                ui_state.user_msg = None;
+                outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
+                    ui_state.preset.settings.preset_slot,
+                )));
+            }
+
+            if ui.button("Write").clicked() {
+                ui_state.user_msg = None;
+                outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
+            }
+        });
+    });
 }
 
 fn render_device_command_controls(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
