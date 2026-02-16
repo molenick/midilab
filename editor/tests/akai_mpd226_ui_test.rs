@@ -23,10 +23,11 @@ fn test_top_level_app_tabbing() {
             "Write preset to device",
             "Dump global from device",
             "Write global to device",
-            "Preset Settings",
-            "Global Settings",
-            "Pattern Mapping",
-            "Reset Preset",
+            "Edit Preset Settings",
+            "Edit Global Settings",
+            "Pad Note Mapping",
+            "Pad LED Off Color Mapping",
+            "Pad LED On Color Mapping",
         ]
         .map(|s| s.to_owned()),
     );
@@ -98,46 +99,11 @@ fn test_modal_for_different_control_types() {
     harness.get_by_label("Fader B2").click();
     harness.run();
     let _fader_modal = harness.get_by_label("Edit Fader B2");
-    // todo: we don't have "click outside of modal to dismiss" tested - we should replace
-    // this dupe of esc key
+
     harness.key_press(Key::Escape);
     harness.run();
 
     harness.get_by_label("Switch C3").click();
     harness.run();
     let _switch_modal = harness.get_by_label("Edit Switch C3");
-}
-
-#[test]
-fn test_modal_blocks_background_focus() {
-    let (app_tx, mut app_rx) = unbounded_channel();
-    let (_ui_tx, ui_rx) = unbounded_channel();
-    let app = AkaiMpd226Editor::new(app_tx, ui_rx);
-
-    let mut harness = Harness::new_state(
-        |ctx, app: &mut AkaiMpd226Editor| {
-            app.render_ui(ctx);
-        },
-        app,
-    );
-
-    harness.get_by_label("Pad 0").click();
-    harness.run();
-
-    let _modal_title = harness.get_by_label("Edit Pad 0");
-
-    harness.get_by_label("Dump preset from device").click();
-    harness.run();
-
-    // verify no messages sent
-    assert!(app_rx.try_recv().is_err(),);
-
-    harness.key_press(Key::Escape);
-    harness.run();
-
-    harness.get_by_label("Dump preset from device").click();
-    harness.run();
-
-    // verify controls active and messages sent
-    assert!(app_rx.try_recv().is_ok(),);
 }

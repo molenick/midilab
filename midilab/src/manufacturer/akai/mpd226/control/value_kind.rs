@@ -157,7 +157,6 @@ pub enum PresetSlot {
     Slot20 = 20,
 }
 
-// todo: see if this can be removed in the next sim update phass
 impl TryFrom<&[u8]> for PresetSlot {
     type Error = PresetParseError;
 
