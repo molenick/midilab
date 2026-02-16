@@ -11,7 +11,10 @@ use eframe::egui::Context;
 use eframe::egui::DragValue;
 use eframe::egui::Grid;
 use eframe::egui::Layout;
+use eframe::egui::MenuBar;
+use eframe::egui::ScrollArea;
 use eframe::egui::TextEdit;
+use eframe::egui::TopBottomPanel;
 use eframe::egui::Ui;
 use eframe::egui::Vec2;
 use eframe::egui::containers::Modal;
@@ -162,27 +165,50 @@ impl AkaiMpd226Editor {
     }
 
     pub fn render_ui(&mut self, ctx: &Context) {
+        TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            MenuBar::new().ui(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Quit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+                ui.menu_button("Edit", |ui| {
+                    ui.menu_button("Pad Mapping", |ui| {
+                        if ui.button("Notes").clicked() {
+                            self.ui_state.selected_item = Some(UserSelection::PadNoteMapping);
+                        }
+
+                        if ui.button("LED Off Color").clicked() {
+                            self.ui_state.selected_item = Some(UserSelection::PadOffColorMapping);
+                        }
+
+                        if ui.button("LED On Color").clicked() {
+                            self.ui_state.selected_item = Some(UserSelection::PadOnColorMapping);
+                        }
+                    });
+
+                    if ui.button("Edit Preset settings").clicked() {
+                        self.ui_state.selected_item = Some(UserSelection::PresetSettings);
+                    }
+                    if ui.button("Edit Global settings").clicked() {
+                        self.ui_state.selected_item = Some(UserSelection::GlobalSettings);
+                    }
+
+                    if ui.button("Blank Preset").clicked() {
+                        self.ui_state.preset = Preset::blank();
+                    }
+
+                    if ui.button("Default Preset").clicked() {
+                        self.ui_state.preset = Preset::default();
+                    }
+                });
+            });
+        });
+
         if self.ui_state.selected_item.is_some() {
             render_modal_editor(ctx, &mut self.ui_state);
         } else {
             CentralPanel::default().show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Akai MPD226 Editor");
-                    ui.separator();
-                    ui.label("Status:");
-
-                    if let Some(status) = &self.ui_state.user_msg {
-                        let color = match status.kind {
-                            midilab::message::UserMsgKind::Status => Color32::GREEN,
-                            midilab::message::UserMsgKind::Error => Color32::RED,
-                        };
-
-                        ui.colored_label(color, &status.msg);
-                    } else {
-                        ui.label("None");
-                    }
-                });
-
                 render_editor_actions(ui, &mut self.ui_state, &mut self.outbox);
 
                 ui.horizontal(|ui| {
@@ -343,40 +369,25 @@ fn render_editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<A
                         outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
                     }
                 });
-            });
 
-            ui.separator();
+                ui.separator();
 
-            ui.vertical(|ui| {
-                ui.label("Bulk Pad Mapping");
                 ui.horizontal(|ui| {
-                    if ui.button("Notes").clicked() {
-                        ui_state.selected_item = Some(UserSelection::PadNoteMapping);
-                    }
+                    ui.label("Status:");
 
-                    if ui.button("LED Off Color").clicked() {
-                        ui_state.selected_item = Some(UserSelection::PadOffColorMapping);
-                    }
+                    if let Some(status) = &ui_state.user_msg {
+                        let color = match status.kind {
+                            midilab::message::UserMsgKind::Status => Color32::GREEN,
+                            midilab::message::UserMsgKind::Error => Color32::RED,
+                        };
 
-                    if ui.button("LED On Color").clicked() {
-                        ui_state.selected_item = Some(UserSelection::PadOnColorMapping);
+                        ui.colored_label(color, &status.msg);
+                    } else {
+                        ui.label("None");
                     }
                 });
-            });
 
-            ui.separator();
-
-            ui.vertical(|ui| {
-                ui.label("Device Settings");
-                ui.horizontal(|ui| {
-                    if ui.button("Preset").clicked() {
-                        ui_state.selected_item = Some(UserSelection::PresetSettings);
-                    }
-
-                    if ui.button("Global").clicked() {
-                        ui_state.selected_item = Some(UserSelection::GlobalSettings);
-                    }
-                });
+                ui.separator();
             });
         });
     });
@@ -652,10 +663,12 @@ fn render_all_pad_banks(
         .collect();
 
     ui.horizontal(|ui| {
-        for (bank_id, bank) in banks.into_iter().enumerate() {
-            let bank_label = BANKS[bank_id].to_string();
-            render_pad_bank(ui, selected_item, bank, bank_label);
-        }
+        ScrollArea::horizontal().show(ui, |ui| {
+            for (bank_id, bank) in banks.into_iter().enumerate() {
+                let bank_label = BANKS[bank_id].to_string();
+                render_pad_bank(ui, selected_item, bank, bank_label);
+            }
+        });
     });
 }
 
