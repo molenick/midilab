@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     eframe::run_native(
-        "Midilab",
+        "Akai MPD226 Editor",
         options,
         Box::new(|_cc| Ok(Box::new(AkaiMpd226Editor::new(app_tx, ui_rx)))),
     )?;
