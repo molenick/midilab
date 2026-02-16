@@ -745,9 +745,11 @@ impl From<(NotePattern, NoteColorMap)> for ColorPattern {
 
         for p in pcs {
             if let Some(c) = m.0.get(&p.class) {
-                // todo: magic number 1. we may just want to refactor the color pattern stuff
-                // once we have a 3rd impl.
-                let cs = ColorSequence { len: 1, color: *c };
+                const PITCH_SEQ_LEN: usize = 1;
+                let cs = ColorSequence {
+                    len: PITCH_SEQ_LEN,
+                    color: *c,
+                };
                 pattern.push(cs);
             }
         }

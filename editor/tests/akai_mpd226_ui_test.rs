@@ -23,18 +23,17 @@ fn test_top_level_app_tabbing() {
             "Write preset to device",
             "Dump global from device",
             "Write global to device",
-            "Preset Settings",
-            "Global Settings",
-            "Pattern Mapping",
-            "Reset Preset",
+            "Edit Preset Settings",
+            "Edit Global Settings",
+            "Pad Note Mapping",
+            "Pad LED Off Color Mapping",
+            "Pad LED On Color Mapping",
         ]
         .map(|s| s.to_owned()),
     );
 
     let control_banks = ["A", "B", "C"];
 
-    // Find app nodes w/ unique labels
-    // panics when quantity != 1
     let _title_label = harness.get_by_label("Akai MPD226 Editor");
 
     let pad_labels: Vec<String> = (0..64).map(|v| format!("Pad {v}")).collect();
@@ -55,8 +54,6 @@ fn test_top_level_app_tabbing() {
         .collect();
     tabbable_elements.extend_from_slice(&switch_labels);
 
-    // todo: we nav through accesskit or keyboard - whats best?
-    // is there value in each?
     for label in tabbable_elements {
         harness.key_press(Key::Tab);
         harness.run_steps(1);
@@ -68,6 +65,45 @@ fn test_top_level_app_tabbing() {
             label
         );
     }
+}
 
-    // todo: how to get tooltip text? We prob want to verify each type
+#[test]
+fn test_modal_for_different_control_types() {
+    let (app_tx, _app_rx) = unbounded_channel();
+    let (_ui_tx, ui_rx) = unbounded_channel();
+    let app = AkaiMpd226Editor::new(app_tx, ui_rx);
+
+    let mut harness = Harness::new_state(
+        |ctx, app: &mut AkaiMpd226Editor| {
+            app.render_ui(ctx);
+        },
+        app,
+    );
+
+    harness.get_by_label("Pad 0").click();
+    harness.run();
+    let _pad_modal = harness.get_by_label("Edit Pad 0");
+    let _kind_label = harness.get_by_label("kind");
+    let _channel_label = harness.get_by_label("channel");
+    let _note_label = harness.get_by_label("note");
+
+    harness.get_by_label("Close").click();
+    harness.run();
+
+    harness.get_by_label("Dial A1").click();
+    harness.run();
+    let _dial_modal = harness.get_by_label("Edit Dial A1");
+    harness.key_press(Key::Escape);
+    harness.run();
+
+    harness.get_by_label("Fader B2").click();
+    harness.run();
+    let _fader_modal = harness.get_by_label("Edit Fader B2");
+
+    harness.key_press(Key::Escape);
+    harness.run();
+
+    harness.get_by_label("Switch C3").click();
+    harness.run();
+    let _switch_modal = harness.get_by_label("Edit Switch C3");
 }
