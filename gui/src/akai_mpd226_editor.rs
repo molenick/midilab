@@ -50,7 +50,7 @@ use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
-const APP_X: f32 = 1200.;
+const APP_X: f32 = 800.;
 const APP_Y: f32 = 600.;
 pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
 
@@ -182,11 +182,8 @@ impl AkaiMpd226Editor {
                         ui.label("None");
                     }
                 });
-                render_device_command_controls(ui, &mut self.ui_state, &mut self.outbox);
 
-                //             if ui.button("Reset Preset").clicked() {
-                //                 self.ui_state.preset = Preset::blank();
-                //             }
+                render_editor_actions(ui, &mut self.ui_state, &mut self.outbox);
 
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -326,54 +323,61 @@ impl Default for ColorMappingState {
     }
 }
 
-fn render_device_command_controls(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+fn render_editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
-            if ui.button("Dump preset from device").clicked() {
-                ui_state.user_msg = None;
-                outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
-                    ui_state.preset.settings.preset_slot,
-                )));
-            }
+            ui.vertical(|ui| {
+                ui.label("Preset Quick Actions");
+                ui.horizontal(|ui| {
+                    row_edit_enum(ui, "Slot", &mut ui_state.preset.settings.preset_slot);
 
-            if ui.button("Write preset to device").clicked() {
-                ui_state.user_msg = None;
-                outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
-            }
+                    if ui.button("Dump").clicked() {
+                        ui_state.user_msg = None;
+                        outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
+                            ui_state.preset.settings.preset_slot,
+                        )));
+                    }
+
+                    if ui.button("Write").clicked() {
+                        ui_state.user_msg = None;
+                        outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
+                    }
+                });
+            });
 
             ui.separator();
 
-            ui.horizontal(|ui| {
-                if ui.button("Dump global from device").clicked() {
-                    ui_state.user_msg = None;
-                    outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
-                }
-                if ui.button("Write global to device").clicked() {
-                    ui_state.user_msg = None;
-                    outbox.push(AppMsg::Ui(UiEffect::SendGlobalToDevice(Box::new(
-                        ui_state.global,
-                    ))));
-                }
+            ui.vertical(|ui| {
+                ui.label("Bulk Pad Mapping");
+                ui.horizontal(|ui| {
+                    if ui.button("Notes").clicked() {
+                        ui_state.selected_item = Some(UserSelection::PadNoteMapping);
+                    }
+
+                    if ui.button("LED Off Color").clicked() {
+                        ui_state.selected_item = Some(UserSelection::PadOffColorMapping);
+                    }
+
+                    if ui.button("LED On Color").clicked() {
+                        ui_state.selected_item = Some(UserSelection::PadOnColorMapping);
+                    }
+                });
             });
-        });
-        ui.horizontal(|ui| {
-            if ui.button("Edit Preset Settings").clicked() {
-                ui_state.selected_item = Some(UserSelection::PresetSettings);
-            }
 
-            if ui.button("Edit Global Settings").clicked() {
-                ui_state.selected_item = Some(UserSelection::GlobalSettings);
-            }
-            if ui.button("Pad Note Mapping").clicked() {
-                ui_state.selected_item = Some(UserSelection::PadNoteMapping);
-            }
+            ui.separator();
 
-            if ui.button("Pad LED Off Color Mapping").clicked() {
-                ui_state.selected_item = Some(UserSelection::PadOffColorMapping);
-            }
-            if ui.button("Pad LED On Color Mapping").clicked() {
-                ui_state.selected_item = Some(UserSelection::PadOnColorMapping);
-            }
+            ui.vertical(|ui| {
+                ui.label("Device Settings");
+                ui.horizontal(|ui| {
+                    if ui.button("Preset").clicked() {
+                        ui_state.selected_item = Some(UserSelection::PresetSettings);
+                    }
+
+                    if ui.button("Global").clicked() {
+                        ui_state.selected_item = Some(UserSelection::GlobalSettings);
+                    }
+                });
+            });
         });
     });
 }
@@ -1087,6 +1091,7 @@ where
     T: IntoEnumIterator + std::fmt::Display + Clone + Copy + PartialEq,
 {
     ui.label(name);
+
     ComboBox::from_id_salt(name)
         .selected_text(format!("{}", value))
         .show_ui(ui, |ui| {
