@@ -25,7 +25,7 @@ pub enum SimMsg {
 }
 
 pub enum SimEffect {
-    SendSysex(Vec<u8>),
+    SendSysex(Sysex),
     Noop,
 }
 
@@ -66,7 +66,7 @@ impl Mpd226Sim {
                         let preset = &self.presets[slot as usize];
 
                         let raw = RawPreset::from(preset);
-                        SimEffect::SendSysex(preset_send_message(&raw))
+                        SimEffect::SendSysex(Sysex::new(preset_send_message(&raw)))
                     }
                     DeviceCommandId::WritePreset => {
                         let raw_preset: RawPreset =
@@ -80,11 +80,11 @@ impl Mpd226Sim {
                         };
                         let slot = preset.settings.preset_slot;
                         self.presets[slot as usize] = preset;
-                        SimEffect::SendSysex(preset_ack_message(slot))
+                        SimEffect::SendSysex(Sysex::new(preset_ack_message(slot)))
                     }
                     DeviceCommandId::DumpGlobal => {
                         let raw = RawGlobal::from(&self.global);
-                        SimEffect::SendSysex(global_dump_response(&raw))
+                        SimEffect::SendSysex(Sysex::new(global_dump_response(&raw)))
                     }
                     DeviceCommandId::WriteGlobal => {
                         let addr = payload.data[2];
@@ -95,7 +95,7 @@ impl Mpd226Sim {
                         match Global::try_from(raw) {
                             Ok(g) => {
                                 self.global = g;
-                                SimEffect::SendSysex(global_ack_message(addr))
+                                SimEffect::SendSysex(Sysex::new(global_ack_message(addr)))
                             }
                             Err(e) => {
                                 eprintln!("{}", e);
@@ -219,23 +219,31 @@ impl SimRunner {
                     break;
                 }
                 Some(raw) = self.raw_midi_rx.recv() => {
-                    let sysex = match Sysex::try_from(raw.as_slice()) {
-                        Ok(s) => s,
+                    let sysex_in = match Sysex::try_from(raw.as_slice()) {
+                        Ok(s) => {
+                            println!("received sysex payload: {}", s.preview());
+                            s
+                        },
                         Err(e) => {
                             eprintln!("{e}");
                             continue;
                         }
                     };
 
-                    let effect = self.sim.update(SimMsg::SysexReceived(sysex));
+                    let effect = self.sim.update(SimMsg::SysexReceived(sysex_in));
 
                     match effect {
-                        SimEffect::SendSysex(bytes) => {
+                        SimEffect::SendSysex(sysex_out) => {
+                            println!("sending sysex payload: {}", sysex_out.preview());
+                            let bytes = sysex_out.as_bytes();
+
                             if let Err(e) = self.out_port.send(&bytes) {
                                 eprintln!("MIDI send error: {e}");
                             }
                         }
-                        SimEffect::Noop => {}
+                        SimEffect::Noop => {
+                            println!("noop");
+                        }
                     }
                 }
             }

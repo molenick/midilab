@@ -39,6 +39,30 @@ impl Sysex {
         data.push(END_BYTE);
         data
     }
+
+    pub fn preview(&self) -> String {
+        const CHUNK_HEAD_LEN: usize = 4;
+        const CHUNK_TAIL_LEN: usize = 4;
+        const CHUNK_TOTAL_LEN: usize = CHUNK_HEAD_LEN + CHUNK_TAIL_LEN;
+
+        if self.payload().len() <= CHUNK_TOTAL_LEN {
+            let s = self.payload();
+            format!("{s:02x?}")
+        } else {
+            let chunk_head = self.payload()[0..CHUNK_HEAD_LEN].to_vec();
+            let chunk_tail = self.payload()
+                [(self.payload().len() - CHUNK_TAIL_LEN)..self.payload().len()]
+                .to_vec();
+
+            let hs: Vec<String> = chunk_head.iter().map(|i| format!("{i:02x}")).collect();
+            let hs = hs.join(", ");
+
+            let ts: Vec<String> = chunk_tail.iter().map(|i| format!("{i:02x}")).collect();
+            let ts = ts.join(", ");
+
+            format!("[{hs}, ..., {ts}]")
+        }
+    }
 }
 
 impl TryFrom<&[u8]> for Sysex {
@@ -68,6 +92,20 @@ impl TryFrom<&[u8]> for Sysex {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sysex_preview_short_payload() {
+        let s = Sysex::new(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+
+        assert_eq!(&s.preview(), "[00, 01, 02, 03, 04, 05, 06, 07]");
+    }
+
+    #[test]
+    fn test_sysex_preview_long_payload() {
+        let s = Sysex::new(vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
+
+        assert_eq!(&s.preview(), "[00, 01, 02, 03, ..., 05, 06, 07, 08]");
+    }
 
     #[test]
     fn test_pack_u14_zero() {
