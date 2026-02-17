@@ -3,11 +3,11 @@ use std::time::Duration;
 use eframe::egui::ViewportBuilder;
 use midilab::error::MidiError;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
-use midilab::manufacturer::akai::mpd226::global_dump_request;
-use midilab::manufacturer::akai::mpd226::preset_dump_request;
-use midilab::manufacturer::akai::mpd226::preset_send_message;
+use midilab::manufacturer::akai::mpd226::dump_global_from_device;
+use midilab::manufacturer::akai::mpd226::dump_preset_from_device;
 use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
+use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab::message::AppEffect;
 use midilab::message::AppMsg;
 use midilab::message::DeviceMsg;
@@ -154,7 +154,7 @@ async fn handle_midi_msg(msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
 
     match msg {
         DeviceMsg::DumpPreset(slot) => {
-            let request = preset_dump_request(slot as u8);
+            let request = dump_preset_from_device(slot as u8);
             output.send(&request).map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
@@ -162,14 +162,14 @@ async fn handle_midi_msg(msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
         }
         DeviceMsg::WritePreset(preset) => {
             let raw_preset = RawPreset::from(preset.as_ref());
-            let bytes = preset_send_message(&raw_preset);
+            let bytes = write_preset_to_device(&raw_preset);
             output.send(&bytes).map_err(|_| MidiError::WritePreset)?;
 
             let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
             Ok(bytes)
         }
         DeviceMsg::DumpGlobal => {
-            let request = global_dump_request();
+            let request = dump_global_from_device();
             output.send(&request).map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;

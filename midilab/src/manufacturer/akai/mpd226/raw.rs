@@ -220,7 +220,7 @@ impl RawGlobal {
 mod tests {
     use super::*;
     use crate::manufacturer::akai::mpd226::DeviceCommandId;
-    use crate::manufacturer::akai::mpd226::preset_dump_request;
+    use crate::manufacturer::akai::mpd226::dump_preset_from_device;
 
     #[test]
     fn test_raw_header_size() {
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_preset_dump_request_ram() {
-        let request = preset_dump_request(0x00);
+        let request = dump_preset_from_device(0x00);
 
         assert_eq!(request.len(), 9);
         assert_eq!(request[0], 0xF0);
@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_preset_dump_request_slot_0() {
-        let request = preset_dump_request(0x00);
+        let request = dump_preset_from_device(0x00);
 
         assert_eq!(request.len(), 9);
         assert_eq!(request[7], 0x00);

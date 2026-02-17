@@ -8,8 +8,6 @@ use num_enum::TryFromPrimitive;
 use strum_macros::Display;
 use strum_macros::EnumIter;
 
-use crate::manufacturer::akai::mpd226::error::PresetParseError;
-use crate::manufacturer::akai::mpd226::error::PresetSettingsParseError;
 use crate::sysex::pack_u14;
 use crate::sysex::unpack_u14;
 
@@ -155,24 +153,6 @@ pub enum PresetSlot {
     Slot18 = 18,
     Slot19 = 19,
     Slot20 = 20,
-}
-
-impl TryFrom<&[u8]> for PresetSlot {
-    type Error = PresetParseError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        const PRESET_ACK_LENGTH: usize = 2;
-
-        if value.len() != PRESET_ACK_LENGTH {
-            Err(PresetParseError::PresetSettings(
-                PresetSettingsParseError::PresetSlotData(value.to_vec()),
-            ))
-        } else {
-            PresetSlot::try_from_primitive(value[0]).map_err(|e| {
-                PresetParseError::PresetSettings(PresetSettingsParseError::PresetSlot(e))
-            })
-        }
-    }
 }
 
 #[repr(u8)]

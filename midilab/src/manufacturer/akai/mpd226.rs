@@ -95,7 +95,7 @@ pub enum DeviceCommandId {
     WriteGlobal = 0x34,
 }
 
-pub fn preset_dump_request(slot: u8) -> Vec<u8> {
+pub fn dump_preset_from_device(slot: u8) -> Vec<u8> {
     let length = u16::from_le_bytes([0x00, 0x01]).to_le_bytes();
 
     let header = RawHeader {
@@ -111,7 +111,7 @@ pub fn preset_dump_request(slot: u8) -> Vec<u8> {
     Sysex::new(sysex_payload).as_bytes()
 }
 
-pub fn preset_send_message(preset: &RawPreset) -> Vec<u8> {
+pub fn write_preset_to_device(preset: &RawPreset) -> Vec<u8> {
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
         _unknown: 0,
@@ -125,7 +125,7 @@ pub fn preset_send_message(preset: &RawPreset) -> Vec<u8> {
     Sysex::new(sysex_payload).as_bytes()
 }
 
-pub fn global_dump_request() -> Vec<u8> {
+pub fn dump_global_from_device() -> Vec<u8> {
     let length = u16::from_le_bytes([0x00, 0x03]).to_le_bytes();
 
     let header = RawHeader {
@@ -142,7 +142,7 @@ pub fn global_dump_request() -> Vec<u8> {
     Sysex::new(sysex_payload).as_bytes()
 }
 
-pub fn global_write_param(addr: u8, value: u8) -> Vec<u8> {
+pub fn write_global_param_to_device(addr: u8, value: u8) -> Vec<u8> {
     let length = u16::from_le_bytes([0x00, 0x04]).to_le_bytes();
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
@@ -876,7 +876,7 @@ mod tests {
 
     #[test]
     fn test_global_dump_request_format() {
-        let request = super::global_dump_request();
+        let request = super::dump_global_from_device();
 
         assert_eq!(request.len(), 11);
         assert_eq!(request[0], 0xF0);
@@ -894,7 +894,7 @@ mod tests {
 
     #[test]
     fn test_global_write_param_format() {
-        let msg = super::global_write_param(0x02, 50);
+        let msg = super::write_global_param_to_device(0x02, 50);
 
         assert_eq!(msg.len(), 12);
         assert_eq!(msg[0], 0xF0);
@@ -975,7 +975,7 @@ mod tests {
         assert_eq!(preset2.faders.0[0].channel, MidiChannel::A1,);
         assert_eq!(preset2.switches.0[0].channel, MidiChannel::A1,);
 
-        let sysex_bytes = preset_send_message(&raw);
+        let sysex_bytes = write_preset_to_device(&raw);
 
         let data_start = 1 + 6;
         let data_end = sysex_bytes.len() - 1;
