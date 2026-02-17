@@ -5,11 +5,11 @@ use midilab::manufacturer::akai::mpd226::DeviceStatus;
 use midilab::manufacturer::akai::mpd226::Global;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
-use midilab::manufacturer::akai::mpd226::global_dump_request;
-use midilab::manufacturer::akai::mpd226::preset_dump_request;
-use midilab::manufacturer::akai::mpd226::preset_send_message;
+use midilab::manufacturer::akai::mpd226::dump_global_from_device;
+use midilab::manufacturer::akai::mpd226::dump_preset_from_device;
 use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
+use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab::midi::Note;
 
 const PORT_NAME: &str = "MPD226 Remote";
@@ -61,7 +61,7 @@ fn preset_round_trip() {
     let original = {
         let conn: &mut midir::MidiOutputConnection = &mut conn;
         let rx: &mpsc::Receiver<Vec<u8>> = &rx;
-        conn.send(&preset_dump_request(0x00)).unwrap();
+        conn.send(&dump_preset_from_device(0x00)).unwrap();
         let res = {
             let data = rx.recv_timeout(TIMEOUT).unwrap();
             DeviceStatus::try_from(data.as_slice()).unwrap()
@@ -88,7 +88,7 @@ fn preset_round_trip() {
         let rx: &mpsc::Receiver<Vec<u8>> = &rx;
         let preset: &Preset = &mutated;
         let raw = RawPreset::from(preset);
-        conn.send(&preset_send_message(&raw)).unwrap();
+        conn.send(&write_preset_to_device(&raw)).unwrap();
         let res = {
             let data = rx.recv_timeout(TIMEOUT).unwrap();
             DeviceStatus::try_from(data.as_slice()).unwrap()
@@ -101,7 +101,7 @@ fn preset_round_trip() {
     let loaded = {
         let conn: &mut midir::MidiOutputConnection = &mut conn;
         let rx: &mpsc::Receiver<Vec<u8>> = &rx;
-        conn.send(&preset_dump_request(0x00)).unwrap();
+        conn.send(&dump_preset_from_device(0x00)).unwrap();
         let res = {
             let data = rx.recv_timeout(TIMEOUT).unwrap();
             DeviceStatus::try_from(data.as_slice()).unwrap()
@@ -127,7 +127,7 @@ fn preset_round_trip() {
         let rx: &mpsc::Receiver<Vec<u8>> = &rx;
         let preset: &Preset = &original;
         let raw = RawPreset::from(preset);
-        conn.send(&preset_send_message(&raw)).unwrap();
+        conn.send(&write_preset_to_device(&raw)).unwrap();
         let res = {
             let data = rx.recv_timeout(TIMEOUT).unwrap();
             DeviceStatus::try_from(data.as_slice()).unwrap()
@@ -140,7 +140,7 @@ fn preset_round_trip() {
     let restored = {
         let conn: &mut midir::MidiOutputConnection = &mut conn;
         let rx: &mpsc::Receiver<Vec<u8>> = &rx;
-        conn.send(&preset_dump_request(0x00)).unwrap();
+        conn.send(&dump_preset_from_device(0x00)).unwrap();
         let res = {
             let data = rx.recv_timeout(TIMEOUT).unwrap();
             DeviceStatus::try_from(data.as_slice()).unwrap()
@@ -176,7 +176,7 @@ fn send_global(
 }
 
 fn read_global(conn: &mut midir::MidiOutputConnection, rx: &mpsc::Receiver<Vec<u8>>) -> Global {
-    conn.send(&global_dump_request()).unwrap();
+    conn.send(&dump_global_from_device()).unwrap();
     let data = rx.recv_timeout(TIMEOUT).unwrap();
     let res = DeviceStatus::try_from(data.as_slice()).unwrap();
     match res {

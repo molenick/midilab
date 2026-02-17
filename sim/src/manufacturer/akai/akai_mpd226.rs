@@ -1,11 +1,11 @@
 use midilab::manufacturer::akai::SYSEX_MANUFACTURER_ID;
+use midilab::manufacturer::akai::mpd226::DEVICE_ID;
 use midilab::manufacturer::akai::mpd226::DeviceCommandId;
 use midilab::manufacturer::akai::mpd226::DeviceMessagePayload;
 use midilab::manufacturer::akai::mpd226::DeviceStatusId;
 use midilab::manufacturer::akai::mpd226::Global;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
-use midilab::manufacturer::akai::mpd226::preset_send_message;
 use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawHeader;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
@@ -61,11 +61,11 @@ impl Mpd226Sim {
                             }
                         };
 
-                        dbg!(&slot);
+                        println!("decoded dump preset command for slot {slot}");
 
                         let preset = &self.presets[slot as usize];
                         let raw = RawPreset::from(preset);
-                        SimEffect::SendSysex(Sysex::new(preset_send_message(&raw)))
+                        SimEffect::SendSysex(Sysex::new(dump_preset(&raw)))
                     }
                     DeviceCommandId::WritePreset => {
                         let raw_preset: RawPreset =
@@ -78,12 +78,14 @@ impl Mpd226Sim {
                             }
                         };
                         let slot = preset.settings.preset_slot;
+                        println!("decoded write preset command for slot {slot}");
                         self.presets[slot as usize] = preset;
-                        SimEffect::SendSysex(Sysex::new(preset_ack_message(slot)))
+                        SimEffect::SendSysex(Sysex::new(ack_preset(slot)))
                     }
                     DeviceCommandId::DumpGlobal => {
+                        println!("decoded dump global command");
                         let raw = RawGlobal::from(&self.global);
-                        SimEffect::SendSysex(Sysex::new(global_dump_response(&raw)))
+                        SimEffect::SendSysex(Sysex::new(dump_global(&raw)))
                     }
                     DeviceCommandId::WriteGlobal => {
                         let addr = device_msg_payload.data[2];
@@ -93,8 +95,11 @@ impl Mpd226Sim {
                         bytemuck::bytes_of_mut(&mut raw)[idx] = value;
                         match Global::try_from(raw) {
                             Ok(g) => {
+                                println!(
+                                    "decoded write global command: addr: {addr}, value: {value}, idx: {idx}"
+                                );
                                 self.global = g;
-                                SimEffect::SendSysex(Sysex::new(global_ack_message(addr)))
+                                SimEffect::SendSysex(Sysex::new(ack_global(addr)))
                             }
                             Err(e) => {
                                 eprintln!("{}", e);
@@ -108,7 +113,7 @@ impl Mpd226Sim {
     }
 }
 
-fn preset_ack_message(slot: PresetSlot) -> Vec<u8> {
+fn ack_preset(slot: PresetSlot) -> Vec<u8> {
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
         _unknown: 0,
@@ -120,10 +125,25 @@ fn preset_ack_message(slot: PresetSlot) -> Vec<u8> {
     let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
     sysex_payload.push(slot as u8);
     sysex_payload.push(0x00);
-    Sysex::new(sysex_payload).as_bytes()
+    sysex_payload
 }
 
-fn global_dump_response(raw: &RawGlobal) -> Vec<u8> {
+fn dump_preset(raw: &RawPreset) -> Vec<u8> {
+    let header = RawHeader {
+        mfg_id: SYSEX_MANUFACTURER_ID,
+        _unknown: 0,
+        device_id: DEVICE_ID,
+        cmd: DeviceCommandId::WritePreset as u8,
+        length: 0x3308_u16.to_le_bytes(),
+    };
+
+    // todo: alt would be construct and serialize a DeviceMsg
+    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
+    sysex_payload.extend_from_slice(bytemuck::bytes_of(raw));
+    sysex_payload
+}
+
+fn dump_global(raw: &RawGlobal) -> Vec<u8> {
     let length = pack_u14(14);
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
@@ -136,10 +156,10 @@ fn global_dump_response(raw: &RawGlobal) -> Vec<u8> {
     let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
     sysex_payload.extend_from_slice(&[0x0B, 0x00, 0x01]);
     sysex_payload.extend_from_slice(bytemuck::bytes_of(raw));
-    Sysex::new(sysex_payload).as_bytes()
+    sysex_payload
 }
 
-fn global_ack_message(addr: u8) -> Vec<u8> {
+fn ack_global(addr: u8) -> Vec<u8> {
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
         _unknown: 0,
@@ -150,7 +170,7 @@ fn global_ack_message(addr: u8) -> Vec<u8> {
 
     let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
     sysex_payload.extend_from_slice(&[0x01, 0x00, addr, 0x00]);
-    Sysex::new(sysex_payload).as_bytes()
+    sysex_payload
 }
 
 #[derive(Debug, Error)]
