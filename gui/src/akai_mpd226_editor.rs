@@ -78,7 +78,7 @@ const fn spacing(n: i32) -> f32 {
 }
 
 const APP_X: f32 = spacing(0) * 130.;
-const APP_Y: f32 = spacing(0) * 72.;
+const APP_Y: f32 = spacing(0) * 81.;
 pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
 
 const DEFAULT_CONTROL_X: f32 = spacing(4);
@@ -91,7 +91,7 @@ const PAD_X_SPACING: f32 = spacing(0);
 const PAD_Y_SPACING: f32 = 8.;
 
 const DIAL_X: f32 = DEFAULT_CONTROL_X;
-const DIAL_Y: f32 = 40.;
+const DIAL_Y: f32 = DEFAULT_CONTROL_X;
 const DIAL_DIMENSIONS: Vec2 = Vec2 {
     x: DIAL_X,
     y: DIAL_Y,
@@ -695,6 +695,7 @@ fn render_pad_bank(
     ui.vertical(|ui| {
         ui.add_space(spacing(0));
         ui.label(format!("Pad Bank {label}"));
+        ui.add_space(spacing(0));
 
         let grid_rect = ui
             .allocate_exact_size(
@@ -810,6 +811,8 @@ fn render_controls(ui: &mut Ui, ui_state: &mut UiState) {
     let switches = ui_state.preset.switches;
 
     render_all_pad_banks(ui, &mut ui_state.selected_item, pads);
+    ui.separator();
+    ui.add_space(spacing(0));
     render_all_control_banks(ui, &mut ui_state.selected_item, dials, faders, switches);
 }
 
@@ -820,6 +823,7 @@ fn render_all_control_banks(
     fader_repo: FaderRepository,
     switch_repo: SwitchRepository,
 ) {
+    // todo why are we painting label
     ui.horizontal(|ui| {
         for bank_label in CONTROL_BANKS.iter() {
             let (rect, _) =
@@ -834,6 +838,8 @@ fn render_all_control_banks(
         }
     });
 
+    ui.add_space(spacing(0));
+
     ui.horizontal_top(|ui| {
         for bank_idx in 0..3 {
             for dial_offset in 0..4 {
@@ -844,6 +850,8 @@ fn render_all_control_banks(
         }
     });
 
+    ui.add_space(spacing(0));
+
     ui.horizontal_top(|ui| {
         for bank_idx in 0..3 {
             for fader_offset in 0..4 {
@@ -853,6 +861,8 @@ fn render_all_control_banks(
             }
         }
     });
+
+    ui.add_space(spacing(0));
 
     ui.horizontal_top(|ui| {
         for bank_idx in 0..3 {
