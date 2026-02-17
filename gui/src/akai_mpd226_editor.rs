@@ -54,7 +54,7 @@ use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
-const APP_X: f32 = 800.;
+const APP_X: f32 = 1024.;
 const APP_Y: f32 = 600.;
 pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
 
