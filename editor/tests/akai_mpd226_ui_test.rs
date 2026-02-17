@@ -17,6 +17,15 @@ fn test_modal_for_different_control_types() {
         app,
     );
 
+    // i think the problem is bc harness viewport isn't sized. app has:
+
+    // let options = eframe::NativeOptions {
+    //     viewport: ViewportBuilder::default()
+    //         .with_inner_size(APP_DIMENSIONS)
+    //         .with_min_inner_size(APP_DIMENSIONS),
+    //     ..Default::default()
+    // };
+
     harness.get_by_label("Pad 0").click();
     harness.run();
     let _pad_modal = harness.get_by_label("Edit Pad 0");
