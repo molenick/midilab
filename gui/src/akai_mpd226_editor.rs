@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use eframe::egui;
 use eframe::egui::Align;
+use eframe::egui::Button;
 use eframe::egui::CentralPanel;
 use eframe::egui::Color32;
 use eframe::egui::ComboBox;
@@ -12,7 +13,7 @@ use eframe::egui::DragValue;
 use eframe::egui::Grid;
 use eframe::egui::Layout;
 use eframe::egui::MenuBar;
-use eframe::egui::ScrollArea;
+use eframe::egui::Rect;
 use eframe::egui::TextEdit;
 use eframe::egui::TopBottomPanel;
 use eframe::egui::Ui;
@@ -663,12 +664,10 @@ fn render_all_pad_banks(
         .collect();
 
     ui.horizontal(|ui| {
-        ScrollArea::horizontal().show(ui, |ui| {
-            for (bank_id, bank) in banks.into_iter().enumerate() {
-                let bank_label = BANKS[bank_id].to_string();
-                render_pad_bank(ui, selected_item, bank, bank_label);
-            }
-        });
+        for (bank_id, bank) in banks.into_iter().enumerate() {
+            let bank_label = BANKS[bank_id].to_string();
+            render_pad_bank(ui, selected_item, bank, bank_label);
+        }
     });
 }
 
@@ -686,34 +685,34 @@ fn render_pad_bank(
             .0;
         let top_left = grid_rect.min;
 
-        for (i, pad) in pads.into_iter().enumerate() {
-            let col = i % 4;
-            let row = i / 4;
-            let visual_row = 3 - row;
+        let rows = pads.chunks(4);
+        for (row_idx, row) in rows.enumerate() {
+            for (pad_idx, pad) in row.iter().enumerate() {
+                // todo pad spacing here, but we need to calc it :(
+                let visual_row = 3 - row_idx;
+                let x = top_left.x + pad_idx as f32 * (PAD_X);
+                let y = top_left.y + visual_row as f32 * (PAD_Y);
 
-            let x = top_left.x + col as f32 * (PAD_X);
-            let y = top_left.y + visual_row as f32 * (PAD_Y);
-
-            let rect = egui::Rect::from_min_size(egui::Pos2::new(x, y), PAD_DIMENSIONS);
-
-            let mut child_ui = ui.new_child(
-                egui::UiBuilder::new()
-                    .max_rect(rect)
-                    .layout(egui::Layout::default()),
-            );
-            render_pad(&mut child_ui, selected_item, pad);
+                let rect = egui::Rect::from_min_size(egui::Pos2::new(x, y), PAD_DIMENSIONS);
+                let mut child_ui = ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(rect)
+                        .layout(egui::Layout::default()),
+                );
+                render_pad(&mut child_ui, selected_item, *pad);
+            }
         }
     });
 }
 
 fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) {
     let cursor_pos = ui.cursor().min;
-    let rect = egui::Rect::from_min_size(cursor_pos, PAD_DIMENSIONS);
+    let rect = Rect::from_min_size(cursor_pos, PAD_DIMENSIONS);
 
     let label = format!("Pad {}", pad.id);
     let (resp, clicked) = {
         let label: &str = &label;
-        let button = egui::Button::new(label)
+        let button = Button::new(label)
             .fill(egui::Color32::TRANSPARENT)
             .stroke(egui::Stroke::NONE)
             .min_size(PAD_DIMENSIONS);
