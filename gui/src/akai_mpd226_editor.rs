@@ -54,17 +54,40 @@ use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
-const APP_X: f32 = 1024.;
-const APP_Y: f32 = 600.;
+const PHI: f32 = 1.618_034;
+
+const fn powi_i32(mut base: f32, mut exp: i32) -> f32 {
+    let mut acc = 1.0;
+    if exp < 0 {
+        base = 1.0 / base;
+        exp = -exp;
+    }
+    let mut e = exp as u32;
+    while e > 0 {
+        if e & 1 == 1 {
+            acc *= base;
+        }
+        base *= base;
+        e >>= 1;
+    }
+    acc
+}
+
+const fn spacing(n: i32) -> f32 {
+    8.0 * powi_i32(PHI, n)
+}
+
+const APP_X: f32 = spacing(0) * 130.;
+const APP_Y: f32 = spacing(0) * 72.;
 pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
 
-const DEFAULT_CONTROL_X: f32 = 42.;
+const DEFAULT_CONTROL_X: f32 = spacing(4);
 
-const PAD_X: f32 = 48.;
-const PAD_Y: f32 = 48.;
+const PAD_X: f32 = spacing(4);
+const PAD_Y: f32 = spacing(4);
 const PAD_DIMENSIONS: Vec2 = Vec2 { x: PAD_X, y: PAD_Y };
 
-const PAD_X_SPACING: f32 = 8.;
+const PAD_X_SPACING: f32 = spacing(0);
 const PAD_Y_SPACING: f32 = 8.;
 
 const DIAL_X: f32 = DEFAULT_CONTROL_X;
@@ -91,19 +114,8 @@ const SWITCH_DIMENSIONS: Vec2 = Vec2 {
 const BANKS: [&str; 4] = ["A", "B", "C", "D"];
 const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
 
-// There is some extra space I haven't tracked down yet that happens
-// to be 24., which is also half of the control x.
-const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.5;
-const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4. + CONTROL_BANK_X_ADJUSTMENT;
-
-#[expect(
-    unused,
-    reason = "its hip, its cool, we're going to want to make the app look nice one day"
-)]
-fn spacing(n: i32) -> f32 {
-    let phi = (1.0 + 5_f32.sqrt()) / 2.0;
-    8_f32 * phi.powi(n)
-}
+// const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.5;
+const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4.; // + CONTROL_BANK_X_ADJUSTMENT;
 
 pub struct AkaiMpd226Editor {
     ui_state: UiState,
@@ -681,6 +693,7 @@ fn render_pad_bank(
     label: String,
 ) {
     ui.vertical(|ui| {
+        ui.add_space(spacing(0));
         ui.label(format!("Pad Bank {label}"));
 
         let grid_rect = ui
@@ -694,7 +707,6 @@ fn render_pad_bank(
         let rows = pads.chunks(4);
         for (row_idx, row) in rows.enumerate() {
             for (pad_idx, pad) in row.iter().enumerate() {
-                // todo pad spacing here, but we need to calc it :(
                 let visual_row = 3 - row_idx;
                 let x = top_left.x + pad_idx as f32 * (PAD_X) + (pad_idx as f32 * PAD_X_SPACING);
                 let y =
