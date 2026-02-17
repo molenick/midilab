@@ -47,7 +47,7 @@ impl Sysex {
 
         if self.payload().len() <= CHUNK_TOTAL_LEN {
             let s = self.payload();
-            format!("{s:02x?}")
+            format!("{s:02x?}, {} bytes", self.payload().len())
         } else {
             let chunk_head = self.payload()[0..CHUNK_HEAD_LEN].to_vec();
             let chunk_tail = self.payload()
@@ -60,7 +60,7 @@ impl Sysex {
             let ts: Vec<String> = chunk_tail.iter().map(|i| format!("{i:02x}")).collect();
             let ts = ts.join(", ");
 
-            format!("[{hs}, ..., {ts}]")
+            format!("[{hs}, ..., {ts}], {} bytes", self.payload().len())
         }
     }
 }
@@ -97,14 +97,17 @@ mod tests {
     fn test_sysex_preview_short_payload() {
         let s = Sysex::new(vec![0, 1, 2, 3, 4, 5, 6, 7]);
 
-        assert_eq!(&s.preview(), "[00, 01, 02, 03, 04, 05, 06, 07]");
+        assert_eq!(&s.preview(), "[00, 01, 02, 03, 04, 05, 06, 07], 8 bytes");
     }
 
     #[test]
     fn test_sysex_preview_long_payload() {
         let s = Sysex::new(vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
-        assert_eq!(&s.preview(), "[00, 01, 02, 03, ..., 05, 06, 07, 08]");
+        assert_eq!(
+            &s.preview(),
+            "[00, 01, 02, 03, ..., 05, 06, 07, 08], 9 bytes"
+        );
     }
 
     #[test]
