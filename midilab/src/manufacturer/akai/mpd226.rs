@@ -111,6 +111,8 @@ pub fn preset_dump_request(slot: u8) -> Vec<u8> {
     Sysex::new(sysex_payload).as_bytes()
 }
 
+// so this is wrong, bc it's being used for device dump + present send to device
+// slightly different messages
 pub fn preset_send_message(preset: &RawPreset) -> Vec<u8> {
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,

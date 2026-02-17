@@ -40,7 +40,7 @@ impl Mpd226Sim {
     pub fn update(&mut self, msg: SimMsg) -> SimEffect {
         match msg {
             SimMsg::SysexReceived(sysex) => {
-                let payload: DeviceMessagePayload<DeviceCommandId> =
+                let device_msg_payload: DeviceMessagePayload<DeviceCommandId> =
                     match DeviceMessagePayload::try_from(sysex.clone()) {
                         Ok(h) => h,
                         Err(e) => {
@@ -49,28 +49,27 @@ impl Mpd226Sim {
                         }
                     };
 
-                let header = payload.header;
+                let header = device_msg_payload.header;
 
                 match header.cmd {
                     DeviceCommandId::DumpPreset => {
-                        let payload = sysex.payload();
-
-                        let slot = match PresetSlot::try_from(payload) {
+                        let slot = match PresetSlot::try_from(device_msg_payload.data[0]) {
                             Ok(s) => s,
                             Err(e) => {
-                                eprintln!("{}", e);
+                                eprintln!("{e}");
                                 return SimEffect::Noop;
                             }
                         };
 
-                        let preset = &self.presets[slot as usize];
+                        dbg!(&slot);
 
+                        let preset = &self.presets[slot as usize];
                         let raw = RawPreset::from(preset);
                         SimEffect::SendSysex(Sysex::new(preset_send_message(&raw)))
                     }
                     DeviceCommandId::WritePreset => {
                         let raw_preset: RawPreset =
-                            *bytemuck::try_from_bytes(&payload.data).unwrap();
+                            *bytemuck::try_from_bytes(&device_msg_payload.data).unwrap();
                         let preset = match Preset::try_from(raw_preset) {
                             Ok(p) => p,
                             Err(e) => {
@@ -87,8 +86,8 @@ impl Mpd226Sim {
                         SimEffect::SendSysex(Sysex::new(global_dump_response(&raw)))
                     }
                     DeviceCommandId::WriteGlobal => {
-                        let addr = payload.data[2];
-                        let value = payload.data[3];
+                        let addr = device_msg_payload.data[2];
+                        let value = device_msg_payload.data[3];
                         let idx = (addr - 1) as usize;
                         let mut raw = RawGlobal::from(&self.global);
                         bytemuck::bytes_of_mut(&mut raw)[idx] = value;
