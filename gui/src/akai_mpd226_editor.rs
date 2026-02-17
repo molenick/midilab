@@ -64,6 +64,9 @@ const PAD_X: f32 = 48.;
 const PAD_Y: f32 = 48.;
 const PAD_DIMENSIONS: Vec2 = Vec2 { x: PAD_X, y: PAD_Y };
 
+const PAD_X_SPACING: f32 = 8.;
+const PAD_Y_SPACING: f32 = 8.;
+
 const DIAL_X: f32 = DEFAULT_CONTROL_X;
 const DIAL_Y: f32 = 40.;
 const DIAL_DIMENSIONS: Vec2 = Vec2 {
@@ -681,7 +684,10 @@ fn render_pad_bank(
         ui.label(format!("Pad Bank {label}"));
 
         let grid_rect = ui
-            .allocate_exact_size(Vec2::new(PAD_X * 4., PAD_Y * 4.), egui::Sense::hover())
+            .allocate_exact_size(
+                Vec2::new((PAD_X + PAD_X_SPACING) * 4., (PAD_Y + PAD_Y_SPACING) * 4.),
+                egui::Sense::hover(),
+            )
             .0;
         let top_left = grid_rect.min;
 
@@ -690,8 +696,9 @@ fn render_pad_bank(
             for (pad_idx, pad) in row.iter().enumerate() {
                 // todo pad spacing here, but we need to calc it :(
                 let visual_row = 3 - row_idx;
-                let x = top_left.x + pad_idx as f32 * (PAD_X);
-                let y = top_left.y + visual_row as f32 * (PAD_Y);
+                let x = top_left.x + pad_idx as f32 * (PAD_X) + (pad_idx as f32 * PAD_X_SPACING);
+                let y =
+                    top_left.y + visual_row as f32 * (PAD_Y) + (visual_row as f32 * PAD_Y_SPACING);
 
                 let rect = egui::Rect::from_min_size(egui::Pos2::new(x, y), PAD_DIMENSIONS);
                 let mut child_ui = ui.new_child(
