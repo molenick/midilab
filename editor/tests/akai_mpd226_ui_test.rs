@@ -27,7 +27,7 @@ fn test_modal_for_different_control_types() {
     let _channel_label = harness.get_by_label("channel");
     let _note_label = harness.get_by_label("note");
 
-    harness.get_by_label("Close").click();
+    harness.key_press(Key::Escape);
     harness.run();
 
     harness.get_by_label("Dial A1").click();
