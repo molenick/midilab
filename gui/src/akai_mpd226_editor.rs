@@ -620,6 +620,8 @@ fn render_note_color_map_editor(ui: &mut Ui, color_map: &mut NoteColorMap) {
 }
 
 fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
+    modal_color_mapper_help(ui);
+
     render_color_pattern_editor(ui, "off", &mut ui_state.off_color_mapping.pattern);
 
     ui.horizontal(|ui| {
@@ -632,7 +634,9 @@ fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
         ui.add(DragValue::new(&mut ui_state.off_color_mapping.length).range(1..=64));
     });
 
-    if ui.button("Apply").clicked() {
+    ui.separator();
+
+    if ui.button("Apply to Editor").clicked() {
         ui_state.preset.pads.set_off_color_pattern(
             ui_state.off_color_mapping.starting_from_pad,
             ui_state.off_color_mapping.length,
@@ -642,6 +646,8 @@ fn render_off_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
 }
 
 fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
+    modal_color_mapper_help(ui);
+
     render_color_pattern_editor(ui, "on", &mut ui_state.on_color_mapping.pattern);
 
     ui.horizontal(|ui| {
@@ -654,7 +660,9 @@ fn render_on_color_mapping(ui: &mut Ui, ui_state: &mut UiState) {
         ui.add(DragValue::new(&mut ui_state.on_color_mapping.length).range(1..=64));
     });
 
-    if ui.button("Apply").clicked() {
+    ui.separator();
+
+    if ui.button("Apply to Editor").clicked() {
         ui_state.preset.pads.set_on_color_pattern(
             ui_state.on_color_mapping.starting_from_pad,
             ui_state.on_color_mapping.length,
@@ -1151,6 +1159,13 @@ fn modal_control_editor_help(ui: &mut Ui, control_name: impl Into<String>) {
 fn modal_note_mapper_help(ui: &mut Ui) {
     ui.label("Help");
     ui.label("Apply note mapping to editor or device");
+    ui.label("Press Esc key or tap outside modal to exit");
+    ui.separator();
+}
+
+fn modal_color_mapper_help(ui: &mut Ui) {
+    ui.label("Help");
+    ui.label("Create color mappings and apply to editor");
     ui.label("Press Esc key or tap outside modal to exit");
     ui.separator();
 }
