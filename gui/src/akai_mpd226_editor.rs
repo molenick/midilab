@@ -223,7 +223,7 @@ impl AkaiMpd226Editor {
         });
 
         if self.ui_state.selected_item.is_some() {
-            render_modal_editor(ctx, &mut self.ui_state);
+            render_modal_editor(ctx, &mut self.ui_state, &mut self.outbox);
         } else {
             CentralPanel::default().show(ctx, |ui| {
                 render_editor_actions(ui, &mut self.ui_state, &mut self.outbox);
@@ -385,6 +385,12 @@ fn render_editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<A
                         ui_state.user_msg = None;
                         outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
                     }
+
+                    ui.separator();
+
+                    if ui.button("Pad Mapping").clicked() {
+                        ui_state.selected_item = Some(UserSelection::PadNoteMapping);
+                    }
                 });
 
                 ui.separator();
@@ -410,7 +416,9 @@ fn render_editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<A
     });
 }
 
-fn render_preset_settings(ui: &mut Ui, preset_settings: &mut PresetSettings) {
+fn render_preset_settings_editor(ui: &mut Ui, preset_settings: &mut PresetSettings) {
+    modal_control_editor_help(ui, "preset settings");
+
     Grid::new("preset_settings_grid")
         .striped(true)
         .show(ui, |ui| {
@@ -426,7 +434,9 @@ fn render_preset_settings(ui: &mut Ui, preset_settings: &mut PresetSettings) {
         });
 }
 
-fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState) {
+fn render_global_settings_editor(ui: &mut Ui, ui_state: &mut UiState) {
+    modal_control_editor_help(ui, "global settings");
+
     Grid::new("global_settings_grid")
         .striped(true)
         .show(ui, |ui| {
@@ -452,100 +462,121 @@ fn render_global_settings(ui: &mut Ui, ui_state: &mut UiState) {
         });
 }
 
-fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState) {
-    ui.vertical(|ui| {
-        ui.label("Pattern");
-        ComboBox::from_id_salt("note_pattern_kind")
-            .selected_text(ui_state.note_mapping.pattern.to_string())
-            .show_ui(ui, |ui| {
-                ui.selectable_value(
-                    &mut ui_state.note_mapping.pattern,
-                    NotePattern::Scale(ScaleSequence::default()),
-                    "Scale",
-                );
-                ui.selectable_value(
-                    &mut ui_state.note_mapping.pattern,
-                    NotePattern::ChordRow(ChordRowSequence::default()),
-                    "Chord Row",
-                );
-            });
+fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+    modal_note_mapper_help(ui);
 
-        match &mut ui_state.note_mapping.pattern {
-            NotePattern::Scale(seq) => {
-                ui.horizontal(|ui| {
-                    ui.label("Tonic");
-                    enum_combo_box(ui, "note_mapping_tonic", &mut seq.tonic, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Scale");
-                    enum_combo_box(ui, "note_mapping_scale", &mut seq.scale, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Octave");
-                    enum_combo_box(ui, "note_mapping_octave", &mut seq.octave, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Direction");
-                    enum_combo_box(ui, "note_mapping_direction", &mut seq.direction, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Length");
-                    ui.add(DragValue::new(&mut seq.length).range(1..=64))
-                });
-            }
-
-            NotePattern::ChordRow(seq) => {
-                ui.horizontal(|ui| {
-                    ui.label("Tonic");
-                    enum_combo_box(ui, "chord_row_tonic", &mut seq.tonic, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Scale");
-                    enum_combo_box(ui, "chord_row_scale", &mut seq.scale, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Octave");
-                    enum_combo_box(ui, "chord_row_octave", &mut seq.octave, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Voicing");
-                    enum_combo_box(ui, "chord_row_voicing", &mut seq.voicing, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Direction");
-                    enum_combo_box(ui, "chord_row_direction", &mut seq.direction, None);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Length");
-                    ui.add(DragValue::new(&mut seq.length).range(1..=64))
-                });
-            }
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Starting from Pad");
-            ui.add(DragValue::new(&mut ui_state.note_mapping.starting_from_pad).range(0..=63))
+    ui.label("Note Pattern");
+    ComboBox::from_id_salt("note_pattern_kind")
+        .selected_text(ui_state.note_mapping.pattern.to_string())
+        .show_ui(ui, |ui| {
+            ui.selectable_value(
+                &mut ui_state.note_mapping.pattern,
+                NotePattern::Scale(ScaleSequence::default()),
+                "Scale",
+            );
+            ui.selectable_value(
+                &mut ui_state.note_mapping.pattern,
+                NotePattern::ChordRow(ChordRowSequence::default()),
+                "Chord Row",
+            );
         });
 
-        render_note_color_map_editor(ui, &mut ui_state.note_mapping.color_map);
+    match &mut ui_state.note_mapping.pattern {
+        NotePattern::Scale(seq) => {
+            ui.horizontal(|ui| {
+                ui.label("Tonic");
+                enum_combo_box(ui, "note_mapping_tonic", &mut seq.tonic, None);
+            });
 
-        let resp = ui.button("Set pattern");
-        if resp.clicked() {
+            ui.horizontal(|ui| {
+                ui.label("Scale");
+                enum_combo_box(ui, "note_mapping_scale", &mut seq.scale, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Octave");
+                enum_combo_box(ui, "note_mapping_octave", &mut seq.octave, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Direction");
+                enum_combo_box(ui, "note_mapping_direction", &mut seq.direction, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Length");
+                ui.add(DragValue::new(&mut seq.length).range(1..=64))
+            });
+        }
+
+        NotePattern::ChordRow(seq) => {
+            ui.horizontal(|ui| {
+                ui.label("Tonic");
+                enum_combo_box(ui, "chord_row_tonic", &mut seq.tonic, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Scale");
+                enum_combo_box(ui, "chord_row_scale", &mut seq.scale, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Octave");
+                enum_combo_box(ui, "chord_row_octave", &mut seq.octave, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Voicing");
+                enum_combo_box(ui, "chord_row_voicing", &mut seq.voicing, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Direction");
+                enum_combo_box(ui, "chord_row_direction", &mut seq.direction, None);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Length");
+                ui.add(DragValue::new(&mut seq.length).range(1..=64))
+            });
+        }
+    }
+
+    ui.horizontal(|ui| {
+        ui.label("Starting from Pad");
+        ui.add(DragValue::new(&mut ui_state.note_mapping.starting_from_pad).range(0..=63))
+    });
+
+    ui.separator();
+
+    ui.label("Color Mapping");
+    render_note_color_map_editor(ui, &mut ui_state.note_mapping.color_map);
+
+    ui.separator();
+
+    ui.horizontal(|ui| {
+        if ui.button("Update editor").clicked() {
             let pattern = ui_state.note_mapping.pattern;
             ui_state.preset.pads.set_note_pattern_with_off_colors(
                 ui_state.note_mapping.starting_from_pad,
                 pattern,
                 ui_state.note_mapping.color_map.clone(),
             );
+
+            ui_state.selected_item = None;
+        }
+
+        if ui.button("Update device").clicked() {
+            let pattern = ui_state.note_mapping.pattern;
+            ui_state.preset.pads.set_note_pattern_with_off_colors(
+                ui_state.note_mapping.starting_from_pad,
+                pattern,
+                ui_state.note_mapping.color_map.clone(),
+            );
+
+            outbox.push(AppMsg::Ui(UiEffect::WritePreset(ui_state.preset.into())));
+
+            ui_state.selected_item = None;
         }
     });
 }
@@ -985,14 +1016,12 @@ fn render_switch(
     }
 }
 
-fn render_modal_editor(ctx: &Context, ui_state: &mut UiState) {
+fn render_modal_editor(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
     let Some(selected_item) = ui_state.selected_item else {
         return;
     };
 
     let modal_response = Modal::new(egui::Id::new("control_editor_modal")).show(ctx, |ui| {
-        ui.set_min_width(400.0);
-
         ui.heading(selected_item.to_string());
         ui.separator();
 
@@ -1018,23 +1047,23 @@ fn render_modal_editor(ctx: &Context, ui_state: &mut UiState) {
                 }
             }
             UserSelection::PresetSettings => {
-                render_preset_settings(ui, &mut ui_state.preset.settings);
+                render_preset_settings_editor(ui, &mut ui_state.preset.settings);
             }
-            UserSelection::GlobalSettings => render_global_settings(ui, ui_state),
-            UserSelection::PadNoteMapping => render_note_mapping(ui, ui_state),
+            UserSelection::GlobalSettings => render_global_settings_editor(ui, ui_state),
+            UserSelection::PadNoteMapping => render_note_mapping(ui, ui_state, outbox),
             UserSelection::PadOffColorMapping => render_off_color_mapping(ui, ui_state),
             UserSelection::PadOnColorMapping => render_on_color_mapping(ui, ui_state),
         };
-
-        ui.separator();
     });
 
-    if modal_response.should_close() || modal_response.inner.clicked() {
+    if modal_response.should_close() {
         ui_state.selected_item = None;
     }
 }
 
 fn render_pad_editor(ui: &mut Ui, pad: &mut Pad) {
+    modal_control_editor_help(ui, "pad");
+
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("pad_compare_grid_l")
             .striped(true)
@@ -1055,6 +1084,8 @@ fn render_pad_editor(ui: &mut Ui, pad: &mut Pad) {
 }
 
 fn render_dial_editor(ui: &mut Ui, dial: &mut Dial) {
+    modal_control_editor_help(ui, "dial");
+
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("dial_compare_grid_l")
             .striped(true)
@@ -1073,6 +1104,8 @@ fn render_dial_editor(ui: &mut Ui, dial: &mut Dial) {
 }
 
 fn render_fader_editor(ui: &mut Ui, fader: &mut Fader) {
+    modal_control_editor_help(ui, "fader");
+
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("fader_compare_grid_l")
             .striped(true)
@@ -1088,6 +1121,7 @@ fn render_fader_editor(ui: &mut Ui, fader: &mut Fader) {
 }
 
 fn render_switch_editor(ui: &mut Ui, switch: &mut Switch) {
+    modal_control_editor_help(ui, "switch");
     ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
         Grid::new("switch_compare_grid_l")
             .striped(true)
@@ -1105,6 +1139,20 @@ fn render_switch_editor(ui: &mut Ui, switch: &mut Switch) {
                 row_edit_enum(ui, "invert", &mut switch.invert);
             });
     });
+}
+
+fn modal_control_editor_help(ui: &mut Ui, control_name: impl Into<String>) {
+    ui.label("Help");
+    ui.label(format!("Applies changes to {}", control_name.into()));
+    ui.label("Press Esc key or tap outside modal to exit");
+    ui.separator();
+}
+
+fn modal_note_mapper_help(ui: &mut Ui) {
+    ui.label("Help");
+    ui.label("Apply note mapping to editor or device");
+    ui.label("Press Esc key or tap outside modal to exit");
+    ui.separator();
 }
 
 fn enum_combo_box<T>(ui: &mut Ui, id: impl Into<String>, value: &mut T, width: Option<f32>)
