@@ -20,9 +20,9 @@ fn test_modal_for_different_control_types() {
             app,
         );
 
-    harness.get_by_label("Pad 0").click();
+    harness.get_by_label("Pad 1").click();
     harness.run();
-    let _pad_modal = harness.get_by_label("Edit Pad 0");
+    let _pad_modal = harness.get_by_label("Edit Pad 1");
     let _kind_label = harness.get_by_label("kind");
     let _channel_label = harness.get_by_label("channel");
     let _note_label = harness.get_by_label("note");

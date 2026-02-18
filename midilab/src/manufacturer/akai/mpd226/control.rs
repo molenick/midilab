@@ -68,6 +68,10 @@ impl Pad {
             self.on_color as u8,
         ]
     }
+
+    pub fn ui_id(&self) -> usize {
+        self.id.saturating_add(1)
+    }
 }
 
 impl TryFrom<(usize, RawPad)> for Pad {

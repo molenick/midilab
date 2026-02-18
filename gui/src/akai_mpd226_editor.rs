@@ -730,24 +730,28 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
     let cursor_pos = ui.cursor().min;
     let rect = Rect::from_min_size(cursor_pos, PAD_DIMENSIONS);
 
-    let label = format!("Pad {}", pad.id);
-    let (resp, clicked) = {
-        let label: &str = &label;
-        let button = Button::new(label)
-            .fill(egui::Color32::TRANSPARENT)
-            .stroke(egui::Stroke::NONE)
-            .min_size(PAD_DIMENSIONS);
+    let label = format!("Pad {}", pad.ui_id());
 
-        let resp = ui.add(button);
-        let clicked = resp.clicked();
+    let label: &str = &label;
+    let button = Button::new(label)
+        .fill(egui::Color32::TRANSPARENT)
+        .stroke(egui::Stroke::NONE)
+        .min_size(PAD_DIMENSIONS);
 
-        (resp, clicked)
-    };
+    let resp = ui.add(button);
 
     let resp = resp.on_hover_text(format!(
         "Pad {} - Note: {}\nOff: {}, On: {}\nChannel: {}",
-        pad.id, pad.note, pad.off_color, pad.on_color, pad.channel
+        pad.ui_id(),
+        pad.note,
+        pad.off_color,
+        pad.on_color,
+        pad.channel
     ));
+
+    if resp.clicked() {
+        *selected_item = Some(UserSelection::Pad { id: pad.ui_id() });
+    }
 
     accessibility::draw_focus_indicator(ui, rect, resp.has_focus(), 4.0);
 
@@ -769,7 +773,7 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
         .rect_filled(rect.shrink(3.0), 4.0, Color32::from_rgb(32, 32, 32));
 
     if let Some(UserSelection::Pad { id }) = selected_item
-        && pad.id == *id
+        && pad.ui_id() == *id
     {
         ui.painter().rect_stroke(
             rect,
@@ -787,7 +791,7 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
     ui.painter().text(
         top_half.center(),
         egui::Align2::CENTER_CENTER,
-        pad.id.to_string(),
+        format!("Pad {}", pad.ui_id()),
         egui::FontId::proportional(12.0),
         Color32::from_rgb(231, 231, 231),
     );
@@ -799,10 +803,6 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
         egui::FontId::proportional(12.0),
         Color32::from_rgb(231, 231, 231),
     );
-
-    if clicked {
-        *selected_item = Some(UserSelection::Pad { id: pad.id });
-    }
 }
 
 fn render_controls(ui: &mut Ui, ui_state: &mut UiState) {
