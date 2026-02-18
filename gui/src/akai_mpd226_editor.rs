@@ -115,8 +115,8 @@ const SWITCH_DIMENSIONS: Vec2 = Vec2 {
 const BANKS: [&str; 4] = ["A", "B", "C", "D"];
 const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
 
-// const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.5;
-const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4.; // + CONTROL_BANK_X_ADJUSTMENT;
+const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.45;
+const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4. + CONTROL_BANK_X_ADJUSTMENT;
 
 pub struct AkaiMpd226Editor {
     ui_state: UiState,
