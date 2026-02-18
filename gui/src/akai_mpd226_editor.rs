@@ -83,6 +83,7 @@ const APP_Y: f32 = spacing(0) * 81.;
 pub const APP_DIMENSIONS: Vec2 = Vec2 { x: APP_X, y: APP_Y };
 
 const DEFAULT_CONTROL_X: f32 = spacing(4);
+const DEFAULT_CONTROL_SPACING: f32 = spacing(0);
 
 const PAD_X: f32 = spacing(4);
 const PAD_Y: f32 = spacing(4);
@@ -112,11 +113,10 @@ const SWITCH_DIMENSIONS: Vec2 = Vec2 {
     y: SWITCH_Y,
 };
 
-const BANKS: [&str; 4] = ["A", "B", "C", "D"];
+const PAD_BANKS: [&str; 4] = ["A", "B", "C", "D"];
 const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
 
-const CONTROL_BANK_X_ADJUSTMENT: f32 = DEFAULT_CONTROL_X * 0.45;
-const CONTROL_BANK_X: f32 = DEFAULT_CONTROL_X * 4. + CONTROL_BANK_X_ADJUSTMENT;
+const CONTROL_BANK_LABEL_X: f32 = DEFAULT_CONTROL_X * 4. + DEFAULT_CONTROL_SPACING;
 
 pub struct AkaiMpd226Editor {
     ui_state: UiState,
@@ -720,7 +720,7 @@ fn render_all_pad_banks(
 
     ui.horizontal(|ui| {
         for (bank_id, bank) in banks.into_iter().enumerate() {
-            let bank_label = BANKS[bank_id].to_string();
+            let bank_label = PAD_BANKS[bank_id].to_string();
             render_pad_bank(ui, selected_item, bank, bank_label);
         }
     });
@@ -866,7 +866,7 @@ fn render_all_control_banks(
     ui.horizontal(|ui| {
         for bank_label in CONTROL_BANKS.iter() {
             let (rect, _) =
-                ui.allocate_exact_size(vec2(CONTROL_BANK_X, 20.0), egui::Sense::hover());
+                ui.allocate_exact_size(vec2(CONTROL_BANK_LABEL_X, 20.0), egui::Sense::hover());
             ui.painter().text(
                 rect.left_center() + vec2(4.0, 0.0),
                 egui::Align2::LEFT_CENTER,
@@ -877,47 +877,42 @@ fn render_all_control_banks(
         }
     });
 
-    ui.add_space(spacing(0));
+    ui.add_space(DEFAULT_CONTROL_SPACING);
 
     ui.horizontal_top(|ui| {
-        for bank_idx in 0..3 {
-            for dial_offset in 0..4 {
+        for (bank_idx, dial_row) in dial_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
+            for (dial_offset, dial) in dial_row.iter().enumerate() {
                 let dial_id = bank_idx * 4 + dial_offset;
-                let dial = dial_repo.0[dial_id];
-                render_dial(ui, selected_item, dial, dial_id);
+                render_dial(ui, selected_item, *dial, dial_id)
             }
         }
     });
 
-    ui.add_space(spacing(0));
+    ui.add_space(DEFAULT_CONTROL_SPACING);
 
     ui.horizontal_top(|ui| {
-        for bank_idx in 0..3 {
-            for fader_offset in 0..4 {
+        for (bank_idx, fader_row) in fader_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
+            for (fader_offset, fader) in fader_row.iter().enumerate() {
                 let fader_id = bank_idx * 4 + fader_offset;
-                let fader = fader_repo.0[fader_id];
-                render_fader(ui, selected_item, fader, fader_id);
+                render_fader(ui, selected_item, *fader, fader_id)
             }
         }
     });
 
-    ui.add_space(spacing(0));
+    ui.add_space(DEFAULT_CONTROL_SPACING);
 
     ui.horizontal_top(|ui| {
-        for bank_idx in 0..3 {
-            for switch_offset in 0..4 {
+        for (bank_idx, switch_row) in switch_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
+            for (switch_offset, switch) in switch_row.iter().enumerate() {
                 let switch_id = bank_idx * 4 + switch_offset;
-                let switch = switch_repo.0[switch_id];
-                render_switch(ui, selected_item, switch, switch_id);
+                render_switch(ui, selected_item, *switch, switch_id)
             }
         }
     });
 }
 
 fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dial, dial_id: usize) {
-    let bank = CONTROL_BANKS[dial_id / 4];
-    let num = (dial_id % 4) + 1;
-    let full_label = format!("Dial {}{}", bank, num);
+    let full_label = format!("Dial {dial_id}");
 
     let mut button = egui::Button::new(full_label.clone())
         .min_size(DIAL_DIMENSIONS)
@@ -954,9 +949,7 @@ fn render_fader(
     fader: Fader,
     fader_id: usize,
 ) {
-    let bank = CONTROL_BANKS[fader_id / 4];
-    let num = (fader_id % 4) + 1;
-    let full_label = format!("Fader {}{}", bank, num);
+    let full_label = format!("Fader {fader_id}");
 
     let mut button: egui::Button<'_> = egui::Button::new(full_label.clone())
         .min_size(FADER_DIMENSIONS)
@@ -993,9 +986,7 @@ fn render_switch(
     switch: Switch,
     switch_id: usize,
 ) {
-    let bank = CONTROL_BANKS[switch_id / 4];
-    let num = (switch_id % 4) + 1;
-    let full_label = format!("Switch {}{}", bank, num);
+    let full_label = format!("Switch {switch_id}");
 
     let mut button = egui::Button::new(full_label.clone())
         .min_size(SWITCH_DIMENSIONS)
