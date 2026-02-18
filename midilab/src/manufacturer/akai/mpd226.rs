@@ -762,20 +762,26 @@ impl From<(NotePattern, NoteColorMap)> for ColorPattern {
 pub struct NoteColorMap(pub HashMap<PitchClass, PadColor>);
 impl Default for NoteColorMap {
     fn default() -> Self {
+        Self::default_chromatic_gradient()
+    }
+}
+
+impl NoteColorMap {
+    pub fn default_chromatic_gradient() -> Self {
         let mut hm = HashMap::with_capacity(12);
 
-        hm.insert(PitchClass::C, PadColor::Purple);
-        hm.insert(PitchClass::Cs, PadColor::Pink);
-        hm.insert(PitchClass::D, PadColor::HotPink);
-        hm.insert(PitchClass::Ds, PadColor::LightPink);
-        hm.insert(PitchClass::E, PadColor::LightPurple);
+        hm.insert(PitchClass::C, PadColor::Red);
+        hm.insert(PitchClass::Cs, PadColor::HotPink);
+        hm.insert(PitchClass::D, PadColor::Pink);
+        hm.insert(PitchClass::Ds, PadColor::LightPurple);
+        hm.insert(PitchClass::E, PadColor::Purple);
         hm.insert(PitchClass::F, PadColor::Blue);
         hm.insert(PitchClass::Fs, PadColor::LightBlue);
         hm.insert(PitchClass::G, PadColor::Aqua);
         hm.insert(PitchClass::Gs, PadColor::GreenBlue);
         hm.insert(PitchClass::A, PadColor::Green);
-        hm.insert(PitchClass::As, PadColor::LightGreen);
-        hm.insert(PitchClass::B, PadColor::Grey);
+        hm.insert(PitchClass::As, PadColor::Yellow);
+        hm.insert(PitchClass::B, PadColor::Orange);
 
         Self(hm)
     }
