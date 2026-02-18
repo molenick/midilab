@@ -1027,9 +1027,6 @@ fn render_modal_editor(ctx: &Context, ui_state: &mut UiState) {
         };
 
         ui.separator();
-
-        // todo: I want this button to have an ambidextrous design.
-        ui.button("Close")
     });
 
     if modal_response.should_close() || modal_response.inner.clicked() {
