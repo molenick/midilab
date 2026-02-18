@@ -1,0 +1,20 @@
+# path to the snapshot directory
+output_path = "tests/snapshots"
+
+# default threshold for image comparison tests
+threshold = 0.6
+
+# default failed_pixel_count_threshold
+failed_pixel_count_threshold = 0
+
+[windows]
+threshold = 0.6
+failed_pixel_count_threshold = 0
+
+[macos]
+threshold = 0.6
+failed_pixel_count_threshold = 0
+
+[linux]
+threshold = 0.6
+failed_pixel_count_threshold = 0

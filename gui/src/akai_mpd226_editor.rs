@@ -14,6 +14,7 @@ use eframe::egui::Grid;
 use eframe::egui::Layout;
 use eframe::egui::MenuBar;
 use eframe::egui::Rect;
+use eframe::egui::Sense;
 use eframe::egui::TextEdit;
 use eframe::egui::TopBottomPanel;
 use eframe::egui::Ui;
@@ -700,7 +701,7 @@ fn render_pad_bank(
         let grid_rect = ui
             .allocate_exact_size(
                 Vec2::new((PAD_X + PAD_X_SPACING) * 4., (PAD_Y + PAD_Y_SPACING) * 4.),
-                egui::Sense::hover(),
+                Sense::empty(),
             )
             .0;
         let top_left = grid_rect.min;
@@ -823,7 +824,6 @@ fn render_all_control_banks(
     fader_repo: FaderRepository,
     switch_repo: SwitchRepository,
 ) {
-    // todo why are we painting label
     ui.horizontal(|ui| {
         for bank_label in CONTROL_BANKS.iter() {
             let (rect, _) =
