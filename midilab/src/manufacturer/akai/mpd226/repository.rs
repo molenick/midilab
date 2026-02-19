@@ -2,6 +2,7 @@ use crate::manufacturer::akai::mpd226::ColorPattern;
 use crate::manufacturer::akai::mpd226::NoteColorMap;
 use crate::manufacturer::akai::mpd226::NotePattern;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
+use crate::manufacturer::akai::mpd226::control::ControlId;
 use crate::manufacturer::akai::mpd226::control::Dial;
 use crate::manufacturer::akai::mpd226::control::Fader;
 use crate::manufacturer::akai::mpd226::control::Pad;
@@ -88,7 +89,7 @@ impl PadRepository {
 impl Default for PadRepository {
     fn default() -> Self {
         let pads = std::array::from_fn(|i| Pad {
-            id: i,
+            id: ControlId(i),
             ..Default::default()
         });
 
@@ -106,7 +107,7 @@ impl TryFrom<RawPads> for PadRepository {
         let mut pad_repo = PadRepository::default();
 
         for (i, raw_pad) in raw.0.iter().enumerate() {
-            pad_repo.pads[i] = Pad::try_from((i, *raw_pad))
+            pad_repo.pads[i] = Pad::try_from((ControlId(i), *raw_pad))
                 .map_err(|source| super::error::PresetParseError::Pad { index: i, source })?;
         }
 
@@ -122,6 +123,7 @@ impl FaderRepository {
         let mut repo = Self::default();
 
         for (i, fader) in repo.0.iter_mut().enumerate() {
+            fader.id = ControlId(i);
             fader.midicc = values[i].into();
         }
 
@@ -137,6 +139,7 @@ impl SwitchRepository {
         let mut repo = Self::default();
 
         for (i, switch) in repo.0.iter_mut().enumerate() {
+            switch.id = ControlId(i);
             switch.midicc = values[i].into();
         }
 
@@ -152,6 +155,7 @@ impl DialRepository {
         let mut repo = Self::default();
 
         for (i, dial) in repo.0.iter_mut().enumerate() {
+            dial.id = ControlId(i);
             dial.midicc = values[i].into();
         }
 
@@ -166,7 +170,7 @@ impl TryFrom<RawFaders> for FaderRepository {
         let mut faders = [Fader::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let fader = Fader::try_from(*r)
+            let fader = Fader::try_from((ControlId(i), *r))
                 .map_err(|source| super::error::PresetParseError::Fader { index: i, source })?;
             faders[i] = fader;
         }
@@ -182,7 +186,7 @@ impl TryFrom<RawSwitches> for SwitchRepository {
         let mut switches = [Switch::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let switch = Switch::try_from(*r)
+            let switch = Switch::try_from((ControlId(i), *r))
                 .map_err(|source| super::error::PresetParseError::Switch { index: i, source })?;
             switches[i] = switch;
         }
@@ -198,7 +202,7 @@ impl TryFrom<RawDials> for DialRepository {
         let mut dials = [Dial::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let dial = Dial::try_from(*r)
+            let dial = Dial::try_from((ControlId(i), *r))
                 .map_err(|source| super::error::PresetParseError::Dial { index: i, source })?;
             dials[i] = dial;
         }

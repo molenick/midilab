@@ -796,6 +796,7 @@ pub struct ColorSequence {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manufacturer::akai::mpd226::control::ControlId;
     use crate::midi::Note;
     use crate::music::ScaleSequence;
 
@@ -943,7 +944,7 @@ mod tests {
         let a12_raw = MidiChannel::A12 as u8;
         assert_eq!(a12_raw, 12);
 
-        let mut pad = Pad::new(0);
+        let mut pad = Pad::new(ControlId(0));
         pad.channel = MidiChannel::A1;
         let pad_bytes = pad.as_bytes();
         assert_eq!(pad_bytes[1], 1,);
