@@ -121,7 +121,7 @@ const PAD_BANKS: [&str; 4] = ["A", "B", "C", "D"];
 const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
 const CONTROLS_PER_CONTROL_BANK: usize = 4;
 
-const CONTROL_BANK_LABEL_X: f32 = DEFAULT_CONTROL_X * 4. + DEFAULT_CONTROL_SPACING;
+const CONTROL_BANK_LABEL_X: f32 = DEFAULT_CONTROL_X * 4. + DEFAULT_CONTROL_SPACING * 4.;
 
 pub struct AkaiMpd226Editor {
     ui_state: UiState,
@@ -890,22 +890,22 @@ fn render_all_control_banks(
     ui.add_space(DEFAULT_CONTROL_SPACING);
 
     ui.horizontal_top(|ui| {
-        for (bank_idx, fader_row) in fader_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
-            for (fader_offset, fader) in fader_row.iter().enumerate() {
-                let fader_id = bank_idx * 3 + fader_offset + 1;
-                render_fader(ui, selected_item, *fader, fader_id)
+        for fader_row in fader_repo.0.chunks(CONTROLS_PER_CONTROL_BANK) {
+            for fader in fader_row.iter() {
+                render_fader(ui, selected_item, *fader)
             }
+            ui.add_space(DEFAULT_CONTROL_SPACING);
         }
     });
 
     ui.add_space(DEFAULT_CONTROL_SPACING);
 
     ui.horizontal_top(|ui| {
-        for (bank_idx, switch_row) in switch_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
-            for (switch_offset, switch) in switch_row.iter().enumerate() {
-                let switch_id = bank_idx * 3 + switch_offset + 1;
-                render_switch(ui, selected_item, *switch, switch_id)
+        for switch_row in switch_repo.0.chunks(CONTROLS_PER_CONTROL_BANK) {
+            for switch in switch_row.iter() {
+                render_switch(ui, selected_item, *switch)
             }
+            ui.add_space(DEFAULT_CONTROL_SPACING);
         }
     });
 }
@@ -942,13 +942,8 @@ fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dia
     }
 }
 
-fn render_fader(
-    ui: &mut Ui,
-    selected_item: &mut Option<UserSelection>,
-    fader: Fader,
-    fader_id: usize,
-) {
-    let full_label = format!("Fader {fader_id}");
+fn render_fader(ui: &mut Ui, selected_item: &mut Option<UserSelection>, fader: Fader) {
+    let full_label = format!("Fader {}", fader.ui_id());
 
     let mut button: egui::Button<'_> = egui::Button::new(full_label.clone())
         .min_size(FADER_DIMENSIONS)
@@ -957,7 +952,7 @@ fn render_fader(
         .wrap();
 
     if let Some(UserSelection::Fader { id }) = selected_item
-        && fader_id == *id
+        && fader.ui_id() == *id
     {
         button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
@@ -975,17 +970,12 @@ fn render_fader(
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
     if resp.clicked() {
-        *selected_item = Some(UserSelection::Fader { id: fader_id });
+        *selected_item = Some(UserSelection::Fader { id: fader.ui_id() });
     }
 }
 
-fn render_switch(
-    ui: &mut Ui,
-    selected_item: &mut Option<UserSelection>,
-    switch: Switch,
-    switch_id: usize,
-) {
-    let full_label = format!("Switch {switch_id}");
+fn render_switch(ui: &mut Ui, selected_item: &mut Option<UserSelection>, switch: Switch) {
+    let full_label = format!("Switch {}", switch.ui_id());
 
     let mut button = egui::Button::new(full_label.clone())
         .min_size(SWITCH_DIMENSIONS)
@@ -994,7 +984,7 @@ fn render_switch(
         .wrap();
 
     if let Some(UserSelection::Switch { id }) = selected_item
-        && switch_id == *id
+        && switch.ui_id() == *id
     {
         button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
@@ -1010,7 +1000,7 @@ fn render_switch(
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
     if resp.clicked() {
-        *selected_item = Some(UserSelection::Switch { id: switch_id });
+        *selected_item = Some(UserSelection::Switch { id: switch.ui_id() });
     }
 }
 

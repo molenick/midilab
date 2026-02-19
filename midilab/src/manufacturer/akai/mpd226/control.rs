@@ -174,6 +174,7 @@ impl TryFrom<(usize, RawDial)> for Dial {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fader {
+    pub id: usize,
     pub kind: FaderKind,
     pub channel: MidiChannel,
     pub midicc: MidiValue,
@@ -185,6 +186,7 @@ pub struct Fader {
 impl Default for Fader {
     fn default() -> Self {
         Self {
+            id: 0,
             kind: FaderKind::default(),
             channel: MidiChannel::default(),
             midicc: 0.into(),
@@ -206,14 +208,19 @@ impl Fader {
             self.midi2din as u8,
         ]
     }
+
+    pub fn ui_id(&self) -> usize {
+        self.id.saturating_add(1)
+    }
 }
 
-impl TryFrom<RawFader> for Fader {
+impl TryFrom<(usize, RawFader)> for Fader {
     type Error = super::error::FaderParseError;
 
-    fn try_from(raw: RawFader) -> Result<Self, Self::Error> {
+    fn try_from((id, raw): (usize, RawFader)) -> Result<Self, Self::Error> {
         use super::error::FaderParseError;
         Ok(Fader {
+            id,
             kind: FaderKind::try_from(raw.kind).map_err(FaderParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(FaderParseError::Channel)?,
             midicc: raw.midicc.into(),
@@ -227,6 +234,7 @@ impl TryFrom<RawFader> for Fader {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Switch {
+    pub id: usize,
     pub kind: SwitchKind,
     pub channel: MidiChannel,
     pub midicc: MidiValue,
@@ -245,6 +253,7 @@ pub struct Switch {
 impl Default for Switch {
     fn default() -> Self {
         Self {
+            id: 0,
             kind: SwitchKind::default(),
             channel: MidiChannel::default(),
             midicc: 0.into(),
@@ -280,14 +289,19 @@ impl Switch {
             self.key2 as u8,
         ]
     }
+
+    pub fn ui_id(&self) -> usize {
+        self.id.saturating_add(1)
+    }
 }
 
-impl TryFrom<RawSwitch> for Switch {
+impl TryFrom<(usize, RawSwitch)> for Switch {
     type Error = super::error::SwitchParseError;
 
-    fn try_from(raw: RawSwitch) -> Result<Self, Self::Error> {
+    fn try_from((id, raw): (usize, RawSwitch)) -> Result<Self, Self::Error> {
         use super::error::SwitchParseError;
         Ok(Switch {
+            id,
             kind: SwitchKind::try_from(raw.kind).map_err(SwitchParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(SwitchParseError::Channel)?,
             midicc: raw.midicc.into(),
@@ -519,6 +533,7 @@ mod tests {
         #[test]
         fn test_fader_as_bytes() {
             let fader = Fader {
+                id: 0,
                 kind: FaderKind::Aftertouch,
                 channel: MidiChannel::A2,
                 midicc: 7.into(),
@@ -545,7 +560,7 @@ mod tests {
                 midi2din: 0,
             };
 
-            let fader = Fader::try_from(raw).unwrap();
+            let fader = Fader::try_from((0, raw)).unwrap();
             assert_eq!(fader.kind, FaderKind::Aftertouch);
             assert_eq!(fader.channel, MidiChannel::A5);
             assert_eq!(fader.midicc, 11.into());
@@ -564,7 +579,7 @@ mod tests {
                 midi2din: 0,
             };
 
-            let result = Fader::try_from(raw);
+            let result = Fader::try_from((0, raw));
             assert!(result.is_err());
         }
     }
@@ -580,6 +595,7 @@ mod tests {
         #[test]
         fn test_switch_as_bytes() {
             let switch = Switch {
+                id: 0,
                 kind: SwitchKind::Program,
                 channel: MidiChannel::A1,
                 midicc: 64.into(),
@@ -620,7 +636,7 @@ mod tests {
                 key2: 5,
             };
 
-            let switch = Switch::try_from(raw).unwrap();
+            let switch = Switch::try_from((0, raw)).unwrap();
             assert_eq!(switch.kind, SwitchKind::Program);
             assert_eq!(switch.mode, TriggerKind::Toggle);
             assert_eq!(switch.key2, KeyModifier::CTRL_SHIFT);
@@ -644,7 +660,7 @@ mod tests {
                 key2: 0,
             };
 
-            let result = Switch::try_from(raw);
+            let result = Switch::try_from((0, raw));
             assert!(result.is_err());
         }
     }

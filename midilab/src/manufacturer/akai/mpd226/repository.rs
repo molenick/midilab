@@ -122,6 +122,7 @@ impl FaderRepository {
         let mut repo = Self::default();
 
         for (i, fader) in repo.0.iter_mut().enumerate() {
+            fader.id = i;
             fader.midicc = values[i].into();
         }
 
@@ -137,6 +138,7 @@ impl SwitchRepository {
         let mut repo = Self::default();
 
         for (i, switch) in repo.0.iter_mut().enumerate() {
+            switch.id = i;
             switch.midicc = values[i].into();
         }
 
@@ -167,7 +169,7 @@ impl TryFrom<RawFaders> for FaderRepository {
         let mut faders = [Fader::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let fader = Fader::try_from(*r)
+            let fader = Fader::try_from((i, *r))
                 .map_err(|source| super::error::PresetParseError::Fader { index: i, source })?;
             faders[i] = fader;
         }
@@ -183,7 +185,7 @@ impl TryFrom<RawSwitches> for SwitchRepository {
         let mut switches = [Switch::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let switch = Switch::try_from(*r)
+            let switch = Switch::try_from((i, *r))
                 .map_err(|source| super::error::PresetParseError::Switch { index: i, source })?;
             switches[i] = switch;
         }

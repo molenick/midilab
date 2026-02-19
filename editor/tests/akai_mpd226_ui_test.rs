@@ -30,20 +30,20 @@ fn test_modal_for_different_control_types() {
     harness.key_press(Key::Escape);
     harness.run();
 
-    harness.get_by_label("Dial A1").click();
+    harness.get_by_label("Dial 1").click();
     harness.run();
-    let _dial_modal = harness.get_by_label("Edit Dial A1");
+    let _dial_modal = harness.get_by_label("Edit Dial 1");
     harness.key_press(Key::Escape);
     harness.run();
 
-    harness.get_by_label("Fader B2").click();
+    harness.get_by_label("Fader 1").click();
     harness.run();
-    let _fader_modal = harness.get_by_label("Edit Fader B2");
+    let _fader_modal = harness.get_by_label("Edit Fader 1");
 
     harness.key_press(Key::Escape);
     harness.run();
 
-    harness.get_by_label("Switch C3").click();
+    harness.get_by_label("Switch 1").click();
     harness.run();
-    let _switch_modal = harness.get_by_label("Edit Switch C3");
+    let _switch_modal = harness.get_by_label("Edit Switch 1");
 }
