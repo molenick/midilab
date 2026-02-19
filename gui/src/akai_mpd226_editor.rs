@@ -369,6 +369,7 @@ fn render_editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<A
                 ui.label("Preset Quick Actions");
                 ui.horizontal(|ui| {
                     row_edit_enum(ui, "Slot", &mut ui_state.preset.settings.preset_slot);
+                    row_edit_preset_name(ui, "Name", &mut ui_state.preset.settings.preset_name);
 
                     if ui.button("Dump").clicked() {
                         ui_state.user_msg = None;
