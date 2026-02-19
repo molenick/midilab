@@ -1014,23 +1014,29 @@ fn render_modal_editor(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<A
         ui.separator();
 
         match selected_item {
-            UserSelection::Pad { id: index } => {
-                if let Some(pad) = ui_state.preset.pads.pads.iter_mut().find(|p| p.id == index) {
+            UserSelection::Pad { id } => {
+                if let Some(pad) = ui_state
+                    .preset
+                    .pads
+                    .pads
+                    .iter_mut()
+                    .find(|p| p.ui_id() == id)
+                {
                     render_pad_editor(ui, pad);
                 }
             }
-            UserSelection::Dial { id: index } => {
-                if let Some(dial) = ui_state.preset.dials.0.get_mut(index) {
+            UserSelection::Dial { id } => {
+                if let Some(dial) = ui_state.preset.dials.0.get_mut(id - 1) {
                     render_dial_editor(ui, dial);
                 }
             }
-            UserSelection::Fader { id: index } => {
-                if let Some(fader) = ui_state.preset.faders.0.get_mut(index) {
+            UserSelection::Fader { id } => {
+                if let Some(fader) = ui_state.preset.faders.0.get_mut(id - 1) {
                     render_fader_editor(ui, fader);
                 }
             }
             UserSelection::Switch { id: index } => {
-                if let Some(switch) = ui_state.preset.switches.0.get_mut(index) {
+                if let Some(switch) = ui_state.preset.switches.0.get_mut(index - 1) {
                     render_switch_editor(ui, switch);
                 }
             }
