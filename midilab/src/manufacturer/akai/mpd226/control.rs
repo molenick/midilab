@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::manufacturer::akai::mpd226::control::value_kind::ActiveState;
 use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::DialKind;
@@ -24,10 +26,18 @@ use crate::midi::Note;
 
 pub mod value_kind;
 
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ControlId(pub usize);
+impl Display for ControlId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.saturating_add(1))
+    }
+}
+
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub struct Pad {
-    pub id: usize,
+    pub id: ControlId,
     pub kind: PadKind,
     pub channel: MidiChannel,
     pub note: Note,
@@ -42,7 +52,7 @@ pub struct Pad {
 }
 
 impl Pad {
-    pub fn new(id: usize) -> Self {
+    pub fn new(id: ControlId) -> Self {
         Self {
             id,
             ..Default::default()
@@ -68,10 +78,6 @@ impl Pad {
             self.on_color as u8,
         ]
     }
-
-    pub fn ui_id(&self) -> usize {
-        self.id.saturating_add(1)
-    }
 }
 
 impl TryFrom<(usize, RawPad)> for Pad {
@@ -81,7 +87,7 @@ impl TryFrom<(usize, RawPad)> for Pad {
         use super::error::PadParseError;
         let (index, raw) = value;
         Ok(Pad {
-            id: index,
+            id: ControlId(index),
             kind: PadKind::try_from(raw.kind).map_err(PadParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(PadParseError::Channel)?,
             note: Note::try_from(raw.note).map_err(PadParseError::Note)?,
@@ -101,7 +107,7 @@ impl TryFrom<(usize, RawPad)> for Pad {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dial {
-    pub id: usize,
+    pub id: ControlId,
     pub kind: DialKind,
     pub channel: MidiChannel,
     pub midicc: MidiValue,
@@ -114,10 +120,9 @@ pub struct Dial {
 }
 
 impl Default for Dial {
-    /// You don't want to use this directly - you want to use ::new().
     fn default() -> Self {
         Self {
-            id: 0, // todo oops
+            id: ControlId::default(),
             kind: DialKind::default(),
             channel: MidiChannel::default(),
             midicc: 0.into(),
@@ -145,16 +150,12 @@ impl Dial {
             self.value.into(),
         ]
     }
-
-    pub fn ui_id(&self) -> usize {
-        self.id.saturating_add(1)
-    }
 }
 
-impl TryFrom<(usize, RawDial)> for Dial {
+impl TryFrom<(ControlId, RawDial)> for Dial {
     type Error = super::error::DialParseError;
 
-    fn try_from((id, raw): (usize, RawDial)) -> Result<Self, Self::Error> {
+    fn try_from((id, raw): (ControlId, RawDial)) -> Result<Self, Self::Error> {
         use super::error::DialParseError;
         Ok(Dial {
             id,
@@ -174,7 +175,7 @@ impl TryFrom<(usize, RawDial)> for Dial {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fader {
-    pub id: usize,
+    pub id: ControlId,
     pub kind: FaderKind,
     pub channel: MidiChannel,
     pub midicc: MidiValue,
@@ -186,7 +187,7 @@ pub struct Fader {
 impl Default for Fader {
     fn default() -> Self {
         Self {
-            id: 0,
+            id: ControlId::default(),
             kind: FaderKind::default(),
             channel: MidiChannel::default(),
             midicc: 0.into(),
@@ -208,16 +209,12 @@ impl Fader {
             self.midi2din as u8,
         ]
     }
-
-    pub fn ui_id(&self) -> usize {
-        self.id.saturating_add(1)
-    }
 }
 
-impl TryFrom<(usize, RawFader)> for Fader {
+impl TryFrom<(ControlId, RawFader)> for Fader {
     type Error = super::error::FaderParseError;
 
-    fn try_from((id, raw): (usize, RawFader)) -> Result<Self, Self::Error> {
+    fn try_from((id, raw): (ControlId, RawFader)) -> Result<Self, Self::Error> {
         use super::error::FaderParseError;
         Ok(Fader {
             id,
@@ -234,7 +231,7 @@ impl TryFrom<(usize, RawFader)> for Fader {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Switch {
-    pub id: usize,
+    pub id: ControlId,
     pub kind: SwitchKind,
     pub channel: MidiChannel,
     pub midicc: MidiValue,
@@ -253,7 +250,7 @@ pub struct Switch {
 impl Default for Switch {
     fn default() -> Self {
         Self {
-            id: 0,
+            id: ControlId::default(),
             kind: SwitchKind::default(),
             channel: MidiChannel::default(),
             midicc: 0.into(),
@@ -289,16 +286,12 @@ impl Switch {
             self.key2 as u8,
         ]
     }
-
-    pub fn ui_id(&self) -> usize {
-        self.id.saturating_add(1)
-    }
 }
 
-impl TryFrom<(usize, RawSwitch)> for Switch {
+impl TryFrom<(ControlId, RawSwitch)> for Switch {
     type Error = super::error::SwitchParseError;
 
-    fn try_from((id, raw): (usize, RawSwitch)) -> Result<Self, Self::Error> {
+    fn try_from((id, raw): (ControlId, RawSwitch)) -> Result<Self, Self::Error> {
         use super::error::SwitchParseError;
         Ok(Switch {
             id,
@@ -362,8 +355,8 @@ mod tests {
 
         #[test]
         fn test_pad_new() {
-            let pad = Pad::new(5);
-            assert_eq!(pad.id, 5);
+            let pad = Pad::new(ControlId(5));
+            assert_eq!(pad.id, ControlId(5));
             assert_eq!(pad.kind, PadKind::default());
             assert_eq!(pad.note, Note::default());
         }
@@ -371,7 +364,7 @@ mod tests {
         #[test]
         fn test_pad_as_bytes() {
             let pad = Pad {
-                id: 0,
+                id: ControlId(0),
                 kind: PadKind::Note,
                 channel: MidiChannel::COMMON,
                 note: Note::N60,
@@ -411,7 +404,7 @@ mod tests {
             };
 
             let pad = Pad::try_from((3, raw)).unwrap();
-            assert_eq!(pad.id, 3);
+            assert_eq!(pad.id, ControlId(3));
             assert_eq!(pad.kind, PadKind::Note);
             assert_eq!(pad.channel, MidiChannel::A5);
             assert_eq!(pad.note, Note::N72);
@@ -443,7 +436,7 @@ mod tests {
 
         #[test]
         fn test_pad_sysex_payload() {
-            let pad = Pad::new(0);
+            let pad = Pad::new(ControlId(0));
             let payload = pad.sysex_payload();
             assert_eq!(payload.len(), 11);
         }
@@ -461,7 +454,7 @@ mod tests {
         #[test]
         fn test_dial_as_bytes() {
             let dial = Dial {
-                id: 0,
+                id: ControlId::default(),
                 kind: DialKind::CC,
                 channel: MidiChannel::A1,
                 midicc: 74.into(),
@@ -496,7 +489,7 @@ mod tests {
                 value: 64,
             };
 
-            let dial = Dial::try_from((0, raw)).unwrap();
+            let dial = Dial::try_from((ControlId::default(), raw)).unwrap();
             assert_eq!(dial.kind, DialKind::IncDec1);
             assert_eq!(dial.channel, MidiChannel::A3);
             assert_eq!(dial.midicc, 50.into());
@@ -517,7 +510,7 @@ mod tests {
                 value: 0,
             };
 
-            let result = Dial::try_from((0, raw));
+            let result = Dial::try_from((ControlId::default(), raw));
             assert!(result.is_err());
         }
     }
@@ -533,7 +526,7 @@ mod tests {
         #[test]
         fn test_fader_as_bytes() {
             let fader = Fader {
-                id: 0,
+                id: ControlId::default(),
                 kind: FaderKind::Aftertouch,
                 channel: MidiChannel::A2,
                 midicc: 7.into(),
@@ -560,7 +553,7 @@ mod tests {
                 midi2din: 0,
             };
 
-            let fader = Fader::try_from((0, raw)).unwrap();
+            let fader = Fader::try_from((ControlId::default(), raw)).unwrap();
             assert_eq!(fader.kind, FaderKind::Aftertouch);
             assert_eq!(fader.channel, MidiChannel::A5);
             assert_eq!(fader.midicc, 11.into());
@@ -579,7 +572,7 @@ mod tests {
                 midi2din: 0,
             };
 
-            let result = Fader::try_from((0, raw));
+            let result = Fader::try_from((ControlId::default(), raw));
             assert!(result.is_err());
         }
     }
@@ -595,7 +588,7 @@ mod tests {
         #[test]
         fn test_switch_as_bytes() {
             let switch = Switch {
-                id: 0,
+                id: ControlId::default(),
                 kind: SwitchKind::Program,
                 channel: MidiChannel::A1,
                 midicc: 64.into(),
@@ -636,7 +629,7 @@ mod tests {
                 key2: 5,
             };
 
-            let switch = Switch::try_from((0, raw)).unwrap();
+            let switch = Switch::try_from((ControlId::default(), raw)).unwrap();
             assert_eq!(switch.kind, SwitchKind::Program);
             assert_eq!(switch.mode, TriggerKind::Toggle);
             assert_eq!(switch.key2, KeyModifier::CTRL_SHIFT);
@@ -660,7 +653,7 @@ mod tests {
                 key2: 0,
             };
 
-            let result = Switch::try_from((0, raw));
+            let result = Switch::try_from((ControlId::default(), raw));
             assert!(result.is_err());
         }
     }

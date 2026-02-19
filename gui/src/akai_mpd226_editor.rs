@@ -27,6 +27,7 @@ use midilab::manufacturer::akai::mpd226::ColorSequence;
 use midilab::manufacturer::akai::mpd226::Global;
 use midilab::manufacturer::akai::mpd226::NoteColorMap;
 use midilab::manufacturer::akai::mpd226::Preset;
+use midilab::manufacturer::akai::mpd226::control::ControlId;
 use midilab::manufacturer::akai::mpd226::control::Dial;
 use midilab::manufacturer::akai::mpd226::control::Fader;
 use midilab::manufacturer::akai::mpd226::control::Pad;
@@ -277,10 +278,10 @@ mod accessibility {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UserSelection {
-    Pad { id: usize },
-    Dial { id: usize },
-    Fader { id: usize },
-    Switch { id: usize },
+    Pad { id: ControlId },
+    Dial { id: ControlId },
+    Fader { id: ControlId },
+    Switch { id: ControlId },
     PresetSettings,
     GlobalSettings,
     PadNoteMapping,
@@ -768,7 +769,7 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
     let cursor_pos = ui.cursor().min;
     let rect = Rect::from_min_size(cursor_pos, PAD_DIMENSIONS);
 
-    let label = format!("Pad {}", pad.ui_id());
+    let label = format!("Pad {}", pad.id);
 
     let label: &str = &label;
     let button = Button::new(label)
@@ -780,15 +781,11 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
 
     let resp = resp.on_hover_text(format!(
         "Pad {} - Note: {}\nOff: {}, On: {}\nChannel: {}",
-        pad.ui_id(),
-        pad.note,
-        pad.off_color,
-        pad.on_color,
-        pad.channel
+        pad.id, pad.note, pad.off_color, pad.on_color, pad.channel
     ));
 
     if resp.clicked() {
-        *selected_item = Some(UserSelection::Pad { id: pad.ui_id() });
+        *selected_item = Some(UserSelection::Pad { id: pad.id });
     }
 
     accessibility::draw_focus_indicator(ui, rect, resp.has_focus(), 4.0);
@@ -811,7 +808,7 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
         .rect_filled(rect.shrink(3.0), 4.0, Color32::from_rgb(32, 32, 32));
 
     if let Some(UserSelection::Pad { id }) = selected_item
-        && pad.ui_id() == *id
+        && pad.id == *id
     {
         ui.painter().rect_stroke(
             rect,
@@ -829,7 +826,7 @@ fn render_pad(ui: &mut Ui, selected_item: &mut Option<UserSelection>, pad: Pad) 
     ui.painter().text(
         top_half.center(),
         egui::Align2::CENTER_CENTER,
-        format!("Pad {}", pad.ui_id()),
+        format!("Pad {}", pad.id),
         egui::FontId::proportional(12.0),
         Color32::from_rgb(231, 231, 231),
     );
@@ -911,7 +908,7 @@ fn render_all_control_banks(
 }
 
 fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dial) {
-    let full_label = format!("Dial {}", dial.ui_id());
+    let full_label = format!("Dial {}", dial.id);
 
     let mut button = egui::Button::new(full_label.clone())
         .min_size(DIAL_DIMENSIONS)
@@ -920,7 +917,7 @@ fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dia
         .wrap();
 
     if let Some(UserSelection::Dial { id }) = selected_item
-        && dial.ui_id() == *id
+        && dial.id == *id
     {
         button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
@@ -938,12 +935,12 @@ fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dia
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 24.0);
 
     if resp.clicked() {
-        *selected_item = Some(UserSelection::Dial { id: dial.ui_id() });
+        *selected_item = Some(UserSelection::Dial { id: dial.id });
     }
 }
 
 fn render_fader(ui: &mut Ui, selected_item: &mut Option<UserSelection>, fader: Fader) {
-    let full_label = format!("Fader {}", fader.ui_id());
+    let full_label = format!("Fader {}", fader.id);
 
     let mut button: egui::Button<'_> = egui::Button::new(full_label.clone())
         .min_size(FADER_DIMENSIONS)
@@ -952,7 +949,7 @@ fn render_fader(ui: &mut Ui, selected_item: &mut Option<UserSelection>, fader: F
         .wrap();
 
     if let Some(UserSelection::Fader { id }) = selected_item
-        && fader.ui_id() == *id
+        && fader.id == *id
     {
         button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
@@ -970,12 +967,12 @@ fn render_fader(ui: &mut Ui, selected_item: &mut Option<UserSelection>, fader: F
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
     if resp.clicked() {
-        *selected_item = Some(UserSelection::Fader { id: fader.ui_id() });
+        *selected_item = Some(UserSelection::Fader { id: fader.id });
     }
 }
 
 fn render_switch(ui: &mut Ui, selected_item: &mut Option<UserSelection>, switch: Switch) {
-    let full_label = format!("Switch {}", switch.ui_id());
+    let full_label = format!("Switch {}", switch.id);
 
     let mut button = egui::Button::new(full_label.clone())
         .min_size(SWITCH_DIMENSIONS)
@@ -984,7 +981,7 @@ fn render_switch(ui: &mut Ui, selected_item: &mut Option<UserSelection>, switch:
         .wrap();
 
     if let Some(UserSelection::Switch { id }) = selected_item
-        && switch.ui_id() == *id
+        && switch.id == *id
     {
         button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
@@ -1000,7 +997,7 @@ fn render_switch(ui: &mut Ui, selected_item: &mut Option<UserSelection>, switch:
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 4.0);
 
     if resp.clicked() {
-        *selected_item = Some(UserSelection::Switch { id: switch.ui_id() });
+        *selected_item = Some(UserSelection::Switch { id: switch.id });
     }
 }
 
@@ -1015,28 +1012,22 @@ fn render_modal_editor(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<A
 
         match selected_item {
             UserSelection::Pad { id } => {
-                if let Some(pad) = ui_state
-                    .preset
-                    .pads
-                    .pads
-                    .iter_mut()
-                    .find(|p| p.ui_id() == id)
-                {
+                if let Some(pad) = ui_state.preset.pads.pads.iter_mut().find(|p| p.id == id) {
                     render_pad_editor(ui, pad);
                 }
             }
             UserSelection::Dial { id } => {
-                if let Some(dial) = ui_state.preset.dials.0.get_mut(id - 1) {
+                if let Some(dial) = ui_state.preset.dials.0.get_mut(id.0) {
                     render_dial_editor(ui, dial);
                 }
             }
             UserSelection::Fader { id } => {
-                if let Some(fader) = ui_state.preset.faders.0.get_mut(id - 1) {
+                if let Some(fader) = ui_state.preset.faders.0.get_mut(id.0) {
                     render_fader_editor(ui, fader);
                 }
             }
-            UserSelection::Switch { id: index } => {
-                if let Some(switch) = ui_state.preset.switches.0.get_mut(index - 1) {
+            UserSelection::Switch { id } => {
+                if let Some(switch) = ui_state.preset.switches.0.get_mut(id.0) {
                     render_switch_editor(ui, switch);
                 }
             }
