@@ -101,6 +101,7 @@ impl TryFrom<(usize, RawPad)> for Pad {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dial {
+    pub id: usize,
     pub kind: DialKind,
     pub channel: MidiChannel,
     pub midicc: MidiValue,
@@ -113,8 +114,10 @@ pub struct Dial {
 }
 
 impl Default for Dial {
+    /// You don't want to use this directly - you want to use ::new().
     fn default() -> Self {
         Self {
+            id: 0, // todo oops
             kind: DialKind::default(),
             channel: MidiChannel::default(),
             midicc: 0.into(),
@@ -142,14 +145,19 @@ impl Dial {
             self.value.into(),
         ]
     }
+
+    pub fn ui_id(&self) -> usize {
+        self.id.saturating_add(1)
+    }
 }
 
-impl TryFrom<RawDial> for Dial {
+impl TryFrom<(usize, RawDial)> for Dial {
     type Error = super::error::DialParseError;
 
-    fn try_from(raw: RawDial) -> Result<Self, Self::Error> {
+    fn try_from((id, raw): (usize, RawDial)) -> Result<Self, Self::Error> {
         use super::error::DialParseError;
         Ok(Dial {
+            id,
             kind: DialKind::try_from(raw.kind).map_err(DialParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(DialParseError::Channel)?,
             midicc: raw.midicc.into(),
@@ -439,6 +447,7 @@ mod tests {
         #[test]
         fn test_dial_as_bytes() {
             let dial = Dial {
+                id: 0,
                 kind: DialKind::CC,
                 channel: MidiChannel::A1,
                 midicc: 74.into(),
@@ -473,7 +482,7 @@ mod tests {
                 value: 64,
             };
 
-            let dial = Dial::try_from(raw).unwrap();
+            let dial = Dial::try_from((0, raw)).unwrap();
             assert_eq!(dial.kind, DialKind::IncDec1);
             assert_eq!(dial.channel, MidiChannel::A3);
             assert_eq!(dial.midicc, 50.into());
@@ -494,7 +503,7 @@ mod tests {
                 value: 0,
             };
 
-            let result = Dial::try_from(raw);
+            let result = Dial::try_from((0, raw));
             assert!(result.is_err());
         }
     }

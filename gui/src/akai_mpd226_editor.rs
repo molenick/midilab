@@ -55,6 +55,10 @@ use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
+// bugs - last control can't be edited bc of -1 error
+// spacing between control banks is by 3 instead of by 4
+// need to finish fader and switch work
+
 const PHI: f32 = 1.618_034;
 
 const fn powi_i32(mut base: f32, mut exp: i32) -> f32 {
@@ -115,6 +119,7 @@ const SWITCH_DIMENSIONS: Vec2 = Vec2 {
 
 const PAD_BANKS: [&str; 4] = ["A", "B", "C", "D"];
 const CONTROL_BANKS: [&str; 3] = ["A", "B", "C"];
+const CONTROLS_PER_CONTROL_BANK: usize = 4;
 
 const CONTROL_BANK_LABEL_X: f32 = DEFAULT_CONTROL_X * 4. + DEFAULT_CONTROL_SPACING;
 
@@ -287,19 +292,13 @@ impl Display for UserSelection {
         match self {
             UserSelection::Pad { id } => write!(f, "Edit Pad {}", id),
             UserSelection::Dial { id } => {
-                let bank = CONTROL_BANKS[id / 4];
-                let num = (id % 4) + 1;
-                write!(f, "Edit Dial {}{}", bank, num)
+                write!(f, "Edit Dial {}", id)
             }
             UserSelection::Fader { id } => {
-                let bank = CONTROL_BANKS[id / 4];
-                let num = (id % 4) + 1;
-                write!(f, "Edit Fader {}{}", bank, num)
+                write!(f, "Edit Fader {}", id)
             }
             UserSelection::Switch { id } => {
-                let bank = CONTROL_BANKS[id / 4];
-                let num = (id % 4) + 1;
-                write!(f, "Edit Switch {}{}", bank, num)
+                write!(f, "Edit Switch {}", id)
             }
             UserSelection::PresetSettings => write!(f, "Edit Preset Settings"),
             UserSelection::GlobalSettings => write!(f, "Edit Global Settings"),
@@ -880,11 +879,11 @@ fn render_all_control_banks(
     ui.add_space(DEFAULT_CONTROL_SPACING);
 
     ui.horizontal_top(|ui| {
-        for (bank_idx, dial_row) in dial_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
-            for (dial_offset, dial) in dial_row.iter().enumerate() {
-                let dial_id = bank_idx * 4 + dial_offset;
-                render_dial(ui, selected_item, *dial, dial_id)
+        for dial_row in dial_repo.0.chunks(CONTROLS_PER_CONTROL_BANK) {
+            for dial in dial_row.iter() {
+                render_dial(ui, selected_item, *dial)
             }
+            ui.add_space(DEFAULT_CONTROL_SPACING);
         }
     });
 
@@ -893,7 +892,7 @@ fn render_all_control_banks(
     ui.horizontal_top(|ui| {
         for (bank_idx, fader_row) in fader_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
             for (fader_offset, fader) in fader_row.iter().enumerate() {
-                let fader_id = bank_idx * 4 + fader_offset;
+                let fader_id = bank_idx * 3 + fader_offset + 1;
                 render_fader(ui, selected_item, *fader, fader_id)
             }
         }
@@ -904,15 +903,15 @@ fn render_all_control_banks(
     ui.horizontal_top(|ui| {
         for (bank_idx, switch_row) in switch_repo.0.chunks(CONTROL_BANKS.len()).enumerate() {
             for (switch_offset, switch) in switch_row.iter().enumerate() {
-                let switch_id = bank_idx * 4 + switch_offset;
+                let switch_id = bank_idx * 3 + switch_offset + 1;
                 render_switch(ui, selected_item, *switch, switch_id)
             }
         }
     });
 }
 
-fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dial, dial_id: usize) {
-    let full_label = format!("Dial {dial_id}");
+fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dial) {
+    let full_label = format!("Dial {}", dial.ui_id());
 
     let mut button = egui::Button::new(full_label.clone())
         .min_size(DIAL_DIMENSIONS)
@@ -921,7 +920,7 @@ fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dia
         .wrap();
 
     if let Some(UserSelection::Dial { id }) = selected_item
-        && dial_id == *id
+        && dial.ui_id() == *id
     {
         button = button.stroke(egui::Stroke::new(1.5, Color32::WHITE));
     }
@@ -939,7 +938,7 @@ fn render_dial(ui: &mut Ui, selected_item: &mut Option<UserSelection>, dial: Dia
     accessibility::draw_focus_indicator(ui, resp.rect, resp.has_focus(), 24.0);
 
     if resp.clicked() {
-        *selected_item = Some(UserSelection::Dial { id: dial_id });
+        *selected_item = Some(UserSelection::Dial { id: dial.ui_id() });
     }
 }
 

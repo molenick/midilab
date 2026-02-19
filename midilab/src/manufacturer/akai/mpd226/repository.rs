@@ -152,6 +152,7 @@ impl DialRepository {
         let mut repo = Self::default();
 
         for (i, dial) in repo.0.iter_mut().enumerate() {
+            dial.id = i;
             dial.midicc = values[i].into();
         }
 
@@ -198,7 +199,7 @@ impl TryFrom<RawDials> for DialRepository {
         let mut dials = [Dial::default(); 12];
 
         for (i, r) in raw.0.iter().enumerate() {
-            let dial = Dial::try_from(*r)
+            let dial = Dial::try_from((i, *r))
                 .map_err(|source| super::error::PresetParseError::Dial { index: i, source })?;
             dials[i] = dial;
         }
