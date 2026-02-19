@@ -107,7 +107,7 @@ impl TryFrom<RawPads> for PadRepository {
         let mut pad_repo = PadRepository::default();
 
         for (i, raw_pad) in raw.0.iter().enumerate() {
-            pad_repo.pads[i] = Pad::try_from((i, *raw_pad))
+            pad_repo.pads[i] = Pad::try_from((ControlId(i), *raw_pad))
                 .map_err(|source| super::error::PresetParseError::Pad { index: i, source })?;
         }
 

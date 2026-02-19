@@ -80,14 +80,14 @@ impl Pad {
     }
 }
 
-impl TryFrom<(usize, RawPad)> for Pad {
+impl TryFrom<(ControlId, RawPad)> for Pad {
     type Error = super::error::PadParseError;
 
-    fn try_from(value: (usize, RawPad)) -> Result<Self, Self::Error> {
+    fn try_from((id, raw): (ControlId, RawPad)) -> Result<Self, Self::Error> {
         use super::error::PadParseError;
-        let (index, raw) = value;
+
         Ok(Pad {
-            id: ControlId(index),
+            id,
             kind: PadKind::try_from(raw.kind).map_err(PadParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(PadParseError::Channel)?,
             note: Note::try_from(raw.note).map_err(PadParseError::Note)?,
@@ -403,7 +403,7 @@ mod tests {
                 on_color: 5,
             };
 
-            let pad = Pad::try_from((3, raw)).unwrap();
+            let pad = Pad::try_from((ControlId(3), raw)).unwrap();
             assert_eq!(pad.id, ControlId(3));
             assert_eq!(pad.kind, PadKind::Note);
             assert_eq!(pad.channel, MidiChannel::A5);
@@ -430,7 +430,7 @@ mod tests {
                 on_color: 0,
             };
 
-            let result = Pad::try_from((0, raw));
+            let result = Pad::try_from((ControlId(0), raw));
             assert!(result.is_err());
         }
 

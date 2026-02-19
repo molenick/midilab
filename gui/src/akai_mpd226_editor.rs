@@ -56,10 +56,6 @@ use midilab::music::SequenceDirection;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
-// bugs - last control can't be edited bc of -1 error
-// spacing between control banks is by 3 instead of by 4
-// need to finish fader and switch work
-
 const PHI: f32 = 1.618_034;
 
 const fn powi_i32(mut base: f32, mut exp: i32) -> f32 {
