@@ -46,13 +46,13 @@ use midilab::message::UiMsg;
 use midilab::message::UserMsg;
 use midilab::midi::MidiNote;
 use midilab::midi::MidiValue;
-use midilab::midi::Octave;
-use midilab::music::ChordRowSequence;
-use midilab::music::NotePattern;
-use midilab::music::PitchClass;
-use midilab::music::ScaleKind;
-use midilab::music::ScaleSequence;
-use midilab::music::SequenceDirection;
+use midilab::music::generation::ChordRowSequence;
+use midilab::music::generation::PitchPattern;
+use midilab::music::generation::ScaleSequence;
+use midilab::music::generation::SequenceDirection;
+use midilab::music::theory::Octave as MusicOctave;
+use midilab::music::theory::PitchClass;
+use midilab::music::theory::ScaleKind;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -320,7 +320,7 @@ pub struct UiState {
 }
 
 pub struct NoteMappingState {
-    pub pattern: NotePattern,
+    pub pattern: PitchPattern,
     pub starting_from_pad: usize,
     pub tonic_color: PadColor,
     pub color_map: NoteColorMap,
@@ -328,11 +328,11 @@ pub struct NoteMappingState {
 impl Default for NoteMappingState {
     fn default() -> Self {
         Self {
-            pattern: NotePattern::Scale(ScaleSequence {
+            pattern: PitchPattern::Scale(ScaleSequence {
                 tonic: PitchClass::C,
                 scale: ScaleKind::Chromatic,
                 direction: SequenceDirection::Ascending,
-                octave: Octave::O4,
+                octave: MusicOctave(4),
                 length: 64,
             }),
             starting_from_pad: 0,
@@ -468,18 +468,18 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<App
         .show_ui(ui, |ui| {
             ui.selectable_value(
                 &mut ui_state.note_mapping.pattern,
-                NotePattern::Scale(ScaleSequence::default()),
+                PitchPattern::Scale(ScaleSequence::default()),
                 "Scale",
             );
             ui.selectable_value(
                 &mut ui_state.note_mapping.pattern,
-                NotePattern::ChordRow(ChordRowSequence::default()),
+                PitchPattern::ChordRow(ChordRowSequence::default()),
                 "Chord Row",
             );
         });
 
     match &mut ui_state.note_mapping.pattern {
-        NotePattern::Scale(seq) => {
+        PitchPattern::Scale(seq) => {
             ui.horizontal(|ui| {
                 ui.label("Tonic");
                 enum_combo_box(ui, "note_mapping_tonic", &mut seq.tonic, None);
@@ -492,7 +492,7 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<App
 
             ui.horizontal(|ui| {
                 ui.label("Octave");
-                enum_combo_box(ui, "note_mapping_octave", &mut seq.octave, None);
+                ui.add(egui::DragValue::new(&mut seq.octave.0).range(-2_i8..=9_i8));
             });
 
             ui.horizontal(|ui| {
@@ -506,7 +506,7 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<App
             });
         }
 
-        NotePattern::ChordRow(seq) => {
+        PitchPattern::ChordRow(seq) => {
             ui.horizontal(|ui| {
                 ui.label("Tonic");
                 enum_combo_box(ui, "chord_row_tonic", &mut seq.tonic, None);
@@ -519,7 +519,7 @@ fn render_note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<App
 
             ui.horizontal(|ui| {
                 ui.label("Octave");
-                enum_combo_box(ui, "chord_row_octave", &mut seq.octave, None);
+                ui.add(egui::DragValue::new(&mut seq.octave.0).range(-2_i8..=9_i8));
             });
 
             ui.horizontal(|ui| {

@@ -1,6 +1,6 @@
 use crate::manufacturer::akai::mpd226::ColorPattern;
 use crate::manufacturer::akai::mpd226::NoteColorMap;
-use crate::manufacturer::akai::mpd226::NotePattern;
+use crate::manufacturer::akai::mpd226::PitchPattern;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
 use crate::manufacturer::akai::mpd226::control::ControlId;
 use crate::manufacturer::akai::mpd226::control::Dial;
@@ -11,7 +11,8 @@ use crate::manufacturer::akai::mpd226::raw::RawDials;
 use crate::manufacturer::akai::mpd226::raw::RawFaders;
 use crate::manufacturer::akai::mpd226::raw::RawPads;
 use crate::manufacturer::akai::mpd226::raw::RawSwitches;
-use crate::music::ScaleSequence;
+use crate::midi::generation::MidiNoteSequence;
+use crate::music::generation::ScaleSequence;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -20,9 +21,9 @@ pub struct PadRepository {
 }
 
 impl PadRepository {
-    pub fn set_note_pattern(&mut self, starting_position: usize, pattern: NotePattern) {
+    pub fn set_note_pattern(&mut self, starting_position: usize, pattern: PitchPattern) {
         let clamped_starting_position = starting_position.min(TOTAL_PADS);
-        let notes = pattern.as_midi_notes();
+        let notes = MidiNoteSequence::from(pattern.as_pitches()).0;
         let changing_pads = &mut self.pads[clamped_starting_position..TOTAL_PADS];
 
         for (rel_idx, pad) in changing_pads.iter_mut().enumerate() {
@@ -35,7 +36,7 @@ impl PadRepository {
     pub fn set_note_pattern_with_off_colors(
         &mut self,
         starting_position: usize,
-        note_pattern: NotePattern,
+        note_pattern: PitchPattern,
         off_pad_color_map: NoteColorMap,
     ) {
         self.set_note_pattern(starting_position, note_pattern);
@@ -91,7 +92,7 @@ impl Default for PadRepository {
         });
 
         let mut repo = PadRepository { pads };
-        repo.set_note_pattern(0, NotePattern::Scale(ScaleSequence::default()));
+        repo.set_note_pattern(0, PitchPattern::Scale(ScaleSequence::default()));
 
         repo
     }
@@ -224,13 +225,13 @@ mod tests {
     use crate::manufacturer::akai::mpd226::raw::RawPad;
     use crate::manufacturer::akai::mpd226::raw::RawSwitch;
     use crate::midi::MidiNote;
-    use crate::midi::Octave;
-    use crate::music::ChordRowSequence;
-    use crate::music::ChordVoicing;
-    use crate::music::PitchClass;
-    use crate::music::ScaleKind;
-    use crate::music::ScaleSequence;
-    use crate::music::SequenceDirection;
+    use crate::music::generation::ChordRowSequence;
+    use crate::music::generation::ScaleSequence;
+    use crate::music::generation::SequenceDirection;
+    use crate::music::theory::ChordVoicing;
+    use crate::music::theory::Octave;
+    use crate::music::theory::PitchClass;
+    use crate::music::theory::ScaleKind;
 
     #[test]
     fn test_pad_repository_set_note_pattern_chromatic() {
@@ -240,11 +241,11 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave::O4,
+            octave: Octave(4),
             length: 12,
         };
 
-        repo.set_note_pattern(0, NotePattern::Scale(scale_seq));
+        repo.set_note_pattern(0, PitchPattern::Scale(scale_seq));
 
         assert_eq!(repo.pads[0].note, MidiNote::from(60));
         assert_eq!(repo.pads[1].note, MidiNote::from(61));
@@ -259,11 +260,11 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
             direction: SequenceDirection::Ascending,
-            octave: Octave::O4,
+            octave: Octave(4),
             length: 8,
         };
 
-        repo.set_note_pattern(0, NotePattern::Scale(scale_seq));
+        repo.set_note_pattern(0, PitchPattern::Scale(scale_seq));
 
         assert_eq!(repo.pads[0].note, MidiNote::from(60));
         assert_eq!(repo.pads[1].note, MidiNote::from(62));
@@ -285,11 +286,11 @@ mod tests {
             tonic: PitchClass::D,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave::O4,
+            octave: Octave(4),
             length: 8,
         };
 
-        repo.set_note_pattern(16, NotePattern::Scale(scale_seq));
+        repo.set_note_pattern(16, PitchPattern::Scale(scale_seq));
 
         assert_eq!(repo.pads[0].note, MidiNote::from(60));
         assert_eq!(repo.pads[15].note, MidiNote::from(75));
@@ -708,10 +709,10 @@ mod tests {
 
         repo.set_note_pattern(
             0,
-            NotePattern::ChordRow(ChordRowSequence {
+            PitchPattern::ChordRow(ChordRowSequence {
                 tonic: PitchClass::C,
                 scale: ScaleKind::Major,
-                octave: Octave::O4,
+                octave: Octave(4),
                 voicing: ChordVoicing::Seventh,
                 direction: SequenceDirection::Ascending,
                 length: 8,
