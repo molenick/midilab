@@ -11,7 +11,6 @@ use crate::manufacturer::akai::mpd226::raw::RawDials;
 use crate::manufacturer::akai::mpd226::raw::RawFaders;
 use crate::manufacturer::akai::mpd226::raw::RawPads;
 use crate::manufacturer::akai::mpd226::raw::RawSwitches;
-use crate::midi::Note;
 use crate::music::ScaleSequence;
 
 #[repr(C)]
@@ -27,10 +26,8 @@ impl PadRepository {
         let changing_pads = &mut self.pads[clamped_starting_position..TOTAL_PADS];
 
         for (rel_idx, pad) in changing_pads.iter_mut().enumerate() {
-            if let Some(&midi_note) = notes.get(rel_idx)
-                && let Ok(note) = Note::try_from(midi_note)
-            {
-                pad.note = note;
+            if let Some(&midi_note) = notes.get(rel_idx) {
+                pad.note = midi_note;
             }
         }
     }
@@ -226,6 +223,7 @@ mod tests {
     use crate::manufacturer::akai::mpd226::raw::RawFader;
     use crate::manufacturer::akai::mpd226::raw::RawPad;
     use crate::manufacturer::akai::mpd226::raw::RawSwitch;
+    use crate::midi::MidiNote;
     use crate::midi::Octave;
     use crate::music::ChordRowSequence;
     use crate::music::ChordVoicing;
@@ -248,9 +246,9 @@ mod tests {
 
         repo.set_note_pattern(0, NotePattern::Scale(scale_seq));
 
-        assert_eq!(repo.pads[0].note, Note::N60);
-        assert_eq!(repo.pads[1].note, Note::N61);
-        assert_eq!(repo.pads[11].note, Note::N71);
+        assert_eq!(repo.pads[0].note, MidiNote::from(60));
+        assert_eq!(repo.pads[1].note, MidiNote::from(61));
+        assert_eq!(repo.pads[11].note, MidiNote::from(71));
     }
 
     #[test]
@@ -267,21 +265,21 @@ mod tests {
 
         repo.set_note_pattern(0, NotePattern::Scale(scale_seq));
 
-        assert_eq!(repo.pads[0].note, Note::N60);
-        assert_eq!(repo.pads[1].note, Note::N62);
-        assert_eq!(repo.pads[2].note, Note::N64);
-        assert_eq!(repo.pads[3].note, Note::N65);
-        assert_eq!(repo.pads[4].note, Note::N67);
-        assert_eq!(repo.pads[5].note, Note::N69);
-        assert_eq!(repo.pads[6].note, Note::N71);
+        assert_eq!(repo.pads[0].note, MidiNote::from(60));
+        assert_eq!(repo.pads[1].note, MidiNote::from(62));
+        assert_eq!(repo.pads[2].note, MidiNote::from(64));
+        assert_eq!(repo.pads[3].note, MidiNote::from(65));
+        assert_eq!(repo.pads[4].note, MidiNote::from(67));
+        assert_eq!(repo.pads[5].note, MidiNote::from(69));
+        assert_eq!(repo.pads[6].note, MidiNote::from(71));
     }
 
     #[test]
     fn test_pad_repository_set_note_pattern_with_offset() {
         let mut repo = PadRepository::default();
 
-        assert_eq!(repo.pads[0].note, Note::N60);
-        assert_eq!(repo.pads[15].note, Note::N75);
+        assert_eq!(repo.pads[0].note, MidiNote::from(60));
+        assert_eq!(repo.pads[15].note, MidiNote::from(75));
 
         let scale_seq = ScaleSequence {
             tonic: PitchClass::D,
@@ -293,11 +291,11 @@ mod tests {
 
         repo.set_note_pattern(16, NotePattern::Scale(scale_seq));
 
-        assert_eq!(repo.pads[0].note, Note::N60);
-        assert_eq!(repo.pads[15].note, Note::N75);
+        assert_eq!(repo.pads[0].note, MidiNote::from(60));
+        assert_eq!(repo.pads[15].note, MidiNote::from(75));
 
-        assert_eq!(repo.pads[16].note, Note::N62);
-        assert_eq!(repo.pads[17].note, Note::N63);
+        assert_eq!(repo.pads[16].note, MidiNote::from(62));
+        assert_eq!(repo.pads[17].note, MidiNote::from(63));
     }
 
     #[test]
@@ -401,9 +399,9 @@ mod tests {
 
         let repo = PadRepository::try_from(RawPads(raw_pads)).unwrap();
 
-        assert_eq!(repo.pads[0].note, Note::N36);
-        assert_eq!(repo.pads[1].note, Note::N48);
-        assert_eq!(repo.pads[2].note, Note::N60);
+        assert_eq!(repo.pads[0].note, MidiNote::from(36));
+        assert_eq!(repo.pads[1].note, MidiNote::from(48));
+        assert_eq!(repo.pads[2].note, MidiNote::from(60));
     }
 
     #[test]
@@ -721,14 +719,14 @@ mod tests {
         );
 
         // Cmaj7: C4(60), E4(64), G4(67), B4(71)
-        assert_eq!(repo.pads[0].note, Note::N60);
-        assert_eq!(repo.pads[1].note, Note::N64);
-        assert_eq!(repo.pads[2].note, Note::N67);
-        assert_eq!(repo.pads[3].note, Note::N71);
+        assert_eq!(repo.pads[0].note, MidiNote::from(60));
+        assert_eq!(repo.pads[1].note, MidiNote::from(64));
+        assert_eq!(repo.pads[2].note, MidiNote::from(67));
+        assert_eq!(repo.pads[3].note, MidiNote::from(71));
         // Dm7: D4(62), F4(65), A4(69), C5(72)
-        assert_eq!(repo.pads[4].note, Note::N62);
-        assert_eq!(repo.pads[5].note, Note::N65);
-        assert_eq!(repo.pads[6].note, Note::N69);
-        assert_eq!(repo.pads[7].note, Note::N72);
+        assert_eq!(repo.pads[4].note, MidiNote::from(62));
+        assert_eq!(repo.pads[5].note, MidiNote::from(65));
+        assert_eq!(repo.pads[6].note, MidiNote::from(69));
+        assert_eq!(repo.pads[7].note, MidiNote::from(72));
     }
 }

@@ -1,8 +1,6 @@
-use enumeric::range_enum;
-use num_enum::IntoPrimitive;
-use num_enum::TryFromPrimitive;
 use strum_macros::EnumIter;
 
+use crate::music::Pitch;
 use crate::music::PitchClass;
 
 /// The octave as represented by Scientific Pitch Notation, bounded to the
@@ -79,28 +77,50 @@ impl From<MidiValue> for u8 {
     }
 }
 
-/// Finite enum representation of a midi note value
-#[range_enum]
-#[repr(u8)]
-#[derive(IntoPrimitive, TryFromPrimitive, PartialEq, Clone, Copy, Debug, EnumIter)]
-pub enum Note {
-    #[range(0..128)]
-    N,
-}
-#[expect(
-    clippy::derivable_impls,
-    reason = "can't derive default in combination with range_enum"
-)]
-impl Default for Note {
-    fn default() -> Self {
-        Self::N60
+/// A MIDI note number, constrained to 0–127.
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MidiNote(MidiValue);
+
+impl MidiNote {
+    pub fn as_u8(&self) -> u8 {
+        self.0.as_u8()
     }
 }
-impl Note {
-    pub const MAX: u8 = Self::N127 as u8;
+
+impl From<u8> for MidiNote {
+    fn from(value: u8) -> Self {
+        Self(MidiValue::from(value))
+    }
 }
 
-impl std::fmt::Display for Note {
+impl From<MidiNote> for u8 {
+    fn from(note: MidiNote) -> Self {
+        note.0.into()
+    }
+}
+
+impl From<MidiValue> for MidiNote {
+    fn from(value: MidiValue) -> Self {
+        Self(value)
+    }
+}
+
+impl From<MidiNote> for MidiValue {
+    fn from(note: MidiNote) -> Self {
+        note.0
+    }
+}
+
+impl From<&Pitch> for MidiNote {
+    fn from(pitch: &Pitch) -> Self {
+        {
+            let val = (12 * (pitch.octave.0 as i16 + 1) + pitch.class as i16).clamp(0, 127) as u8;
+            MidiNote::from(val)
+        }
+    }
+}
+
+impl std::fmt::Display for MidiNote {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let level = RolandMidiOctave::new(*self);
         let pitch_class = PitchClass::from(*self);
@@ -115,8 +135,8 @@ impl std::fmt::Display for Note {
 #[derive(Debug)]
 pub struct RolandMidiOctave(i8);
 impl RolandMidiOctave {
-    pub fn new(note: Note) -> Self {
-        let level = note as i8 / 12 - 1;
+    pub fn new(note: MidiNote) -> Self {
+        let level = note.as_u8() as i8 / 12 - 1;
 
         let clamped = level.clamp(-1, 9);
         Self(clamped)
@@ -134,13 +154,13 @@ mod tests {
 
     #[test]
     fn test_midi_notes() {
-        let note = Note::N0;
+        let note = MidiNote::from(0);
         assert_eq!(note.to_string(), "C-1");
 
-        let note = Note::N60;
+        let note = MidiNote::from(60);
         assert_eq!(note.to_string(), "C4");
 
-        let note = Note::N127;
+        let note = MidiNote::from(127);
         assert_eq!(note.to_string(), "G9");
     }
 }

@@ -797,16 +797,16 @@ pub struct ColorSequence {
 mod tests {
     use super::*;
     use crate::manufacturer::akai::mpd226::control::ControlId;
-    use crate::midi::Note;
+    use crate::midi::MidiNote;
     use crate::music::ScaleSequence;
 
     #[test]
     fn test_pad_repository_direct_mutation() {
         let mut repo = PadRepository::default();
-        assert_eq!(repo.pads[0].note, Note::N60);
+        assert_eq!(repo.pads[0].note, MidiNote::from(60));
 
-        repo.pads[0].note = Note::N105;
-        assert_eq!(repo.pads[0].note, Note::N105);
+        repo.pads[0].note = MidiNote::from(105);
+        assert_eq!(repo.pads[0].note, MidiNote::from(105));
     }
 
     #[test]

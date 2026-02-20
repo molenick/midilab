@@ -21,8 +21,8 @@ use crate::manufacturer::akai::mpd226::raw::RawDial;
 use crate::manufacturer::akai::mpd226::raw::RawFader;
 use crate::manufacturer::akai::mpd226::raw::RawPad;
 use crate::manufacturer::akai::mpd226::raw::RawSwitch;
+use crate::midi::MidiNote;
 use crate::midi::MidiValue;
-use crate::midi::Note;
 
 pub mod value_kind;
 
@@ -40,7 +40,7 @@ pub struct Pad {
     pub id: ControlId,
     pub kind: PadKind,
     pub channel: MidiChannel,
-    pub note: Note,
+    pub note: MidiNote,
     pub midi2din: ActiveState,
     pub trigger: TriggerKind,
     pub aftertouch: AfterTouchKind,
@@ -67,7 +67,7 @@ impl Pad {
         vec![
             self.kind as u8,
             self.channel as u8,
-            self.note as u8,
+            self.note.into(),
             self.midi2din as u8,
             self.trigger as u8,
             self.aftertouch as u8,
@@ -90,7 +90,7 @@ impl TryFrom<(ControlId, RawPad)> for Pad {
             id,
             kind: PadKind::try_from(raw.kind).map_err(PadParseError::Kind)?,
             channel: MidiChannel::try_from(raw.channel).map_err(PadParseError::Channel)?,
-            note: Note::try_from(raw.note).map_err(PadParseError::Note)?,
+            note: raw.note.into(),
             midi2din: ActiveState::try_from(raw.midi2din).map_err(PadParseError::Midi2Din)?,
             trigger: TriggerKind::try_from(raw.trigger).map_err(PadParseError::Trigger)?,
             aftertouch: AfterTouchKind::try_from(raw.aftertouch)
@@ -240,7 +240,7 @@ pub struct Switch {
     pub msb: MidiValue,
     pub lsb: MidiValue,
     pub midi2din: ActiveState,
-    pub note: u8,
+    pub note: MidiNote,
     pub velo: MidiValue,
     pub invert: ActiveState,
     pub key1: u8,
@@ -259,7 +259,7 @@ impl Default for Switch {
             msb: 0.into(),
             lsb: 0.into(),
             midi2din: ActiveState::default(),
-            note: 0,
+            note: 0.into(),
             velo: 100.into(),
             invert: ActiveState::default(),
             key1: 0,
@@ -279,7 +279,7 @@ impl Switch {
             self.msb.into(),
             self.lsb.into(),
             self.midi2din as u8,
-            self.note,
+            self.note.into(),
             self.velo.into(),
             self.invert as u8,
             self.key1,
@@ -303,7 +303,7 @@ impl TryFrom<(ControlId, RawSwitch)> for Switch {
             msb: raw.msb.into(),
             lsb: raw.lsb.into(),
             midi2din: ActiveState::try_from(raw.midi2din).map_err(SwitchParseError::Midi2Din)?,
-            note: raw.note,
+            note: raw.note.into(),
             velo: raw.velo.into(),
             invert: ActiveState::try_from(raw.invert).map_err(SwitchParseError::Invert)?,
             key1: raw.key1,
@@ -358,7 +358,7 @@ mod tests {
             let pad = Pad::new(ControlId(5));
             assert_eq!(pad.id, ControlId(5));
             assert_eq!(pad.kind, PadKind::default());
-            assert_eq!(pad.note, Note::default());
+            assert_eq!(pad.note, MidiNote::default());
         }
 
         #[test]
@@ -367,7 +367,7 @@ mod tests {
                 id: ControlId(0),
                 kind: PadKind::Note,
                 channel: MidiChannel::COMMON,
-                note: Note::N60,
+                note: 60.into(),
                 midi2din: ActiveState::Off,
                 trigger: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
@@ -382,7 +382,7 @@ mod tests {
             assert_eq!(bytes.len(), 11);
             assert_eq!(bytes[0], PadKind::Note as u8);
             assert_eq!(bytes[1], MidiChannel::COMMON as u8);
-            assert_eq!(bytes[2], Note::N60 as u8);
+            assert_eq!(bytes[2], 60);
             assert_eq!(bytes[9], PadColor::Red as u8);
             assert_eq!(bytes[10], PadColor::Green as u8);
         }
@@ -407,7 +407,7 @@ mod tests {
             assert_eq!(pad.id, ControlId(3));
             assert_eq!(pad.kind, PadKind::Note);
             assert_eq!(pad.channel, MidiChannel::A5);
-            assert_eq!(pad.note, Note::N72);
+            assert_eq!(pad.note, MidiNote::from(72));
             assert_eq!(pad.trigger, TriggerKind::Toggle);
             assert_eq!(pad.aftertouch, AfterTouchKind::Poly);
             assert_eq!(pad.off_color, PadColor::Amber);
@@ -597,7 +597,7 @@ mod tests {
                 msb: 0.into(),
                 lsb: 0.into(),
                 midi2din: ActiveState::On,
-                note: 60,
+                note: 60.into(),
                 velo: 100.into(),
                 invert: ActiveState::Off,
                 key1: 0,

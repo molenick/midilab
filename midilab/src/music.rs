@@ -3,7 +3,7 @@ use num_enum::TryFromPrimitive;
 use strum_macros::Display;
 use strum_macros::EnumIter;
 
-use crate::midi::Note;
+use crate::midi::MidiNote;
 use crate::midi::Octave as MidiOctave;
 
 /// Chord voicings represent different ways to arrange the notes of a chord.
@@ -78,8 +78,8 @@ impl Default for ChordRowSequence {
 }
 
 impl ChordRowSequence {
-    pub fn as_midi_notes(&self) -> Vec<u8> {
-        self.as_pitches().iter().map(|p| p.as_midi_note()).collect()
+    pub fn as_midi_notes(&self) -> Vec<MidiNote> {
+        self.as_pitches().iter().map(MidiNote::from).collect()
     }
 
     pub fn as_pitches(&self) -> Vec<Pitch> {
@@ -98,13 +98,13 @@ impl ChordRowSequence {
             if scale_pitches.len() >= needed_degrees {
                 break;
             }
-            let step = match self.direction {
-                SequenceDirection::Ascending => intervals[i % intervals.len()],
+            let signed_step = match self.direction {
+                SequenceDirection::Ascending => intervals[i % intervals.len()] as i8,
                 SequenceDirection::Descending => {
-                    intervals[(intervals.len() - 1) - (i % intervals.len())]
+                    -(intervals[(intervals.len() - 1) - (i % intervals.len())] as i8)
                 }
             };
-            current_pitch = current_pitch.advance(self.tonic, self.direction, step);
+            current_pitch = current_pitch.add_semitones(signed_step);
             scale_pitches.push(current_pitch);
         }
 
@@ -145,6 +145,8 @@ pub struct ScaleSequence {
     pub scale: ScaleKind,
     /// are the notes ascending or descending?
     pub direction: SequenceDirection,
+    // todo: this should be music::Octave. We're pushing ScaleSequence et al to be "config" that generates
+    // other kinds of sequences, not tied to "midi"
     /// what is the octave of the tonic where the sequence begins?
     pub octave: MidiOctave,
     /// how notes do we want the sequence to produce?
@@ -163,12 +165,12 @@ impl Default for ScaleSequence {
 }
 
 impl ScaleSequence {
-    pub fn as_midi_notes(&self) -> Vec<u8> {
+    pub fn as_midi_notes(&self) -> Vec<MidiNote> {
         let pitches: Vec<Pitch> = self.as_pitches();
         let mut notes = Vec::with_capacity(self.length);
 
         for pitch in pitches {
-            notes.push(pitch.as_midi_note());
+            notes.push(MidiNote::from(&pitch));
         }
 
         notes
@@ -185,13 +187,13 @@ impl ScaleSequence {
         for i in 0..self.length {
             pitches.push(current_pitch);
 
-            let step = match self.direction {
-                SequenceDirection::Ascending => intervals[i % intervals.len()],
+            let signed_step = match self.direction {
+                SequenceDirection::Ascending => intervals[i % intervals.len()] as i8,
                 SequenceDirection::Descending => {
-                    intervals[(intervals.len() - 1) - (i % intervals.len())]
+                    -(intervals[(intervals.len() - 1) - (i % intervals.len())] as i8)
                 }
             };
-            current_pitch = current_pitch.advance(self.tonic, self.direction, step);
+            current_pitch = current_pitch.add_semitones(signed_step);
         }
 
         pitches
@@ -237,26 +239,19 @@ pub struct Pitch {
     pub octave: Octave,
 }
 
-impl Pitch {
-    pub fn as_midi_note(&self) -> u8 {
-        (12 * (self.octave.0 as i16 + 1) + self.class as i16).clamp(0, 127) as u8
-    }
-
-    pub fn advance(&self, _tonic: PitchClass, direction: SequenceDirection, step: u8) -> Self {
-        let current_midi = self.as_midi_note();
-        let new_midi = match direction {
-            SequenceDirection::Ascending => current_midi.saturating_add(step).min(127),
-            SequenceDirection::Descending => current_midi.saturating_sub(step),
-        };
-        Pitch::from(new_midi)
-    }
-}
-
 impl From<u8> for Pitch {
     fn from(value: u8) -> Self {
         let octave = Octave((value / 12) as i8 - 1);
         let class = PitchClass::from_midi_note(value);
         Self { class, octave }
+    }
+}
+
+impl Pitch {
+    pub fn add_semitones(self, semitones: i8) -> Self {
+        let absolute = 12 * (self.octave.0 as i16 + 1) + u8::from(self.class) as i16;
+        let new_absolute = (absolute + semitones as i16).clamp(0, 127) as u8;
+        Pitch::from(new_absolute)
     }
 }
 
@@ -346,12 +341,10 @@ impl PitchClass {
     }
 }
 
-impl From<Note> for PitchClass {
-    fn from(note: Note) -> Self {
-        {
-            let semitone = u8::from(note) % 12;
-            PitchClass::try_from_primitive(semitone).unwrap()
-        }
+impl From<MidiNote> for PitchClass {
+    fn from(note: MidiNote) -> Self {
+        let semitone = note.as_u8() % 12;
+        PitchClass::try_from_primitive(semitone).unwrap()
     }
 }
 
@@ -371,7 +364,7 @@ impl NotePattern {
         }
     }
 
-    pub fn as_midi_notes(&self) -> Vec<u8> {
+    pub fn as_midi_notes(&self) -> Vec<MidiNote> {
         match self {
             NotePattern::Scale(seq) => seq.as_midi_notes(),
             NotePattern::ChordRow(seq) => seq.as_midi_notes(),
@@ -462,8 +455,8 @@ mod tests {
         let notes = ss.as_midi_notes();
 
         assert_eq!(notes.len(), 64);
-        assert_eq!(notes[0], 60);
-        assert_eq!(notes[63], 123);
+        assert_eq!(notes[0].as_u8(), 60);
+        assert_eq!(notes[63].as_u8(), 123);
     }
 
     #[test]
@@ -475,7 +468,7 @@ mod tests {
             octave: MidiOctave::O4,
             length: 16,
         };
-        let notes: Vec<u8> = ss.as_midi_notes();
+        let notes: Vec<u8> = ss.as_midi_notes().into_iter().map(u8::from).collect();
 
         assert_eq!(
             notes,
@@ -494,7 +487,7 @@ mod tests {
             octave: MidiOctave::O4,
             length: 16,
         };
-        let notes = ss.as_midi_notes();
+        let notes: Vec<u8> = ss.as_midi_notes().into_iter().map(u8::from).collect();
 
         assert_eq!(
             notes,
@@ -513,7 +506,7 @@ mod tests {
             octave: MidiOctave::O5,
             length: 16,
         };
-        let notes = ss.as_midi_notes();
+        let notes: Vec<u8> = ss.as_midi_notes().into_iter().map(u8::from).collect();
 
         assert_eq!(
             notes,
@@ -532,7 +525,7 @@ mod tests {
             octave: MidiOctave::O4,
             length: 16,
         };
-        let notes = ss.as_midi_notes();
+        let notes: Vec<u8> = ss.as_midi_notes().into_iter().map(u8::from).collect();
 
         assert_eq!(
             notes,
@@ -551,7 +544,7 @@ mod tests {
             octave: MidiOctave::O4,
             length: 16,
         };
-        let notes = ss.as_midi_notes();
+        let notes: Vec<u8> = ss.as_midi_notes().into_iter().map(u8::from).collect();
 
         assert_eq!(
             notes,
@@ -597,7 +590,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         // Cmaj7: C4(60), E4(64), G4(67), B4(71)
         // Dm7:   D4(62), F4(65), A4(69), C5(72)
         assert_eq!(notes, vec![60, 64, 67, 71, 62, 65, 69, 72]);
@@ -613,7 +606,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         // C triad + root octave: C4(60), E4(64), G4(67), C5(72)
         // D triad + root octave: D4(62), F4(65), A4(69), D5(74)
         assert_eq!(notes, vec![60, 64, 67, 72, 62, 65, 69, 74]);
@@ -632,8 +625,8 @@ mod tests {
         let notes = seq.as_midi_notes();
         assert_eq!(notes.len(), 16);
         // Should not panic and all notes should be <= 127
-        for &n in &notes {
-            assert!(n <= 127);
+        for n in &notes {
+            assert!(n.as_u8() <= 127);
         }
     }
 
@@ -647,7 +640,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![64, 67, 71, 72, 65, 69, 72, 74]);
     }
 
@@ -661,7 +654,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![67, 71, 72, 76, 69, 72, 74, 77]);
     }
 
@@ -675,7 +668,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![71, 72, 76, 79, 72, 74, 77, 81]);
     }
 
@@ -689,7 +682,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![55, 60, 64, 71, 57, 62, 65, 72]);
     }
 
@@ -703,7 +696,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![60, 65, 71, 76, 62, 67, 72, 77]);
     }
 
@@ -717,7 +710,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![60, 64, 71, 72, 62, 65, 72, 74]);
     }
 
@@ -731,7 +724,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![60, 67, 72, 79, 62, 69, 74, 81]);
     }
 
@@ -745,7 +738,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![60, 64, 67, 74, 62, 65, 69, 76]);
     }
 
@@ -759,7 +752,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes = seq.as_midi_notes();
+        let notes: Vec<u8> = seq.as_midi_notes().into_iter().map(u8::from).collect();
         assert_eq!(notes, vec![60, 64, 71, 74, 62, 65, 72, 76]);
     }
 
@@ -780,46 +773,46 @@ mod tests {
             length: 1,
         };
 
-        assert_eq!(o2.as_midi_notes()[0], 36);
-        assert_eq!(o6.as_midi_notes()[0], 84);
+        assert_eq!(o2.as_midi_notes()[0].as_u8(), 36);
+        assert_eq!(o6.as_midi_notes()[0].as_u8(), 84);
     }
 
     #[test]
     fn test_negative_octaves_no_overflow() {
         // Osub1: 12 * (-1 + 1) + 0 = 0
         assert_eq!(
-            Pitch {
+            MidiNote::from(&Pitch {
                 class: PitchClass::C,
                 octave: Octave(-1)
-            }
-            .as_midi_note(),
+            })
+            .as_u8(),
             0
         );
         // Osub1: C# = 1
         assert_eq!(
-            Pitch {
+            MidiNote::from(&Pitch {
                 class: PitchClass::Cs,
                 octave: Octave(-1)
-            }
-            .as_midi_note(),
+            })
+            .as_u8(),
             1
         );
         // Osub2: 12 * (-2 + 1) + 0 = -12 → clamps to 0
         assert_eq!(
-            Pitch {
+            MidiNote::from(&Pitch {
                 class: PitchClass::C,
                 octave: Octave(-2)
-            }
-            .as_midi_note(),
+            })
+            .as_u8(),
             0
         );
         // Osub2: B = 11 → 12 * (-1) + 11 = -1 → clamps to 0
         assert_eq!(
-            Pitch {
+            MidiNote::from(&Pitch {
                 class: PitchClass::B,
                 octave: Octave(-2)
-            }
-            .as_midi_note(),
+            })
+            .as_u8(),
             0
         );
     }
