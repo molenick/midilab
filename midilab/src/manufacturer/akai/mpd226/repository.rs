@@ -226,9 +226,9 @@ mod tests {
     use crate::manufacturer::akai::mpd226::raw::RawFader;
     use crate::manufacturer::akai::mpd226::raw::RawPad;
     use crate::manufacturer::akai::mpd226::raw::RawSwitch;
+    use crate::midi::Octave;
     use crate::music::ChordRowSequence;
     use crate::music::ChordVoicing;
-    use crate::music::Octave;
     use crate::music::PitchClass;
     use crate::music::ScaleKind;
     use crate::music::ScaleSequence;
