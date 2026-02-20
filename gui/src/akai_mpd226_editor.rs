@@ -44,8 +44,8 @@ use midilab::message::PendingFileAction;
 use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserMsg;
+use midilab::midi::MidiNote;
 use midilab::midi::MidiValue;
-use midilab::midi::Note;
 use midilab::midi::Octave;
 use midilab::music::ChordRowSequence;
 use midilab::music::NotePattern;
@@ -1052,7 +1052,7 @@ fn render_pad_editor(ui: &mut Ui, pad: &mut Pad) {
             .show(ui, |ui| {
                 row_edit_enum(ui, "kind", &mut pad.kind);
                 row_edit_enum(ui, "channel", &mut pad.channel);
-                row_edit_note(ui, "note", &mut pad.note);
+                row_edit_midi_note(ui, "note", &mut pad.note);
                 row_edit_enum(ui, "midi to din", &mut pad.midi2din);
                 row_edit_enum(ui, "trigger", &mut pad.trigger);
                 row_edit_enum(ui, "aftertouch", &mut pad.aftertouch);
@@ -1116,7 +1116,7 @@ fn render_switch_editor(ui: &mut Ui, switch: &mut Switch) {
                 row_edit_u8(ui, "msb", &mut switch.msb.into());
                 row_edit_u8(ui, "lsb", &mut switch.lsb.into());
                 row_edit_enum(ui, "midi to din", &mut switch.midi2din);
-                row_edit_u8(ui, "note", &mut switch.note);
+                row_edit_midi_note(ui, "note", &mut switch.note);
                 row_edit_u8(ui, "velo", &mut switch.velo.into());
                 row_edit_enum(ui, "invert", &mut switch.invert);
             });
@@ -1185,6 +1185,15 @@ fn row_edit_u8(ui: &mut Ui, name: &str, value: &mut u8) {
     ui.end_row();
 }
 
+fn row_edit_midi_note(ui: &mut Ui, name: &str, value: &mut MidiNote) {
+    ui.label(name);
+    let mut val: u8 = (*value).into();
+    if ui.add(DragValue::new(&mut val).range(0..=127)).changed() {
+        *value = MidiNote::from(val);
+    }
+    ui.end_row();
+}
+
 fn row_edit_midi_value(ui: &mut Ui, name: &str, value: &mut MidiValue) {
     ui.label(name);
     let val: u8 = (*value).into();
@@ -1192,17 +1201,6 @@ fn row_edit_midi_value(ui: &mut Ui, name: &str, value: &mut MidiValue) {
 
     if ui.add(DragValue::new(&mut val).range(0..=127)).changed() {
         *value = MidiValue::from(val);
-    }
-    ui.end_row();
-}
-
-fn row_edit_note(ui: &mut Ui, name: &str, value: &mut Note) {
-    ui.label(name);
-    let mut val = *value as u32;
-    if ui.add(DragValue::new(&mut val).range(0..=127)).changed()
-        && let Ok(note) = Note::try_from(val as u8)
-    {
-        *value = note;
     }
     ui.end_row();
 }

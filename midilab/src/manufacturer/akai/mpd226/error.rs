@@ -19,7 +19,6 @@ use crate::manufacturer::akai::mpd226::control::value_kind::TimeDivision;
 use crate::manufacturer::akai::mpd226::control::value_kind::TransportKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::TriggerKind;
 use crate::manufacturer::akai::mpd226::control::value_kind::UsbChannel;
-use crate::midi::Note;
 
 #[derive(Debug, thiserror::Error)]
 
@@ -69,8 +68,6 @@ pub enum PadParseError {
     Kind(TryFromPrimitiveError<PadKind>),
     #[error("invalid channel: {0}")]
     Channel(TryFromPrimitiveError<MidiChannel>),
-    #[error("invalid note: {0}")]
-    Note(TryFromPrimitiveError<Note>),
     #[error("invalid midi2din: {0}")]
     Midi2Din(TryFromPrimitiveError<ActiveState>),
     #[error("invalid trigger: {0}")]
