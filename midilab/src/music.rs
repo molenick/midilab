@@ -198,6 +198,8 @@ impl ScaleSequence {
 }
 
 /// The octave as represented by Scientific Pitch Notation: https://en.wikipedia.org/wiki/Scientific_pitch_notation
+/// Its variants demonstrate a tiny bit of midi domain pollution (their set it defined to be within midi note
+/// range), but we can tolerate this for the foreseeable future.
 #[repr(i8)]
 #[derive(Copy, Clone, Debug, EnumIter, PartialEq, Eq)]
 pub enum Octave {
