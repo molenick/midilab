@@ -1,7 +1,9 @@
 use strum_macros::EnumIter;
 
-use crate::music::Pitch;
-use crate::music::PitchClass;
+use crate::music::theory::Pitch;
+use crate::music::theory::PitchClass;
+
+pub mod generation;
 
 /// The octave as represented by Scientific Pitch Notation, bounded to the
 /// range representable as MIDI notes (0–127). Use `music::Octave` for

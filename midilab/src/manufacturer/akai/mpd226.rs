@@ -39,8 +39,8 @@ use crate::manufacturer::akai::mpd226::repository::DialRepository;
 use crate::manufacturer::akai::mpd226::repository::FaderRepository;
 use crate::manufacturer::akai::mpd226::repository::PadRepository;
 use crate::manufacturer::akai::mpd226::repository::SwitchRepository;
-use crate::music::NotePattern;
-use crate::music::PitchClass;
+use crate::music::generation::PitchPattern;
+use crate::music::theory::PitchClass;
 use crate::sysex::Sysex;
 use crate::sysex::unpack_u14;
 
@@ -738,12 +738,12 @@ impl ColorPattern {
         }
     }
 }
-impl From<(NotePattern, NoteColorMap)> for ColorPattern {
-    fn from((np, m): (NotePattern, NoteColorMap)) -> Self {
+impl From<(PitchPattern, NoteColorMap)> for ColorPattern {
+    fn from((np, m): (PitchPattern, NoteColorMap)) -> Self {
         let mut pattern: Vec<ColorSequence> = Vec::with_capacity(np.len());
         let pcs = np.as_pitches();
 
-        for p in pcs {
+        for p in pcs.0 {
             if let Some(c) = m.0.get(&p.class) {
                 const PITCH_SEQ_LEN: usize = 1;
                 let cs = ColorSequence {
@@ -798,7 +798,7 @@ mod tests {
     use super::*;
     use crate::manufacturer::akai::mpd226::control::ControlId;
     use crate::midi::MidiNote;
-    use crate::music::ScaleSequence;
+    use crate::music::generation::ScaleSequence;
 
     #[test]
     fn test_pad_repository_direct_mutation() {
@@ -811,12 +811,13 @@ mod tests {
 
     #[test]
     fn test_note_mapping() {
+        use crate::midi::generation::MidiNoteSequence;
         let seq = ScaleSequence {
             length: 1,
             ..Default::default()
         };
 
-        assert_eq!(seq.as_midi_notes().len(), 1);
+        assert_eq!(MidiNoteSequence::from(seq.as_pitches()).0.len(), 1);
     }
 
     #[test]
@@ -1062,8 +1063,13 @@ mod tests {
 
     #[test]
     fn test_note_pattern_scale_delegates() {
+        use crate::midi::generation::MidiNoteSequence;
+        use crate::music::generation::PitchPattern;
         let seq = ScaleSequence::default();
-        let pattern = NotePattern::Scale(seq);
-        assert_eq!(pattern.as_midi_notes(), seq.as_midi_notes());
+        let pattern = PitchPattern::Scale(seq);
+        assert_eq!(
+            MidiNoteSequence::from(pattern.as_pitches()).0,
+            MidiNoteSequence::from(seq.as_pitches()).0
+        );
     }
 }
