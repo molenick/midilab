@@ -15,7 +15,7 @@ fn test_modal_for_different_control_types() {
         .with_size(APP_DIMENSIONS)
         .build_state(
             |ctx, app: &mut AkaiMpd226Editor| {
-                app.render_ui(ctx);
+                app.render(ctx);
             },
             app,
         );
