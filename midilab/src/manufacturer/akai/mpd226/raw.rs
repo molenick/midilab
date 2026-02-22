@@ -21,8 +21,8 @@ pub struct RawGlobalParamAck {
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct RawPresetAck {
-    pub _unknown1: u8,
     pub slot: u8,
+    pub _unknown1: u8,
 }
 
 #[repr(C)]
@@ -346,5 +346,18 @@ mod tests {
     #[test]
     fn test_raw_global_size() {
         assert_eq!(std::mem::size_of::<super::RawGlobal>(), 11);
+    }
+
+    #[test]
+    fn test_raw_preset_ack_size() {
+        assert_eq!(std::mem::size_of::<RawPresetAck>(), 2);
+    }
+
+    #[test]
+    fn test_raw_preset_ack_slot_is_byte_0() {
+        let bytes = [0x00u8, 0x01u8];
+        let ack: &RawPresetAck = bytemuck::from_bytes(&bytes);
+        assert_eq!(ack.slot, 0);
+        assert_eq!(ack._unknown1, 1);
     }
 }

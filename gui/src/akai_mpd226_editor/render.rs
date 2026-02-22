@@ -168,6 +168,7 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                         )));
                     }
 
+                    // todo: this is writing wrong slot
                     if ui.button("Write").clicked() {
                         ui_state.user_msg = None;
                         outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
