@@ -1062,6 +1062,12 @@ mod tests {
     }
 
     #[test]
+    fn test_preset_ack_ram_slot_parsed_correctly() {
+        let ack = PresetAck::try_from([0x00u8, 0x01u8].as_ref()).unwrap();
+        assert_eq!(ack.slot, control::value_kind::PresetSlot::RAM);
+    }
+
+    #[test]
     fn test_note_pattern_scale_delegates() {
         use crate::midi::generation::MidiNoteSequence;
         use crate::music::generation::PitchPattern;

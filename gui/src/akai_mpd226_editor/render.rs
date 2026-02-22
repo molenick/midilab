@@ -168,6 +168,7 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                         )));
                     }
 
+                    // todo: this is writing wrong slot
                     if ui.button("Write").clicked() {
                         ui_state.user_msg = None;
                         outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
@@ -772,13 +773,13 @@ fn dial_editor(ui: &mut Ui, dial: &mut Dial) {
             .show(ui, |ui| {
                 row_edit_enum(ui, "kind", &mut dial.kind);
                 row_edit_enum(ui, "channel", &mut dial.channel);
-                row_edit_u8(ui, "midicc", &mut dial.midicc.into());
-                row_edit_u8(ui, "min", &mut dial.min.into());
-                row_edit_u8(ui, "max", &mut dial.max.into());
+                row_edit_midi_value(ui, "midicc", &mut dial.midicc);
+                row_edit_midi_value(ui, "min", &mut dial.min);
+                row_edit_midi_value(ui, "max", &mut dial.max);
                 row_edit_enum(ui, "midi to din", &mut dial.midi2din);
-                row_edit_u8(ui, "msb", &mut dial.msb.into());
-                row_edit_u8(ui, "lsb", &mut dial.lsb.into());
-                row_edit_u8(ui, "value", &mut dial.value.into());
+                row_edit_midi_value(ui, "msb", &mut dial.msb);
+                row_edit_midi_value(ui, "lsb", &mut dial.lsb);
+                row_edit_midi_value(ui, "value", &mut dial.value);
             });
     });
 }
@@ -792,9 +793,9 @@ fn fader_editor(ui: &mut Ui, fader: &mut Fader) {
             .show(ui, |ui| {
                 row_edit_enum(ui, "kind", &mut fader.kind);
                 row_edit_enum(ui, "channel", &mut fader.channel);
-                row_edit_u8(ui, "midicc", &mut fader.midicc.into());
-                row_edit_u8(ui, "min", &mut fader.min.into());
-                row_edit_u8(ui, "max", &mut fader.max.into());
+                row_edit_midi_value(ui, "midicc", &mut fader.midicc);
+                row_edit_midi_value(ui, "min", &mut fader.min);
+                row_edit_midi_value(ui, "max", &mut fader.max);
                 row_edit_enum(ui, "midi to din", &mut fader.midi2din);
             });
     });
@@ -808,14 +809,14 @@ fn switch_editor(ui: &mut Ui, switch: &mut Switch) {
             .show(ui, |ui| {
                 row_edit_enum(ui, "kind", &mut switch.kind);
                 row_edit_enum(ui, "channel", &mut switch.channel);
-                row_edit_u8(ui, "midicc", &mut switch.midicc.into());
+                row_edit_midi_value(ui, "midicc", &mut switch.midicc);
                 row_edit_enum(ui, "mode", &mut switch.mode);
-                row_edit_u8(ui, "prog", &mut switch.prog.into());
-                row_edit_u8(ui, "msb", &mut switch.msb.into());
-                row_edit_u8(ui, "lsb", &mut switch.lsb.into());
+                row_edit_midi_value(ui, "prog", &mut switch.prog);
+                row_edit_midi_value(ui, "msb", &mut switch.msb);
+                row_edit_midi_value(ui, "lsb", &mut switch.lsb);
                 row_edit_enum(ui, "midi to din", &mut switch.midi2din);
                 row_edit_midi_note(ui, "note", &mut switch.note);
-                row_edit_u8(ui, "velo", &mut switch.velo.into());
+                row_edit_midi_value(ui, "velo", &mut switch.velo);
                 row_edit_enum(ui, "invert", &mut switch.invert);
             });
     });
@@ -872,14 +873,6 @@ where
                 ui.selectable_value(value, variant, format!("{}", variant));
             }
         });
-    ui.end_row();
-}
-
-fn row_edit_u8(ui: &mut Ui, name: &str, value: &mut u8) {
-    ui.label(name);
-
-    ui.add(DragValue::new(value).range(0..=127));
-
     ui.end_row();
 }
 
