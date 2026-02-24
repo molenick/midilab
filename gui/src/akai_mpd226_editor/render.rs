@@ -184,6 +184,36 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                 ui.separator();
 
                 ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label("Global Quick Actions");
+                        ui.horizontal(|ui| {
+                            row_edit_u8_clamped(
+                                ui,
+                                "Threshold",
+                                &mut ui_state.global.pad_threshold,
+                                0..=9,
+                            );
+                            row_edit_enum(ui, "Curve", &mut ui_state.global.pad_curve);
+                            row_edit_u8_clamped(ui, "Gain", &mut ui_state.global.pad_gain, 0..=20);
+
+                            if ui.button("Dump").clicked() {
+                                ui_state.user_msg = None;
+                                outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
+                            }
+
+                            if ui.button("Write").clicked() {
+                                ui_state.user_msg = None;
+                                outbox.push(AppMsg::Ui(UiEffect::SendGlobalToDevice(Box::new(
+                                    ui_state.global,
+                                ))));
+                            }
+                        });
+                    });
+                });
+
+                ui.separator();
+
+                ui.horizontal(|ui| {
                     ui.label("Status:");
 
                     if let Some(status) = &ui_state.user_msg {
