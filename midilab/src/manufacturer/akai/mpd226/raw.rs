@@ -46,6 +46,28 @@ pub struct RawHeader {
     pub length: [u8; 2],
 }
 
+impl RawHeader {
+    pub fn write_preset() -> Self {
+        Self {
+            mfg_id: SYSEX_MANUFACTURER_ID,
+            _unknown: 0,
+            device_id: DEVICE_ID,
+            cmd: DeviceCommandId::WritePreset.into(),
+            length: 0x3308_u16.to_le_bytes(),
+        }
+    }
+
+    pub fn dump_preset() -> Self {
+        RawHeader {
+            mfg_id: SYSEX_MANUFACTURER_ID,
+            _unknown: 0,
+            device_id: DEVICE_ID,
+            cmd: DeviceCommandId::DumpPreset.into(),
+            length: [0x00, 0x01],
+        }
+    }
+}
+
 impl<C: Into<u8> + Copy> From<&DeviceHeader<C>> for RawHeader {
     fn from(value: &DeviceHeader<C>) -> Self {
         RawHeader {
@@ -219,6 +241,8 @@ impl RawGlobal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manufacturer::akai::SYSEX_MANUFACTURER_ID;
+    use crate::manufacturer::akai::mpd226::DEVICE_ID;
     use crate::manufacturer::akai::mpd226::DeviceCommandId;
     use crate::manufacturer::akai::mpd226::dump_preset_from_device;
 
@@ -359,5 +383,26 @@ mod tests {
         let ack: &RawPresetAck = bytemuck::from_bytes(&bytes);
         assert_eq!(ack.slot, 0);
         assert_eq!(ack._unknown1, 1);
+    }
+
+    #[test]
+    fn test_raw_header_write_preset() {
+        let header = RawHeader::write_preset();
+        assert_eq!(header.mfg_id, SYSEX_MANUFACTURER_ID);
+        assert_eq!(header._unknown, 0);
+        assert_eq!(header.device_id, DEVICE_ID);
+        assert_eq!(header.cmd, u8::from(DeviceCommandId::WritePreset));
+        // 1075 (RawPreset size) encoded as MIDI 14-bit: high 7 bits = 0x08, low 7 bits = 0x33
+        assert_eq!(header.length, 0x3308_u16.to_le_bytes());
+    }
+
+    #[test]
+    fn test_raw_header_dump_preset() {
+        let header = RawHeader::dump_preset();
+        assert_eq!(header.mfg_id, SYSEX_MANUFACTURER_ID);
+        assert_eq!(header._unknown, 0);
+        assert_eq!(header.device_id, DEVICE_ID);
+        assert_eq!(header.cmd, u8::from(DeviceCommandId::DumpPreset));
+        assert_eq!(header.length, 0x0100_u16.to_le_bytes());
     }
 }
