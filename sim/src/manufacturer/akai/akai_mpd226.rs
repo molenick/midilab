@@ -1,5 +1,4 @@
 use midilab::manufacturer::akai::SYSEX_MANUFACTURER_ID;
-use midilab::manufacturer::akai::mpd226::DEVICE_ID;
 use midilab::manufacturer::akai::mpd226::DeviceCommandId;
 use midilab::manufacturer::akai::mpd226::DeviceMessagePayload;
 use midilab::manufacturer::akai::mpd226::DeviceStatusId;
@@ -41,7 +40,7 @@ impl Mpd226Sim {
         match msg {
             SimMsg::SysexReceived(sysex) => {
                 let device_msg_payload: DeviceMessagePayload<DeviceCommandId> =
-                    match DeviceMessagePayload::try_from(sysex.clone()) {
+                    match DeviceMessagePayload::try_from(sysex) {
                         Ok(h) => h,
                         Err(e) => {
                             eprintln!("{}", e);
@@ -129,16 +128,7 @@ fn ack_preset(slot: PresetSlot) -> Vec<u8> {
 }
 
 fn dump_preset(raw: &RawPreset) -> Vec<u8> {
-    let header = RawHeader {
-        mfg_id: SYSEX_MANUFACTURER_ID,
-        _unknown: 0,
-        device_id: DEVICE_ID,
-        cmd: DeviceCommandId::WritePreset as u8,
-        length: 0x3308_u16.to_le_bytes(),
-    };
-
-    // todo: alt would be construct and serialize a DeviceMsg
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
+    let mut sysex_payload = bytemuck::bytes_of(&RawHeader::write_preset()).to_vec();
     sysex_payload.extend_from_slice(bytemuck::bytes_of(raw));
     sysex_payload
 }
@@ -275,5 +265,115 @@ impl SimHandle {
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use midilab::manufacturer::akai::mpd226::DeviceHeader;
+    use midilab::manufacturer::akai::mpd226::DeviceStatus;
+    use midilab::manufacturer::akai::mpd226::dump_global_from_device;
+    use midilab::manufacturer::akai::mpd226::dump_preset_from_device;
+    use midilab::manufacturer::akai::mpd226::write_global_param_to_device;
+
+    use super::*;
+
+    #[test]
+    fn test_sim_update_write_preset() {
+        let mut sim = Mpd226Sim::default();
+        let preset = Preset::default();
+        let cmd = DeviceCommandId::WritePreset;
+        let sysex = preset.as_sysex_write();
+
+        // Verify as_sysex_write produces the expected header before feeding to sim
+        let payload: DeviceMessagePayload<DeviceCommandId> =
+            DeviceMessagePayload::try_from(sysex.clone()).unwrap();
+        assert_eq!(
+            payload.header,
+            DeviceHeader {
+                cmd,
+                message_length: 1075
+            }
+        );
+
+        let effect = sim.update(SimMsg::SysexReceived(sysex));
+
+        let response = match effect {
+            SimEffect::SendSysex(s) => s,
+            SimEffect::Noop => panic!("expected SendSysex"),
+        };
+
+        let status = DeviceStatus::try_from(response.as_bytes().as_slice()).unwrap();
+        match status {
+            DeviceStatus::ReceivedPresetAck(ack) => {
+                assert_eq!(ack.slot, preset.settings.preset_slot)
+            }
+            _ => panic!("expected ReceivedPresetAck"),
+        }
+
+        // Verify the preset was stored in sim state
+        let slot = preset.settings.preset_slot;
+        assert_eq!(sim.presets[slot as usize].as_bytes(), preset.as_bytes());
+    }
+
+    #[test]
+    fn test_sim_update_dump_preset() {
+        let mut sim = Mpd226Sim::default();
+        let request_bytes = dump_preset_from_device(PresetSlot::RAM as u8);
+        let sysex = Sysex::try_from(request_bytes.as_slice()).unwrap();
+
+        let effect = sim.update(SimMsg::SysexReceived(sysex));
+
+        let response = match effect {
+            SimEffect::SendSysex(s) => s,
+            _ => panic!("expected SendSysex"),
+        };
+
+        let status = DeviceStatus::try_from(response.as_bytes().as_slice()).unwrap();
+        assert!(matches!(status, DeviceStatus::PresetData(_)));
+    }
+
+    #[test]
+    fn test_sim_update_dump_global() {
+        let mut sim = Mpd226Sim::default();
+        let request_bytes = dump_global_from_device();
+        let sysex = Sysex::try_from(request_bytes.as_slice()).unwrap();
+
+        let effect = sim.update(SimMsg::SysexReceived(sysex));
+
+        let response = match effect {
+            SimEffect::SendSysex(s) => s,
+            _ => panic!("expected SendSysex"),
+        };
+
+        let status = DeviceStatus::try_from(response.as_bytes().as_slice()).unwrap();
+        assert!(matches!(status, DeviceStatus::GlobalData(_)));
+    }
+
+    #[test]
+    fn test_sim_update_write_global() {
+        use midilab::manufacturer::akai::mpd226::GlobalParamCmdId;
+
+        let mut sim = Mpd226Sim::default();
+        let addr = GlobalParamCmdId::LcdContrast as u8;
+        let value = 75u8;
+        let request_bytes = write_global_param_to_device(addr, value);
+        let sysex = Sysex::try_from(request_bytes.as_slice()).unwrap();
+
+        let effect = sim.update(SimMsg::SysexReceived(sysex));
+
+        let response = match effect {
+            SimEffect::SendSysex(s) => s,
+            _ => panic!("expected SendSysex"),
+        };
+
+        let status = DeviceStatus::try_from(response.as_bytes().as_slice()).unwrap();
+        match status {
+            DeviceStatus::GlobalParamAck(ack) => assert_eq!(ack.addr as u8, addr),
+            _ => panic!("expected GlobalParamAck"),
+        }
+
+        // Verify the global param was stored in sim state
+        assert_eq!(sim.global.lcd_contrast, value);
     }
 }

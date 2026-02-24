@@ -96,31 +96,13 @@ pub enum DeviceCommandId {
 }
 
 pub fn dump_preset_from_device(slot: u8) -> Vec<u8> {
-    let length = u16::from_le_bytes([0x00, 0x01]).to_le_bytes();
-
-    let header = RawHeader {
-        mfg_id: SYSEX_MANUFACTURER_ID,
-        _unknown: 0,
-        device_id: DEVICE_ID,
-        cmd: DeviceCommandId::DumpPreset as u8,
-        length,
-    };
-
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
+    let mut sysex_payload = bytemuck::bytes_of(&RawHeader::dump_preset()).to_vec();
     sysex_payload.extend_from_slice(bytemuck::bytes_of(&slot));
     Sysex::new(sysex_payload).as_bytes()
 }
 
 pub fn write_preset_to_device(preset: &RawPreset) -> Vec<u8> {
-    let header = RawHeader {
-        mfg_id: SYSEX_MANUFACTURER_ID,
-        _unknown: 0,
-        device_id: DEVICE_ID,
-        cmd: DeviceCommandId::WritePreset as u8,
-        length: 0x3308_u16.to_le_bytes(),
-    };
-
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
+    let mut sysex_payload = bytemuck::bytes_of(&RawHeader::write_preset()).to_vec();
     sysex_payload.extend_from_slice(bytemuck::bytes_of(preset));
     Sysex::new(sysex_payload).as_bytes()
 }
@@ -172,7 +154,7 @@ impl<C: TryFrom<u8>> TryFrom<&[u8]> for DeviceMessagePayload<C> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct DeviceHeader<C> {
     pub cmd: C,
     pub message_length: u16,
@@ -346,6 +328,20 @@ impl Preset {
             faders,
             switches,
         }
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let raw = RawPreset::from(self);
+        bytemuck::bytes_of(&raw).to_vec()
+    }
+
+    pub fn as_sysex_write(&self) -> Sysex {
+        let preset = self.as_bytes();
+        let header = RawHeader::write_preset();
+        let header = bytemuck::bytes_of(&header);
+        let bytes = header.iter().chain(&preset).cloned().collect::<Vec<u8>>();
+
+        Sysex::new(bytes)
     }
 }
 
@@ -1076,6 +1072,30 @@ mod tests {
         assert_eq!(
             MidiNoteSequence::from(pattern.as_pitches()).0,
             MidiNoteSequence::from(seq.as_pitches()).0
+        );
+    }
+
+    #[test]
+    fn test_preset_as_bytes_size() {
+        let preset = Preset::default();
+        assert_eq!(
+            preset.as_bytes().len(),
+            std::mem::size_of::<raw::RawPreset>()
+        );
+    }
+
+    #[test]
+    fn test_preset_as_sysex_write() {
+        let preset = Preset::default();
+        let sysex = preset.as_sysex_write();
+
+        let payload: DeviceMessagePayload<DeviceCommandId> =
+            DeviceMessagePayload::try_from(sysex).unwrap();
+
+        assert_eq!(payload.header.cmd, DeviceCommandId::WritePreset);
+        assert_eq!(
+            payload.header.message_length as usize,
+            std::mem::size_of::<raw::RawPreset>()
         );
     }
 }
