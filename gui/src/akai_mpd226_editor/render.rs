@@ -158,9 +158,6 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
             ui.vertical(|ui| {
                 ui.label("Preset Quick Actions");
                 ui.horizontal(|ui| {
-                    row_edit_enum(ui, "Slot", &mut ui_state.preset.settings.preset_slot);
-                    row_edit_preset_name(ui, "Name", &mut ui_state.preset.settings.preset_name);
-
                     if ui.button("Dump").clicked() {
                         ui_state.user_msg = None;
                         outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
@@ -168,7 +165,6 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                         )));
                     }
 
-                    // todo: this is writing wrong slot
                     if ui.button("Write").clicked() {
                         ui_state.user_msg = None;
                         outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
@@ -176,7 +172,23 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
 
                     ui.separator();
 
-                    if ui.button("Pad Mapping").clicked() {
+                    row_edit_enum(ui, "Slot", &mut ui_state.preset.settings.preset_slot);
+                    row_edit_preset_name(ui, "Name", &mut ui_state.preset.settings.preset_name);
+
+                    ui.separator();
+
+                    ui.label("Pads:");
+                    ui.label("Aftertouch");
+                    enum_combo_box(ui, "aftertouch", &mut ui_state.aftertouch_kind, None);
+                    // todo: this means 2 taps, but we prob want to reduce to 1 later
+                    if ui.button("Apply").clicked() {
+                        ui_state
+                            .preset
+                            .pads
+                            .map_aftertouch(ui_state.aftertouch_kind);
+                    }
+
+                    if ui.button("Note Mapping").clicked() {
                         ui_state.selected_item = Some(UserSelection::PadNoteMapping);
                     }
                 });
@@ -187,16 +199,6 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                     ui.vertical(|ui| {
                         ui.label("Global Quick Actions");
                         ui.horizontal(|ui| {
-                            row_edit_u8_clamped(
-                                ui,
-                                "Threshold",
-                                &mut ui_state.global.pad_threshold,
-                                1..=10,
-                            );
-
-                            row_edit_enum(ui, "Curve", &mut ui_state.global.pad_curve);
-                            row_edit_u8_clamped(ui, "Gain", &mut ui_state.global.pad_gain, 0..=20);
-
                             if ui.button("Dump").clicked() {
                                 ui_state.user_msg = None;
                                 outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
@@ -208,6 +210,17 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                                     ui_state.global,
                                 ))));
                             }
+                            ui.separator();
+
+                            row_edit_u8_clamped(
+                                ui,
+                                "Threshold",
+                                &mut ui_state.global.pad_threshold,
+                                1..=10,
+                            );
+
+                            row_edit_enum(ui, "Curve", &mut ui_state.global.pad_curve);
+                            row_edit_u8_clamped(ui, "Gain", &mut ui_state.global.pad_gain, 0..=20);
                         });
                     });
                 });
@@ -784,7 +797,7 @@ fn pad_editor(ui: &mut Ui, pad: &mut Pad) {
                 row_edit_enum(ui, "channel", &mut pad.channel);
                 row_edit_midi_note(ui, "note", &mut pad.note);
                 row_edit_enum(ui, "midi to din", &mut pad.midi2din);
-                row_edit_enum(ui, "trigger", &mut pad.mode);
+                row_edit_enum(ui, "trigger mode", &mut pad.mode);
                 row_edit_enum(ui, "aftertouch", &mut pad.aftertouch);
                 row_edit_midi_value(ui, "program", &mut pad.program);
                 row_edit_midi_value(ui, "msb", &mut pad.msb);
@@ -841,7 +854,7 @@ fn switch_editor(ui: &mut Ui, switch: &mut Switch) {
                 row_edit_enum(ui, "kind", &mut switch.kind);
                 row_edit_enum(ui, "channel", &mut switch.channel);
                 row_edit_midi_value(ui, "midicc", &mut switch.midicc);
-                row_edit_enum(ui, "mode", &mut switch.mode);
+                row_edit_enum(ui, "trigger mode", &mut switch.mode);
                 row_edit_midi_value(ui, "prog", &mut switch.prog);
                 row_edit_midi_value(ui, "msb", &mut switch.msb);
                 row_edit_midi_value(ui, "lsb", &mut switch.lsb);

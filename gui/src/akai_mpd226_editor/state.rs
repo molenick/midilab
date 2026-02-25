@@ -8,6 +8,7 @@ use midilab::manufacturer::akai::mpd226::Global;
 use midilab::manufacturer::akai::mpd226::NoteColorMap;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::ControlId;
+use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::message::AppMsg;
 use midilab::message::PendingFileAction;
@@ -147,6 +148,7 @@ pub struct UiState {
     pub note_mapping: NoteMappingState,
     pub off_color_mapping: ColorMappingState,
     pub on_color_mapping: ColorMappingState,
+    pub aftertouch_kind: AfterTouchKind,
     pub user_msg: Option<UserMsg>,
     pub pending_action: Option<PendingFileAction>,
     pub configured_directory: Option<PathBuf>,

@@ -7,6 +7,7 @@ use crate::manufacturer::akai::mpd226::control::Dial;
 use crate::manufacturer::akai::mpd226::control::Fader;
 use crate::manufacturer::akai::mpd226::control::Pad;
 use crate::manufacturer::akai::mpd226::control::Switch;
+use crate::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use crate::manufacturer::akai::mpd226::raw::RawDials;
 use crate::manufacturer::akai::mpd226::raw::RawFaders;
 use crate::manufacturer::akai::mpd226::raw::RawPads;
@@ -21,6 +22,13 @@ pub struct PadRepository {
 }
 
 impl PadRepository {
+    /// Maps an aftertouch value to all pads in repo
+    pub fn map_aftertouch(&mut self, aftertouch: AfterTouchKind) {
+        for pad in self.pads.iter_mut() {
+            pad.aftertouch = aftertouch;
+        }
+    }
+
     pub fn set_note_pattern(&mut self, starting_position: usize, pattern: PitchPattern) {
         let clamped_starting_position = starting_position.min(TOTAL_PADS);
         let notes = MidiNoteSequence::from(pattern.as_pitches()).0;
@@ -729,5 +737,27 @@ mod tests {
         assert_eq!(repo.pads[5].note, MidiNote::from(65));
         assert_eq!(repo.pads[6].note, MidiNote::from(69));
         assert_eq!(repo.pads[7].note, MidiNote::from(72));
+    }
+
+    #[test]
+    fn test_aftertouch_mapping() {
+        let mut repo = PadRepository::default();
+        repo.map_aftertouch(AfterTouchKind::Off);
+
+        for pad in repo.pads {
+            assert_eq!(pad.aftertouch, AfterTouchKind::Off);
+        }
+
+        repo.map_aftertouch(AfterTouchKind::Channel);
+
+        for pad in repo.pads {
+            assert_eq!(pad.aftertouch, AfterTouchKind::Channel);
+        }
+
+        repo.map_aftertouch(AfterTouchKind::Poly);
+
+        for pad in repo.pads {
+            assert_eq!(pad.aftertouch, AfterTouchKind::Poly);
+        }
     }
 }
