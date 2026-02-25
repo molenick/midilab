@@ -641,8 +641,8 @@ impl Default for Global {
             tap_average: TapAverage::default(),
             tempo_led: ActiveState::On,
             note_display: NoteDisplay::default(),
-            pad_gain: 0,
-            pad_threshold: 5,
+            pad_gain: 0,      // clamped: 0..=20
+            pad_threshold: 1, // clamped: 1..=10
             pad_curve: PadCurve::default(),
             midi_clock: MidiClock::default(),
         }
@@ -845,7 +845,7 @@ mod tests {
         assert_eq!(global.tempo_led, ActiveState::On);
         assert_eq!(global.note_display, NoteDisplay::Value);
         assert_eq!(global.pad_gain, 0);
-        assert_eq!(global.pad_threshold, 5);
+        assert_eq!(global.pad_threshold, 1);
         assert_eq!(global.pad_curve, PadCurve::Linear);
         assert_eq!(global.midi_clock, MidiClock::Internal);
     }
