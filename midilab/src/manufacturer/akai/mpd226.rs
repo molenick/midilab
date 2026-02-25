@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use error::PresetSettingsParseError;
 use num_enum::IntoPrimitive;
 use num_enum::TryFromPrimitive;
 
@@ -578,7 +579,6 @@ impl TryFrom<RawPresetSettings> for PresetSettings {
     type Error = error::PresetSettingsParseError;
 
     fn try_from(raw: RawPresetSettings) -> Result<Self, Self::Error> {
-        use error::PresetSettingsParseError;
         Ok(PresetSettings {
             preset_slot: PresetSlot::try_from(raw.preset)
                 .map_err(PresetSettingsParseError::PresetSlot)?,
@@ -791,10 +791,24 @@ pub struct ColorSequence {
 
 #[cfg(test)]
 mod tests {
+    use super::DeviceStatus;
+    use super::Global;
+    use super::control::Pad;
+    use super::control::value_kind::ActiveState;
+    use super::control::value_kind::MidiChannel;
+    use super::control::value_kind::MidiClock;
+    use super::control::value_kind::NoteDisplay;
+    use super::control::value_kind::PadCurve;
+    use super::control::value_kind::TapAverage;
+    use super::raw::RawGlobal;
+    use super::raw::RawPreset;
     use super::*;
     use crate::manufacturer::akai::mpd226::control::ControlId;
     use crate::midi::MidiNote;
+    use crate::midi::generation::MidiNoteSequence;
+    use crate::music::generation::PitchPattern;
     use crate::music::generation::ScaleSequence;
+    use crate::sysex::Sysex;
 
     #[test]
     fn test_pad_repository_direct_mutation() {
@@ -807,7 +821,6 @@ mod tests {
 
     #[test]
     fn test_note_mapping() {
-        use crate::midi::generation::MidiNoteSequence;
         let seq = ScaleSequence {
             length: 1,
             ..Default::default()
@@ -828,18 +841,9 @@ mod tests {
 
     #[test]
     fn test_global_default() {
-        use super::control::value_kind::ActiveState;
-        use super::control::value_kind::MidiClock;
-        use super::control::value_kind::NoteDisplay;
-        use super::control::value_kind::PadCurve;
-        use super::control::value_kind::TapAverage;
+        let global = Global::default();
 
-        let global = super::Global::default();
-
-        assert_eq!(
-            global.common_channel,
-            super::control::value_kind::UsbChannel::A1
-        );
+        assert_eq!(global.common_channel, UsbChannel::A1);
         assert_eq!(global.lcd_contrast, 50);
         assert_eq!(global.tap_average, TapAverage::Tap3);
         assert_eq!(global.tempo_led, ActiveState::On);
@@ -852,14 +856,6 @@ mod tests {
 
     #[test]
     fn test_global_round_trip_conversion() {
-        use super::Global;
-        use super::control::value_kind::ActiveState;
-        use super::control::value_kind::MidiClock;
-        use super::control::value_kind::NoteDisplay;
-        use super::control::value_kind::PadCurve;
-        use super::control::value_kind::TapAverage;
-        use super::raw::RawGlobal;
-
         let global = Global {
             common_channel: UsbChannel::A5,
             lcd_contrast: 42,
@@ -880,7 +876,7 @@ mod tests {
 
     #[test]
     fn test_global_dump_request_format() {
-        let request = super::dump_global_from_device();
+        let request = dump_global_from_device();
 
         assert_eq!(request.len(), 11);
         assert_eq!(request[0], 0xF0);
@@ -898,7 +894,7 @@ mod tests {
 
     #[test]
     fn test_global_write_param_format() {
-        let msg = super::write_global_param_to_device(0x02, 50);
+        let msg = write_global_param_to_device(0x02, 50);
 
         assert_eq!(msg.len(), 12);
         assert_eq!(msg[0], 0xF0);
@@ -917,8 +913,6 @@ mod tests {
 
     #[test]
     fn test_global_send_messages_count() {
-        use super::raw::RawGlobal;
-
         let raw = RawGlobal::default();
         let messages = raw.global_send_messages();
 
@@ -931,10 +925,6 @@ mod tests {
 
     #[test]
     fn trace_preset_channel_bytes() {
-        use super::control::Pad;
-        use super::control::value_kind::MidiChannel;
-        use super::raw::RawPreset;
-
         let a1_raw = MidiChannel::A1 as u8;
         assert_eq!(a1_raw, 1);
 
@@ -963,7 +953,7 @@ mod tests {
         let raw = RawPreset::from(&preset);
         let raw_bytes = bytemuck::bytes_of(&raw);
 
-        let settings_size = std::mem::size_of::<super::raw::RawPresetSettings>();
+        let settings_size = std::mem::size_of::<RawPresetSettings>();
         let pad_channel_offset = settings_size + 1;
         assert_eq!(raw_bytes[pad_channel_offset], 1,);
 
@@ -995,8 +985,6 @@ mod tests {
 
     #[test]
     fn trace_global_dump_response_strips_prefix() {
-        use super::DeviceStatus;
-
         let common_channel_a1: u8 = 0;
 
         let device_response = vec![
@@ -1038,9 +1026,6 @@ mod tests {
 
     #[test]
     fn test_device_status_global_ack_parsing() {
-        use super::DeviceStatus;
-        use crate::sysex::Sysex;
-
         let bytes = vec![
             0xF0, 0x47, 0x00, 0x35, 0x3C, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0xF7,
         ];
@@ -1060,13 +1045,11 @@ mod tests {
     #[test]
     fn test_preset_ack_ram_slot_parsed_correctly() {
         let ack = PresetAck::try_from([0x00u8, 0x01u8].as_ref()).unwrap();
-        assert_eq!(ack.slot, control::value_kind::PresetSlot::RAM);
+        assert_eq!(ack.slot, PresetSlot::RAM);
     }
 
     #[test]
     fn test_note_pattern_scale_delegates() {
-        use crate::midi::generation::MidiNoteSequence;
-        use crate::music::generation::PitchPattern;
         let seq = ScaleSequence::default();
         let pattern = PitchPattern::Scale(seq);
         assert_eq!(
@@ -1078,10 +1061,7 @@ mod tests {
     #[test]
     fn test_preset_as_bytes_size() {
         let preset = Preset::default();
-        assert_eq!(
-            preset.as_bytes().len(),
-            std::mem::size_of::<raw::RawPreset>()
-        );
+        assert_eq!(preset.as_bytes().len(), std::mem::size_of::<RawPreset>());
     }
 
     #[test]
@@ -1095,7 +1075,7 @@ mod tests {
         assert_eq!(payload.header.cmd, DeviceCommandId::WritePreset);
         assert_eq!(
             payload.header.message_length as usize,
-            std::mem::size_of::<raw::RawPreset>()
+            std::mem::size_of::<RawPreset>()
         );
     }
 }
