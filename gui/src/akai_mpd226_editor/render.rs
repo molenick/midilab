@@ -784,7 +784,7 @@ fn pad_editor(ui: &mut Ui, pad: &mut Pad) {
                 row_edit_enum(ui, "channel", &mut pad.channel);
                 row_edit_midi_note(ui, "note", &mut pad.note);
                 row_edit_enum(ui, "midi to din", &mut pad.midi2din);
-                row_edit_enum(ui, "trigger", &mut pad.trigger);
+                row_edit_enum(ui, "trigger", &mut pad.mode);
                 row_edit_enum(ui, "aftertouch", &mut pad.aftertouch);
                 row_edit_midi_value(ui, "program", &mut pad.program);
                 row_edit_midi_value(ui, "msb", &mut pad.msb);
