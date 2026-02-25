@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use crate::config::AppConfig;
 use crate::manufacturer::akai::mpd226::DeviceStatus;
 use crate::manufacturer::akai::mpd226::Global;
@@ -109,7 +107,6 @@ impl AppState {
                         AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                             msg: format!("Loaded preset slot {slot} from device"),
                             kind: UserMsgKind::Status,
-                            received_at: Instant::now(),
                         })),
                     ]
                 }
@@ -117,7 +114,6 @@ impl AppState {
                     vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: format!("Sent to device preset slot {}", ack.slot),
                         kind: UserMsgKind::Status,
-                        received_at: Instant::now(),
                     }))]
                 }
                 DeviceStatus::GlobalData(global) => {
@@ -127,7 +123,6 @@ impl AppState {
                         AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                             msg: "Loaded global settings from device".to_string(),
                             kind: UserMsgKind::Status,
-                            received_at: Instant::now(),
                         })),
                     ]
                 }
@@ -136,7 +131,6 @@ impl AppState {
                         vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                             msg: "Wrote global settings from device".to_string(),
                             kind: UserMsgKind::Status,
-                            received_at: Instant::now(),
                         }))]
                     } else {
                         let addr = ack.addr as u8;
@@ -144,7 +138,6 @@ impl AppState {
                         vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                             msg: format!("Global param {addr:#04x} write failed: status {status}"),
                             kind: UserMsgKind::Error,
-                            received_at: Instant::now(),
                         }))]
                     }
                 }
@@ -154,42 +147,36 @@ impl AppState {
                     Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: "Preset saved".to_string(),
                         kind: UserMsgKind::Status,
-                        received_at: Instant::now(),
                     }))],
                     Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: format!("Preset save failed: {e}"),
                         kind: UserMsgKind::Error,
-                        received_at: Instant::now(),
                     }))],
                 },
                 IoEffect::PresetLoadResult(result) => match result {
                     Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: "Preset loaded".to_string(),
                         kind: UserMsgKind::Status,
-                        received_at: Instant::now(),
                     }))],
                     Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: format!("Preset load failed: {e}"),
                         kind: UserMsgKind::Error,
-                        received_at: Instant::now(),
                     }))],
                 },
             },
             AppMsg::UserError(e) => match e {
                 UserError::Midi(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                     msg: e.to_string(),
-                    received_at: Instant::now(),
                     kind: UserMsgKind::Error,
                 }))],
                 UserError::SysexParse(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                     msg: e.to_string(),
-                    received_at: Instant::now(),
                     kind: UserMsgKind::Error,
                 }))],
                 UserError::DeviceStatusParse(e) => {
                     vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: e.to_string(),
-                        received_at: Instant::now(),
+
                         kind: UserMsgKind::Error,
                     }))]
                 }

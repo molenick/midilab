@@ -1,7 +1,10 @@
+#[cfg(unix)]
 use midilab_sim::manufacturer::akai::akai_mpd226::SimRunner;
 
+#[cfg(unix)]
 const PORT_NAME: &str = "MPD226 Remote";
 
+#[cfg(unix)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (runner, _handle) = SimRunner::start(PORT_NAME)?;
@@ -13,3 +16,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+#[cfg(not(unix))]
+fn main() {}

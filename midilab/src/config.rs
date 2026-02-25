@@ -1,3 +1,6 @@
+// todo: most of this should move to editor and be gated from wasm32
+
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -45,27 +48,41 @@ impl AppConfig {
     }
 
     pub fn load() -> Self {
-        Self::config_path()
-            .and_then(|path| fs::read_to_string(&path).ok())
-            .and_then(|content| serde_json::from_str(&content).ok())
-            .unwrap_or_default()
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Self::config_path()
+                .and_then(|path| fs::read_to_string(&path).ok())
+                .and_then(|content| serde_json::from_str(&content).ok())
+                .unwrap_or_default()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            Self::default()
+        }
     }
 
     pub fn save(&self) -> Result<(), ConfigError> {
-        let path = Self::config_path().ok_or_else(|| {
-            ConfigError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Could not determine config directory",
-            ))
-        })?;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let path = Self::config_path().ok_or_else(|| {
+                ConfigError::Io(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Could not determine config directory",
+                ))
+            })?;
 
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+
+            let content = serde_json::to_string_pretty(self)?;
+            fs::write(&path, content)?;
+            Ok(())
         }
-
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(&path, content)?;
-        Ok(())
+        #[cfg(target_arch = "wasm32")]
+        {
+            Ok(())
+        }
     }
 
     pub fn preset_path(&self) -> Option<PathBuf> {

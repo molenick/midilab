@@ -12,6 +12,10 @@ repository.workspace = true
 name = "midilab"
 path = "src/main.rs"
 
+[lib]
+name = "midilab_editor"
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 midilab.workspace = true
 midilab-gui.workspace = true
@@ -20,6 +24,20 @@ midilab-io.workspace = true
 eframe.workspace = true
 midir.workspace = true
 tokio.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+web-sys = { workspace = true, features = [
+    "HtmlCanvasElement",
+    "MidiAccess",
+    "MidiOptions",
+] }
+futures-timer.workspace = true
+js-sys.workspace = true
 
 [dev-dependencies]
 egui_kittest.workspace = true

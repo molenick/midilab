@@ -11,6 +11,7 @@ use midilab::manufacturer::akai::mpd226::control::ControlId;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::message::AppMsg;
 use midilab::message::PendingFileAction;
+#[cfg(not(target_arch = "wasm32"))]
 use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserMsg;
@@ -74,18 +75,21 @@ impl AkaiMpd226Editor {
     }
 
     fn spawn_directory_picker(&self) {
-        let app_tx = self.app_tx.clone();
-        tokio::spawn(async move {
-            let dialog = rfd::AsyncFileDialog::new()
-                .set_title("Select Preset Save Directory")
-                .pick_folder()
-                .await;
-            if let Some(handle) = dialog {
-                let _ = app_tx.send(AppMsg::Ui(UiEffect::PresetDirectorySelected(
-                    handle.path().to_path_buf(),
-                )));
-            }
-        });
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let app_tx = self.app_tx.clone();
+            tokio::spawn(async move {
+                let dialog = rfd::AsyncFileDialog::new()
+                    .set_title("Select Preset Save Directory")
+                    .pick_folder()
+                    .await;
+                if let Some(handle) = dialog {
+                    let _ = app_tx.send(AppMsg::Ui(UiEffect::PresetDirectorySelected(
+                        handle.path().to_path_buf(),
+                    )));
+                }
+            });
+        }
     }
 
     pub fn render(&mut self, ctx: &Context) {

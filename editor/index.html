@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>midilab</title>
+  <style>
+    html, body { margin: 0; padding: 0; overflow: hidden; background: #1a1a1a; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <script type="module">
+    import init, { WebHandle } from './pkg/midilab_editor.js';
+    async function main() {
+      await init();
+      const canvas = document.getElementById('canvas');
+      const handle = new WebHandle();
+      await handle.start(canvas);
+    }
+    main().catch(console.error);
+  </script>
+</body>
+</html>

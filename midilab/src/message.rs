@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::time::Instant;
 
 use crate::error::DeviceStatusParseError;
 use crate::error::MidiError;
@@ -77,7 +76,6 @@ pub enum DeviceMsg {
 pub struct UserMsg {
     pub msg: String,
     pub kind: UserMsgKind,
-    pub received_at: Instant,
 }
 
 pub enum UserMsgKind {

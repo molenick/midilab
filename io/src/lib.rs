@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::time::Duration;
 
 use midilab::error::MidiError;
@@ -6,7 +7,6 @@ use midir::MidiInputPort;
 use midir::MidiOutput;
 use midir::MidiOutputPort;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::time::timeout;
 
 #[cfg(target_vendor = "apple")]
 pub fn flush_coremidi_notifications() {
@@ -33,17 +33,33 @@ pub fn find_input_port(midi_in: &MidiInput, name: &str) -> Option<MidiInputPort>
         .find(|p| midi_in.port_name(p).ok().as_deref() == Some(name))
 }
 
+async fn async_timeout<F: Future>(duration: Duration, future: F) -> Option<F::Output> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        tokio::time::timeout(duration, future).await.ok()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        use futures_timer::Delay;
+        tokio::select! {
+            result = future => Some(result),
+            _ = Delay::new(duration) => None,
+        }
+    }
+}
+
 pub async fn recv_device_bytes(
     rx: &mut UnboundedReceiver<Vec<u8>>,
     timeout_duration: Duration,
 ) -> Result<Vec<u8>, MidiError> {
-    match timeout(timeout_duration, rx.recv()).await {
-        Ok(Some(bytes)) => Ok(bytes),
-        Ok(None) => Err(MidiError::ChannelClosed),
-        Err(_) => Err(MidiError::ResponseTimeout),
+    match async_timeout(timeout_duration, rx.recv()).await {
+        Some(Some(bytes)) => Ok(bytes),
+        Some(None) => Err(MidiError::ChannelClosed),
+        None => Err(MidiError::ResponseTimeout),
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod fs {
     use std::path::Path;
 
