@@ -134,7 +134,7 @@ impl AppState {
                 DeviceStatus::GlobalParamAck(ack) => {
                     if ack.status == 0 {
                         vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                            msg: "Wrote global settings from device".to_string(),
+                            msg: "Wrote global settings to device".to_string(),
                             kind: UserMsgKind::Status,
                             received_at: Instant::now(),
                         }))]

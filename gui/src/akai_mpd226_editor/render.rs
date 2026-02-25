@@ -191,8 +191,9 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                                 ui,
                                 "Threshold",
                                 &mut ui_state.global.pad_threshold,
-                                0..=9,
+                                1..=10,
                             );
+
                             row_edit_enum(ui, "Curve", &mut ui_state.global.pad_curve);
                             row_edit_u8_clamped(ui, "Gain", &mut ui_state.global.pad_gain, 0..=20);
 
