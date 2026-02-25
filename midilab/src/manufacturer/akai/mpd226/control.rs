@@ -42,7 +42,7 @@ pub struct Pad {
     pub channel: MidiChannel,
     pub note: MidiNote,
     pub midi2din: ActiveState,
-    pub trigger: TriggerKind,
+    pub mode: TriggerKind,
     pub aftertouch: AfterTouchKind,
     pub program: MidiValue,
     pub msb: MidiValue,
@@ -69,7 +69,7 @@ impl Pad {
             self.channel as u8,
             self.note.into(),
             self.midi2din as u8,
-            self.trigger as u8,
+            self.mode as u8,
             self.aftertouch as u8,
             self.program.into(),
             self.msb.into(),
@@ -92,7 +92,7 @@ impl TryFrom<(ControlId, RawPad)> for Pad {
             channel: MidiChannel::try_from(raw.channel).map_err(PadParseError::Channel)?,
             note: raw.note.into(),
             midi2din: ActiveState::try_from(raw.midi2din).map_err(PadParseError::Midi2Din)?,
-            trigger: TriggerKind::try_from(raw.trigger).map_err(PadParseError::Trigger)?,
+            mode: TriggerKind::try_from(raw.trigger).map_err(PadParseError::Trigger)?,
             aftertouch: AfterTouchKind::try_from(raw.aftertouch)
                 .map_err(PadParseError::Aftertouch)?,
             program: raw.program.into(),
@@ -369,7 +369,7 @@ mod tests {
                 channel: MidiChannel::COMMON,
                 note: 60.into(),
                 midi2din: ActiveState::Off,
-                trigger: TriggerKind::Momentary,
+                mode: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
                 program: MidiValue::default(),
                 msb: MidiValue::default(),
@@ -408,7 +408,7 @@ mod tests {
             assert_eq!(pad.kind, PadKind::Note);
             assert_eq!(pad.channel, MidiChannel::A5);
             assert_eq!(pad.note, MidiNote::from(72));
-            assert_eq!(pad.trigger, TriggerKind::Toggle);
+            assert_eq!(pad.mode, TriggerKind::Toggle);
             assert_eq!(pad.aftertouch, AfterTouchKind::Poly);
             assert_eq!(pad.off_color, PadColor::Amber);
             assert_eq!(pad.on_color, PadColor::Green);
