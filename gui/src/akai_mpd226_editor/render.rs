@@ -44,9 +44,9 @@ use midilab::music::generation::PitchPattern;
 use midilab::music::generation::ScaleSequence;
 use midilab::music::theory::PitchClass;
 
-use crate::akai_mpd226_editor::spacing;
 use crate::akai_mpd226_editor::state::UiState;
 use crate::akai_mpd226_editor::state::UserSelection;
+use crate::spacing::spacing;
 
 // todo: further organization for a rainy day
 // modal can be a module, look at others
