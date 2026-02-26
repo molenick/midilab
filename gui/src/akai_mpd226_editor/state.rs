@@ -57,23 +57,18 @@ impl AkaiMpd226Editor {
                     self.ui_state.preset = *preset;
                     self.ui_state.selected_item = None;
                 }
-
                 UiMsg::UserMsg(e) => {
                     self.ui_state.user_msg = Some(e);
                 }
-
-                UiMsg::ShowDirectoryPicker => {
-                    self.spawn_preset_save_dialog();
-                }
-
                 UiMsg::DirectoryConfigured(path) => {
                     self.ui_state.configured_directory = Some(path);
                 }
-
-                UiMsg::PresetFileSelected(path) => {
-                    self.spawn_preset_save_dialog_with_path(path);
+                UiMsg::SavePresetDialog(path) => {
+                    self.spawn_preset_load_dialog_with_path(path);
                 }
-
+                UiMsg::LoadPresetDialog => {
+                    self.spawn_preset_load_dialog();
+                }
                 UiMsg::UpdateGlobal(global) => {
                     self.ui_state.global = *global;
                 }
@@ -83,12 +78,11 @@ impl AkaiMpd226Editor {
         }
     }
 
-    fn spawn_preset_save_dialog(&self) {
+    fn spawn_preset_load_dialog(&self) {
         let app_tx = self.app_tx.clone();
         let config = self.config.clone();
-        let preset = self.ui_state.preset;
         tokio::spawn(async move {
-            let dialog = rfd::AsyncFileDialog::new().set_title("Save Preset");
+            let dialog = rfd::AsyncFileDialog::new().set_title("Load Preset");
 
             let dialog = if let Some(ref dir) = config.persistence_path {
                 dialog.set_directory(dir)
@@ -96,26 +90,19 @@ impl AkaiMpd226Editor {
                 dialog
             };
 
-            let filename = preset.default_filename();
-            let dialog = dialog.set_file_name(&filename);
-
-            let handle: Option<_> = dialog.save_file().await;
+            let handle: Option<_> = dialog.pick_file().await;
             if let Some(handle) = handle {
                 let path = handle.path().to_path_buf();
-                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistPreset {
-                    preset: Box::new(preset),
-                    path,
-                }));
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::LoadPresetFromFile { path }));
             }
         });
     }
 
-    fn spawn_preset_save_dialog_with_path(&self, path: PathBuf) {
+    fn spawn_preset_load_dialog_with_path(&self, path: PathBuf) {
         let app_tx = self.app_tx.clone();
-        let preset = self.ui_state.preset;
         tokio::spawn(async move {
             let dialog = rfd::AsyncFileDialog::new()
-                .set_title("Save Preset")
+                .set_title("Load Preset")
                 .set_directory(path.parent().unwrap_or(&path))
                 .set_file_name(
                     path.file_name()
@@ -124,9 +111,8 @@ impl AkaiMpd226Editor {
                         .to_string(),
                 );
 
-            if let Some(handle) = dialog.save_file().await {
-                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistPreset {
-                    preset: Box::new(preset),
+            if let Some(handle) = dialog.pick_file().await {
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::LoadPresetFromFile {
                     path: handle.path().to_path_buf(),
                 }));
             }

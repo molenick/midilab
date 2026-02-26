@@ -26,11 +26,14 @@ pub async fn persist_config(config: AppConfig, path: &Path) -> Result<(), Error>
 pub async fn save_akai_mpd226_preset(
     preset: akai::mpd226::Preset,
     path: &Path,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
     let raw = RawPreset::from(&preset);
     let payload = bytemuck::bytes_of(&raw).to_vec();
+    tokio::fs::write(path, payload).await?;
 
-    Ok(tokio::fs::write(path, payload).await?)
+    let path = path.to_path_buf();
+
+    Ok(path.to_string_lossy().to_string())
 }
 
 pub async fn load_akai_mpd226_preset_from_sysex(

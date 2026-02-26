@@ -32,7 +32,7 @@ pub enum IoMsg {
 
 pub enum IoEffect {
     PersistConfigResult(Result<(), String>),
-    PresetSaveResult(Result<(), String>),
+    PresetSaveResult(Result<String, String>),
     PresetLoadResult(Result<Box<Preset>, String>),
 }
 
@@ -48,19 +48,18 @@ pub enum UiMsg {
     UpdatePreset(Box<Preset>),
     UpdateGlobal(Box<Global>),
     UserMsg(UserMsg),
-    ShowDirectoryPicker,
+    LoadPresetDialog,
     DirectoryConfigured(PathBuf),
-    PresetFileSelected(PathBuf),
+    SavePresetDialog(PathBuf),
 }
 
 pub enum UiEffect {
     WritePreset(Box<Preset>),
     DumpPreset(PresetSlot),
-    LoadPersistedPreset,
     PersistPreset { preset: Box<Preset>, path: PathBuf },
-    SetPresetDirectory,
-    PresetDirectorySelected(PathBuf),
     ShowPresetSaveDialog,
+    ShowPresetLoadDialog,
+    LoadPresetFromFile { path: PathBuf },
     SendGlobalToDevice(Box<Global>),
     RequestGlobalFromDevice,
 }

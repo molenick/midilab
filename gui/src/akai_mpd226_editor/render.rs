@@ -104,9 +104,7 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
                 }
 
                 if ui.button("Load preset").clicked() {
-                    // todo: need to show a dialogue to allow user to set the persisted preset name
-                    // to load we should get a string back we can use to construct the path
-                    outbox.push(UiEffect::LoadPersistedPreset);
+                    outbox.push(UiEffect::ShowPresetLoadDialog);
                 }
 
                 ui.separator();
