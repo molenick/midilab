@@ -23,6 +23,8 @@ pub struct Sysex {
     payload: Vec<u8>,
 }
 
+use bytemuck::Pod;
+
 impl Sysex {
     pub fn new(payload: Vec<u8>) -> Self {
         Self { payload }
@@ -38,6 +40,17 @@ impl Sysex {
         data.extend_from_slice(&self.payload);
         data.push(END_BYTE);
         data
+    }
+
+    pub fn from_header_and_body<H: Pod, B: AsRef<[u8]>>(header: &H, body: B) -> Self {
+        let mut payload = bytemuck::bytes_of(header).to_vec();
+        payload.extend_from_slice(body.as_ref());
+        Self { payload }
+    }
+
+    pub fn from_header_and_body_as_bytes<H: Pod, B: AsRef<[u8]>>(header: &H, body: B) -> Vec<u8> {
+        let sysex = Self::from_header_and_body(header, body);
+        sysex.as_bytes()
     }
 
     pub fn preview(&self) -> String {
