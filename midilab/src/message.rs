@@ -50,15 +50,17 @@ pub enum UiMsg {
     UserMsg(UserMsg),
     ShowDirectoryPicker,
     DirectoryConfigured(PathBuf),
+    PresetFileSelected(PathBuf),
 }
 
 pub enum UiEffect {
     WritePreset(Box<Preset>),
     DumpPreset(PresetSlot),
     LoadPersistedPreset,
-    PersistPreset(Box<Preset>),
+    PersistPreset { preset: Box<Preset>, path: PathBuf },
     SetPresetDirectory,
     PresetDirectorySelected(PathBuf),
+    ShowPresetSaveDialog,
     SendGlobalToDevice(Box<Global>),
     RequestGlobalFromDevice,
 }

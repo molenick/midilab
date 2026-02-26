@@ -58,19 +58,25 @@ impl AppState {
                         vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker)]
                     }
                 }
-                UiEffect::PersistPreset(preset) => {
+                UiEffect::PersistPreset { preset, path } => {
                     self.preset = *preset;
-                    if let Some(dir) = &self.config.persistence_path {
-                        // let filename = format!("{}.syx", preset.settings.preset_name.0.trim());
-                        let filename = preset.default_filename();
+                    self.config.persistence_path =
+                        Some(path.parent().unwrap_or(&path).to_path_buf());
 
-                        let path = dir.join(filename);
-                        vec![AppEffect::Io(Box::new(IoMsg::SavePreset { preset, path }))]
-                    } else {
-                        vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker)]
-                    }
+                    let config_path = AppConfig::config_path().expect("Failed to get config path");
+
+                    vec![
+                        AppEffect::Io(Box::new(IoMsg::SavePreset { preset, path })),
+                        AppEffect::Io(Box::new(IoMsg::PersistConfig {
+                            config: self.config.clone(),
+                            path: config_path,
+                        })),
+                    ]
                 }
                 UiEffect::SetPresetDirectory => {
+                    vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker)]
+                }
+                UiEffect::ShowPresetSaveDialog => {
                     vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker)]
                 }
                 UiEffect::PresetDirectorySelected(path) => {
@@ -168,11 +174,7 @@ impl AppState {
                     }))],
                 },
                 IoEffect::PersistConfigResult(result) => match result {
-                    Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                        msg: "App config saved".to_string(),
-                        kind: UserMsgKind::Status,
-                        received_at: Instant::now(),
-                    }))],
+                    Ok(_) => vec![],
                     Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: format!("App config save failed: {e}"),
                         kind: UserMsgKind::Error,
