@@ -59,10 +59,6 @@ impl AppConfig {
             ))
         })?;
 
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
         let content = serde_json::to_string_pretty(self)?;
         fs::write(&path, content)?;
         Ok(())
@@ -72,6 +68,35 @@ impl AppConfig {
         self.preset_directory
             .as_ref()
             .map(|dir| dir.join("akai_mpd226_preset"))
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AppSettings {
+    pending_action: Option<PendingAction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PendingAction {
+    Save,
+    Load,
+}
+
+impl AppSettings {
+    pub fn has_pending_action(&self) -> bool {
+        self.pending_action.is_some()
+    }
+
+    pub fn set_save_action(&mut self) {
+        self.pending_action = Some(PendingAction::Save);
+    }
+
+    pub fn set_load_action(&mut self) {
+        self.pending_action = Some(PendingAction::Load);
+    }
+
+    pub fn take_action(&mut self) -> Option<PendingAction> {
+        self.pending_action.take()
     }
 }
 
@@ -100,9 +125,32 @@ mod tests {
     #[test]
     fn config_path_uses_config_dir() {
         let path = AppConfig::config_path();
-        // Should return Some on most systems
         if let Some(p) = path {
             assert!(p.ends_with("midilab/config.json"));
         }
+    }
+
+    #[test]
+    fn default_settings_has_no_pending_action() {
+        let mut settings = AppSettings::default();
+        assert!(!settings.has_pending_action());
+        assert!(settings.take_action().is_none());
+    }
+
+    #[test]
+    fn can_set_and_take_save_action() {
+        let mut settings = AppSettings::default();
+        settings.set_save_action();
+        assert!(settings.has_pending_action());
+        assert_eq!(settings.take_action(), Some(PendingAction::Save));
+        assert!(!settings.has_pending_action());
+    }
+
+    #[test]
+    fn can_set_and_take_load_action() {
+        let mut settings = AppSettings::default();
+        settings.set_load_action();
+        assert!(settings.has_pending_action());
+        assert_eq!(settings.take_action(), Some(PendingAction::Load));
     }
 }

@@ -99,6 +99,16 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     TopBottomPanel::top("top_panel").show(ctx, |ui| {
         MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
+                if ui.button("Save preset").clicked() {
+                    outbox.push(UiEffect::PersistPreset(Box::new(ui_state.preset)));
+                }
+
+                if ui.button("Load preset").clicked() {
+                    outbox.push(UiEffect::LoadPersistedPreset);
+                }
+
+                ui.separator();
+
                 if ui.button("Quit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
