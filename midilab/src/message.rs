@@ -66,6 +66,11 @@ pub enum UiEffect {
     SendGlobalToDevice(Box<Global>),
     RequestGlobalFromDevice,
 }
+impl UiEffect {
+    pub fn as_app_msg(self) -> AppMsg {
+        AppMsg::Ui(self)
+    }
+}
 
 pub enum DeviceMsg {
     DumpPreset(PresetSlot),
@@ -83,4 +88,16 @@ pub struct UserMsg {
 pub enum UserMsgKind {
     Status,
     Error,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_ui_effect_as_app_msg() {
+        let eff = UiEffect::RequestGlobalFromDevice;
+        let msg = eff.as_app_msg();
+        assert!(matches!(msg, AppMsg::Ui(UiEffect::RequestGlobalFromDevice)));
+    }
 }

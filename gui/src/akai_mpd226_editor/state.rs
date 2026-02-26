@@ -28,7 +28,7 @@ use crate::akai_mpd226_editor::render::ui;
 
 pub struct AkaiMpd226Editor {
     ui_state: UiState,
-    outbox: Vec<AppMsg>,
+    outbox: Vec<UiEffect>,
     app_tx: UnboundedSender<AppMsg>,
     ui_rx: UnboundedReceiver<UiMsg>,
 }
@@ -93,7 +93,7 @@ impl AkaiMpd226Editor {
         ui(ctx, &mut self.ui_state, &mut self.outbox);
 
         for msg in self.outbox.drain(..) {
-            let _ = self.app_tx.send(msg);
+            let _ = self.app_tx.send(msg.as_app_msg());
         }
     }
 }
