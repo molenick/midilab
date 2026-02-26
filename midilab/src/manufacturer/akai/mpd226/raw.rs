@@ -5,7 +5,7 @@ use crate::manufacturer::akai::SYSEX_MANUFACTURER_ID;
 use crate::manufacturer::akai::mpd226::DEVICE_ID;
 use crate::manufacturer::akai::mpd226::DeviceCommandId;
 use crate::manufacturer::akai::mpd226::DeviceHeader;
-use crate::manufacturer::akai::mpd226::GLOBAL_VALUE_FOOTER_MAGIC;
+use crate::manufacturer::akai::mpd226::GLOBAL_VALUE_MAGIC;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
 use crate::sysex::Sysex;
 
@@ -229,12 +229,10 @@ impl RawGlobal {
             cmd: DeviceCommandId::WriteGlobal as u8,
             length,
         };
-
-        let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
-        sysex_payload.extend_from_slice(&GLOBAL_VALUE_FOOTER_MAGIC);
-        sysex_payload.push(addr);
-        sysex_payload.push(value);
-        Sysex::new(sysex_payload).as_bytes()
+        Sysex::from_header_and_body_as_bytes(
+            &header,
+            [GLOBAL_VALUE_MAGIC[0], GLOBAL_VALUE_MAGIC[1], addr, value],
+        )
     }
 }
 

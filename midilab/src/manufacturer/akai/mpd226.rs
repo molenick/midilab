@@ -56,8 +56,8 @@ const TOTAL_PADS: usize = 64;
 pub(crate) const PRESET_FOOTER_MAGIC_LEN: usize = 12;
 pub(crate) const PRESET_FOOTER_MAGIC_BYTES: [u8; PRESET_FOOTER_MAGIC_LEN] =
     [4, 0, 0, 4, 0, 2, 4, 0, 4, 4, 0, 6];
-const GLOBAL_VALUE_FOOTER_BYTES: usize = 2;
-const GLOBAL_VALUE_FOOTER_MAGIC: [u8; GLOBAL_VALUE_FOOTER_BYTES] = [0x01, 0x00];
+const GLOBAL_VALUE_MAGIC_LEN: usize = 2;
+const GLOBAL_VALUE_MAGIC: [u8; GLOBAL_VALUE_MAGIC_LEN] = [0x01, 0x00];
 
 const SEND_GLOBAL_PADDING_LEN: usize = 3;
 const SEND_GLOBAL_PADDING_BYTES: [u8; SEND_GLOBAL_PADDING_LEN] = [0x0B, 0x00, 0x01];
@@ -97,32 +97,25 @@ pub enum DeviceCommandId {
 }
 
 pub fn dump_preset_from_device(slot: u8) -> Vec<u8> {
-    let mut sysex_payload = bytemuck::bytes_of(&RawHeader::dump_preset()).to_vec();
-    sysex_payload.extend_from_slice(bytemuck::bytes_of(&slot));
-    Sysex::new(sysex_payload).as_bytes()
+    let header = RawHeader::dump_preset();
+    Sysex::from_header_and_body_as_bytes(&header, [slot])
 }
 
 pub fn write_preset_to_device(preset: &RawPreset) -> Vec<u8> {
-    let mut sysex_payload = bytemuck::bytes_of(&RawHeader::write_preset()).to_vec();
-    sysex_payload.extend_from_slice(bytemuck::bytes_of(preset));
-    Sysex::new(sysex_payload).as_bytes()
+    let header = RawHeader::write_preset();
+    Sysex::from_header_and_body_as_bytes(&header, bytemuck::bytes_of(preset))
 }
 
 pub fn dump_global_from_device() -> Vec<u8> {
     let length = u16::from_le_bytes([0x00, 0x03]).to_le_bytes();
-
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
         _unknown: 0,
         device_id: DEVICE_ID,
-        cmd: DeviceCommandId::DumpGlobal as u8,
+        cmd: DeviceCommandId::DumpGlobal.into(),
         length,
     };
-
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
-
-    sysex_payload.extend_from_slice(&SEND_GLOBAL_PADDING_BYTES);
-    Sysex::new(sysex_payload).as_bytes()
+    Sysex::from_header_and_body_as_bytes(&header, SEND_GLOBAL_PADDING_BYTES)
 }
 
 pub fn write_global_param_to_device(addr: u8, value: u8) -> Vec<u8> {
@@ -131,15 +124,13 @@ pub fn write_global_param_to_device(addr: u8, value: u8) -> Vec<u8> {
         mfg_id: SYSEX_MANUFACTURER_ID,
         _unknown: 0,
         device_id: DEVICE_ID,
-        cmd: DeviceCommandId::WriteGlobal as u8,
+        cmd: DeviceCommandId::WriteGlobal.into(),
         length,
     };
-
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
-    sysex_payload.extend_from_slice(&GLOBAL_VALUE_FOOTER_MAGIC);
-    sysex_payload.push(addr);
-    sysex_payload.push(value);
-    Sysex::new(sysex_payload).as_bytes()
+    Sysex::from_header_and_body_as_bytes(
+        &header,
+        [GLOBAL_VALUE_MAGIC[0], GLOBAL_VALUE_MAGIC[1], addr, value],
+    )
 }
 
 pub struct DeviceMessagePayload<C> {
@@ -337,12 +328,9 @@ impl Preset {
     }
 
     pub fn as_sysex_write(&self) -> Sysex {
-        let preset = self.as_bytes();
+        let preset_bytes = self.as_bytes();
         let header = RawHeader::write_preset();
-        let header = bytemuck::bytes_of(&header);
-        let bytes = header.iter().chain(&preset).cloned().collect::<Vec<u8>>();
-
-        Sysex::new(bytes)
+        Sysex::from_header_and_body(&header, preset_bytes)
     }
 }
 

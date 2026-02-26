@@ -121,16 +121,16 @@ fn ack_preset(slot: PresetSlot) -> Vec<u8> {
         length: pack_u14(2),
     };
 
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
-    sysex_payload.push(slot as u8);
-    sysex_payload.push(0x00);
-    sysex_payload
+    let sysex = midilab::sysex::Sysex::from_header_and_body(&header, [slot as u8, 0x00]);
+    sysex.payload().to_vec()
 }
 
 fn dump_preset(raw: &RawPreset) -> Vec<u8> {
-    let mut sysex_payload = bytemuck::bytes_of(&RawHeader::write_preset()).to_vec();
-    sysex_payload.extend_from_slice(bytemuck::bytes_of(raw));
-    sysex_payload
+    let sysex = midilab::sysex::Sysex::from_header_and_body(
+        &RawHeader::write_preset(),
+        bytemuck::bytes_of(raw),
+    );
+    sysex.payload().to_vec()
 }
 
 fn dump_global(raw: &RawGlobal) -> Vec<u8> {
@@ -142,11 +142,10 @@ fn dump_global(raw: &RawGlobal) -> Vec<u8> {
         cmd: DeviceStatusId::WriteGlobal as u8,
         length,
     };
-
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
-    sysex_payload.extend_from_slice(&[0x0B, 0x00, 0x01]);
-    sysex_payload.extend_from_slice(bytemuck::bytes_of(raw));
-    sysex_payload
+    let sysex = midilab::sysex::Sysex::from_header_and_body(&header, [0x0B, 0x00, 0x01]);
+    let mut payload = sysex.payload().to_vec();
+    payload.extend_from_slice(bytemuck::bytes_of(raw));
+    payload
 }
 
 fn ack_global(addr: u8) -> Vec<u8> {
@@ -157,10 +156,8 @@ fn ack_global(addr: u8) -> Vec<u8> {
         cmd: DeviceStatusId::GlobalAck as u8,
         length: pack_u14(4),
     };
-
-    let mut sysex_payload = bytemuck::bytes_of(&header).to_vec();
-    sysex_payload.extend_from_slice(&[0x01, 0x00, addr, 0x00]);
-    sysex_payload
+    let sysex = midilab::sysex::Sysex::from_header_and_body(&header, [0x01, 0x00, addr, 0x00]);
+    sysex.payload().to_vec()
 }
 
 #[derive(Debug, Error)]
