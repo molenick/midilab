@@ -11,7 +11,6 @@ use midilab::manufacturer::akai::mpd226::control::ControlId;
 use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
 use midilab::message::AppMsg;
-use midilab::message::PendingFileAction;
 use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserMsg;
@@ -55,14 +54,12 @@ impl AkaiMpd226Editor {
                     self.ui_state.user_msg = Some(e);
                 }
 
-                UiMsg::ShowDirectoryPicker { for_action } => {
-                    self.ui_state.pending_action = Some(for_action);
+                UiMsg::ShowDirectoryPicker { .. } => {
                     self.spawn_directory_picker();
                 }
 
                 UiMsg::DirectoryConfigured(path) => {
                     self.ui_state.configured_directory = Some(path);
-                    self.ui_state.pending_action = None;
                 }
 
                 UiMsg::UpdateGlobal(global) => {
@@ -150,7 +147,6 @@ pub struct UiState {
     pub on_color_mapping: ColorMappingState,
     pub aftertouch_kind: AfterTouchKind,
     pub user_msg: Option<UserMsg>,
-    pub pending_action: Option<PendingFileAction>,
     pub configured_directory: Option<PathBuf>,
 }
 

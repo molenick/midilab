@@ -20,6 +20,10 @@ pub async fn save_akai_mpd226_preset(
     preset: akai::mpd226::Preset,
     path: &Path,
 ) -> Result<(), Error> {
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+
     let raw = RawPreset::from(&preset);
     let payload = bytemuck::bytes_of(&raw).to_vec();
 

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
+use crate::config::PendingAction;
 use crate::error::DeviceStatusParseError;
 use crate::error::MidiError;
 use crate::error::SysexParseError;
@@ -45,15 +46,8 @@ pub enum UiMsg {
     UpdatePreset(Box<Preset>),
     UpdateGlobal(Box<Global>),
     UserMsg(UserMsg),
-    ShowDirectoryPicker { for_action: PendingFileAction },
+    ShowDirectoryPicker { for_action: PendingAction },
     DirectoryConfigured(PathBuf),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum PendingFileAction {
-    Save,
-    Load,
-    ManualSet,
 }
 
 pub enum UiEffect {

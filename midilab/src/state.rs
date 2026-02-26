@@ -1,6 +1,9 @@
+use std::boxed::Box;
 use std::time::Instant;
 
 use crate::config::AppConfig;
+use crate::config::AppSettings;
+use crate::config::PendingAction;
 use crate::manufacturer::akai::mpd226::DeviceStatus;
 use crate::manufacturer::akai::mpd226::Global;
 use crate::manufacturer::akai::mpd226::Preset;
@@ -9,7 +12,6 @@ use crate::message::AppMsg;
 use crate::message::DeviceMsg;
 use crate::message::IoEffect;
 use crate::message::IoMsg;
-use crate::message::PendingFileAction;
 use crate::message::UiEffect;
 use crate::message::UiMsg;
 use crate::message::UserError;
@@ -20,6 +22,7 @@ pub struct AppState {
     pub preset: Preset,
     pub global: Global,
     pub config: AppConfig,
+    pub settings: AppSettings,
     pending_save_preset: Option<Box<Preset>>,
 }
 
@@ -35,6 +38,7 @@ impl AppState {
             preset: Preset::default(),
             global: Global::default(),
             config: AppConfig::load(),
+            settings: AppSettings::default(),
             pending_save_preset: None,
         }
     }
@@ -56,8 +60,9 @@ impl AppState {
                     if let Some(path) = self.config.preset_path() {
                         vec![AppEffect::Io(Box::new(IoMsg::LoadPreset { path }))]
                     } else {
+                        self.settings.set_load_action();
                         vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker {
-                            for_action: PendingFileAction::Load,
+                            for_action: PendingAction::Load,
                         })]
                     }
                 }
@@ -66,26 +71,39 @@ impl AppState {
                         vec![AppEffect::Io(Box::new(IoMsg::SavePreset { preset, path }))]
                     } else {
                         self.pending_save_preset = Some(preset);
+                        self.settings.set_save_action();
                         vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker {
-                            for_action: PendingFileAction::Save,
+                            for_action: PendingAction::Save,
                         })]
                     }
                 }
                 UiEffect::SetPresetDirectory => {
+                    self.settings.set_save_action();
                     vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker {
-                        for_action: PendingFileAction::ManualSet,
+                        for_action: PendingAction::Save,
                     })]
                 }
                 UiEffect::PresetDirectorySelected(dir) => {
                     self.config.preset_directory = Some(dir.clone());
                     let _ = self.config.save();
 
-                    let mut effects = vec![AppEffect::Ui(UiMsg::DirectoryConfigured(dir))];
+                    let mut effects = vec![AppEffect::Ui(UiMsg::DirectoryConfigured(dir.clone()))];
 
-                    if let Some(preset) = self.pending_save_preset.take()
-                        && let Some(path) = self.config.preset_path()
-                    {
-                        effects.push(AppEffect::Io(Box::new(IoMsg::SavePreset { preset, path })));
+                    if let Some(preset) = self.pending_save_preset.take() {
+                        if let Some(path) = self.config.preset_path() {
+                            effects
+                                .push(AppEffect::Io(Box::new(IoMsg::SavePreset { preset, path })));
+                        }
+                    } else if let Some(action) = self.settings.take_action() {
+                        match action {
+                            PendingAction::Load => {
+                                if let Some(path) = self.config.preset_path() {
+                                    effects
+                                        .push(AppEffect::Io(Box::new(IoMsg::LoadPreset { path })));
+                                }
+                            }
+                            PendingAction::Save => {}
+                        }
                     }
 
                     effects
@@ -203,6 +221,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+    use crate::config::PendingAction;
     use crate::error::DeviceStatusParseError;
     use crate::error::MidiError;
     use crate::error::SysexParseError;
@@ -484,7 +503,7 @@ mod tests {
         assert!(matches!(
             effects[0],
             AppEffect::Ui(UiMsg::ShowDirectoryPicker {
-                for_action: PendingFileAction::Load
+                for_action: PendingAction::Load
             })
         ));
     }
@@ -515,7 +534,7 @@ mod tests {
         assert!(matches!(
             effects[0],
             AppEffect::Ui(UiMsg::ShowDirectoryPicker {
-                for_action: PendingFileAction::Save
+                for_action: PendingAction::Save
             })
         ));
         assert!(app.pending_save_preset.is_some());
@@ -539,7 +558,7 @@ mod tests {
         assert!(matches!(
             effects[0],
             AppEffect::Ui(UiMsg::ShowDirectoryPicker {
-                for_action: PendingFileAction::ManualSet
+                for_action: PendingAction::Save
             })
         ));
     }
