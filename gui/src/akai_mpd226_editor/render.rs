@@ -35,7 +35,6 @@ use midilab::manufacturer::akai::mpd226::repository::DialRepository;
 use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
 use midilab::manufacturer::akai::mpd226::repository::SwitchRepository;
-use midilab::message::AppMsg;
 use midilab::message::UiEffect;
 use midilab::midi::MidiNote;
 use midilab::midi::MidiValue;
@@ -96,7 +95,7 @@ const CONTROLS_PER_CONTROL_BANK: usize = 4;
 
 const CONTROL_BANK_LABEL_X: f32 = DEFAULT_CONTROL_X * 4. + DEFAULT_CONTROL_SPACING * 4.;
 
-pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     TopBottomPanel::top("top_panel").show(ctx, |ui| {
         MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
@@ -152,7 +151,7 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
     }
 }
 
-fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
@@ -160,14 +159,12 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                 ui.horizontal(|ui| {
                     if ui.button("Dump").clicked() {
                         ui_state.user_msg = None;
-                        outbox.push(AppMsg::Ui(UiEffect::DumpPreset(
-                            ui_state.preset.settings.preset_slot,
-                        )));
+                        outbox.push(UiEffect::DumpPreset(ui_state.preset.settings.preset_slot));
                     }
 
                     if ui.button("Write").clicked() {
                         ui_state.user_msg = None;
-                        outbox.push(AppMsg::Ui(UiEffect::WritePreset(Box::new(ui_state.preset))));
+                        outbox.push(UiEffect::WritePreset(Box::new(ui_state.preset)));
                     }
 
                     ui.separator();
@@ -201,14 +198,13 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>)
                         ui.horizontal(|ui| {
                             if ui.button("Dump").clicked() {
                                 ui_state.user_msg = None;
-                                outbox.push(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
+                                outbox.push(UiEffect::RequestGlobalFromDevice);
                             }
 
                             if ui.button("Write").clicked() {
                                 ui_state.user_msg = None;
-                                outbox.push(AppMsg::Ui(UiEffect::SendGlobalToDevice(Box::new(
-                                    ui_state.global,
-                                ))));
+                                outbox
+                                    .push(UiEffect::SendGlobalToDevice(Box::new(ui_state.global)));
                             }
                             ui.separator();
 
@@ -294,7 +290,7 @@ fn global_settings_editor(ui: &mut Ui, ui_state: &mut UiState) {
         });
 }
 
-fn note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+fn note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     modal_note_mapper_help(ui);
 
     ui.label("Note Pattern");
@@ -406,7 +402,7 @@ fn note_mapping(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
                 ui_state.note_mapping.color_map.clone(),
             );
 
-            outbox.push(AppMsg::Ui(UiEffect::WritePreset(ui_state.preset.into())));
+            outbox.push(UiEffect::WritePreset(ui_state.preset.into()));
 
             ui_state.selected_item = None;
         }
@@ -741,7 +737,7 @@ fn switch_button(ui: &mut Ui, selected_item: &mut Option<UserSelection>, switch:
     }
 }
 
-fn modal_editor(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<AppMsg>) {
+fn modal_editor(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     let Some(selected_item) = ui_state.selected_item else {
         return;
     };
