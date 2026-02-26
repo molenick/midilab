@@ -76,7 +76,7 @@ impl Mpd226Sim {
                                 return SimEffect::Noop;
                             }
                         };
-                        let slot = preset.settings.preset_slot;
+                        let slot = preset.settings.slot;
                         println!("decoded write preset command for slot {slot}");
                         self.presets[slot as usize] = preset;
                         SimEffect::SendSysex(Sysex::new(ack_preset(slot)))
@@ -303,13 +303,13 @@ mod tests {
         let status = DeviceStatus::try_from(response.as_bytes().as_slice()).unwrap();
         match status {
             DeviceStatus::ReceivedPresetAck(ack) => {
-                assert_eq!(ack.slot, preset.settings.preset_slot)
+                assert_eq!(ack.slot, preset.settings.slot)
             }
             _ => panic!("expected ReceivedPresetAck"),
         }
 
         // Verify the preset was stored in sim state
-        let slot = preset.settings.preset_slot;
+        let slot = preset.settings.slot;
         assert_eq!(sim.presets[slot as usize].as_bytes(), preset.as_bytes());
     }
 

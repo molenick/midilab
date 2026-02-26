@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::config::PendingAction;
+use crate::config::AppConfig;
 use crate::error::DeviceStatusParseError;
 use crate::error::MidiError;
 use crate::error::SysexParseError;
@@ -25,11 +25,13 @@ pub enum UserError {
 }
 
 pub enum IoMsg {
+    PersistConfig { config: AppConfig, path: PathBuf },
     SavePreset { preset: Box<Preset>, path: PathBuf },
     LoadPreset { path: PathBuf },
 }
 
 pub enum IoEffect {
+    PersistConfigResult(Result<(), String>),
     PresetSaveResult(Result<(), String>),
     PresetLoadResult(Result<Box<Preset>, String>),
 }
@@ -46,7 +48,7 @@ pub enum UiMsg {
     UpdatePreset(Box<Preset>),
     UpdateGlobal(Box<Global>),
     UserMsg(UserMsg),
-    ShowDirectoryPicker { for_action: PendingAction },
+    ShowDirectoryPicker,
     DirectoryConfigured(PathBuf),
 }
 

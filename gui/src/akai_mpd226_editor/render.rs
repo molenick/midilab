@@ -100,10 +100,14 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
         MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Save preset").clicked() {
+                    // todo: need to show a dialogue to allow user to set the persisted preset name
+                    // to save we should get a string back we can use to construct the path
                     outbox.push(UiEffect::PersistPreset(Box::new(ui_state.preset)));
                 }
 
                 if ui.button("Load preset").clicked() {
+                    // todo: need to show a dialogue to allow user to set the persisted preset name
+                    // to load we should get a string back we can use to construct the path
                     outbox.push(UiEffect::LoadPersistedPreset);
                 }
 
@@ -169,7 +173,7 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect
                 ui.horizontal(|ui| {
                     if ui.button("Dump").clicked() {
                         ui_state.user_msg = None;
-                        outbox.push(UiEffect::DumpPreset(ui_state.preset.settings.preset_slot));
+                        outbox.push(UiEffect::DumpPreset(ui_state.preset.settings.slot));
                     }
 
                     if ui.button("Write").clicked() {
@@ -179,8 +183,8 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect
 
                     ui.separator();
 
-                    row_edit_enum(ui, "Slot", &mut ui_state.preset.settings.preset_slot);
-                    row_edit_preset_name(ui, "Name", &mut ui_state.preset.settings.preset_name);
+                    row_edit_enum(ui, "Slot", &mut ui_state.preset.settings.slot);
+                    row_edit_preset_name(ui, "Name", &mut ui_state.preset.settings.name);
 
                     ui.separator();
 
@@ -260,8 +264,8 @@ fn preset_settings_editor(ui: &mut Ui, preset_settings: &mut PresetSettings) {
     Grid::new("preset_settings_grid")
         .striped(true)
         .show(ui, |ui| {
-            row_edit_enum(ui, "Preset Slot", &mut preset_settings.preset_slot);
-            row_edit_preset_name(ui, "Preset Name", &mut preset_settings.preset_name);
+            row_edit_enum(ui, "Preset Slot", &mut preset_settings.slot);
+            row_edit_preset_name(ui, "Preset Name", &mut preset_settings.name);
             row_edit_u16_clamped(ui, "Tempo", &mut preset_settings.tempo.0, 30..=300);
             row_edit_enum(ui, "Division", &mut preset_settings.time_division);
             row_edit_enum(ui, "Div Switch", &mut preset_settings.time_division_switch);

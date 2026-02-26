@@ -332,6 +332,17 @@ impl Preset {
         let header = RawHeader::write_preset();
         Sysex::from_header_and_body(&header, preset_bytes)
     }
+
+    pub fn default_filename(&self) -> String {
+        let raw = format!(
+            "akai_mpd226-{}-{}.preset",
+            self.settings.name, self.settings.slot
+        );
+        raw.replace(
+            |c: char| !(c.is_alphanumeric() || c == '_' || c == '-' || c == '.'),
+            "_",
+        )
+    }
 }
 
 impl TryFrom<&[u8]> for Preset {
@@ -568,9 +579,8 @@ impl TryFrom<RawPresetSettings> for PresetSettings {
 
     fn try_from(raw: RawPresetSettings) -> Result<Self, Self::Error> {
         Ok(PresetSettings {
-            preset_slot: PresetSlot::try_from(raw.preset)
-                .map_err(PresetSettingsParseError::PresetSlot)?,
-            preset_name: PresetName(raw.name),
+            slot: PresetSlot::try_from(raw.preset).map_err(PresetSettingsParseError::PresetSlot)?,
+            name: PresetName(raw.name),
             tempo: Tempo::from_packed_bytes(raw.tempo),
             time_division_switch: TriggerKind::try_from(raw.time_division_switch)
                 .map_err(PresetSettingsParseError::TimeDivisionSwitch)?,
@@ -589,8 +599,8 @@ impl TryFrom<RawPresetSettings> for PresetSettings {
 impl From<&PresetSettings> for RawPresetSettings {
     fn from(settings: &PresetSettings) -> Self {
         RawPresetSettings {
-            preset: settings.preset_slot as u8,
-            name: settings.preset_name.0,
+            preset: settings.slot as u8,
+            name: settings.name.0,
             un1: 0,
             tempo: settings.tempo.to_packed_bytes(),
             time_division_switch: settings.time_division_switch as u8,

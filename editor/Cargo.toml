@@ -19,6 +19,7 @@ midilab-io.workspace = true
 
 eframe.workspace = true
 midir.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]

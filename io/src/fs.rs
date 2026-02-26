@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use bytemuck::PodCastError;
+use midilab::config::AppConfig;
 use midilab::manufacturer::akai;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::error::PresetParseError;
@@ -14,16 +15,18 @@ pub enum Error {
     RawPresetDeserialization(#[from] PodCastError),
     #[error(transparent)]
     PresetDeserialization(#[from] PresetParseError),
+    #[error(transparent)]
+    JsonSerialization(#[from] serde_json::Error),
+}
+
+pub async fn persist_config(config: AppConfig, path: &Path) -> Result<(), Error> {
+    Ok(tokio::fs::write(path, serde_json::to_vec(&config)?).await?)
 }
 
 pub async fn save_akai_mpd226_preset(
     preset: akai::mpd226::Preset,
     path: &Path,
 ) -> Result<(), Error> {
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-
     let raw = RawPreset::from(&preset);
     let payload = bytemuck::bytes_of(&raw).to_vec();
 

@@ -73,7 +73,7 @@ fn preset_round_trip() {
     };
 
     let mut mutated = original;
-    mutated.settings.preset_name = PresetName(*b"HILTEST ");
+    mutated.settings.name = PresetName(*b"HILTEST ");
     mutated.pads.pads[0].note = MidiNote::from(72);
     mutated.pads.pads[1].note = MidiNote::from(84);
     mutated.dials.0[0].midicc = 50.into();
@@ -112,7 +112,7 @@ fn preset_round_trip() {
         }
     };
 
-    assert_eq!(loaded.settings.preset_name.0, *b"HILTEST ");
+    assert_eq!(loaded.settings.name.0, *b"HILTEST ");
     assert_eq!(loaded.pads.pads[0].note, MidiNote::from(72));
     assert_eq!(loaded.pads.pads[1].note, MidiNote::from(84));
     assert_eq!(loaded.dials.0[0].midicc, 50.into());
