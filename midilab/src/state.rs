@@ -50,14 +50,6 @@ impl AppState {
                 UiEffect::DumpPreset(slot) => {
                     vec![AppEffect::Device(DeviceMsg::DumpPreset(slot))]
                 }
-                UiEffect::LoadPersistedPreset => {
-                    if let Some(dir) = &self.config.persistence_path {
-                        let path = dir.join(self.preset.default_filename());
-                        vec![AppEffect::Io(Box::new(IoMsg::LoadPreset { path }))]
-                    } else {
-                        vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker)]
-                    }
-                }
                 UiEffect::PersistPreset { preset, path } => {
                     self.preset = *preset;
                     self.config.persistence_path =
@@ -73,21 +65,14 @@ impl AppState {
                         })),
                     ]
                 }
-                UiEffect::SetPresetDirectory => {
-                    vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker)]
-                }
                 UiEffect::ShowPresetSaveDialog => {
-                    vec![AppEffect::Ui(UiMsg::ShowDirectoryPicker)]
+                    vec![AppEffect::Ui(UiMsg::LoadPresetDialog)]
                 }
-                UiEffect::PresetDirectorySelected(path) => {
-                    self.config.persistence_path = Some(path.clone());
-
-                    let config_path = AppConfig::config_path().expect("Failed to get config path");
-
-                    vec![AppEffect::Io(Box::new(IoMsg::PersistConfig {
-                        config: self.config.clone(),
-                        path: config_path,
-                    }))]
+                UiEffect::ShowPresetLoadDialog => {
+                    vec![AppEffect::Ui(UiMsg::LoadPresetDialog)]
+                }
+                UiEffect::LoadPresetFromFile { path } => {
+                    vec![AppEffect::Io(Box::new(IoMsg::LoadPreset { path }))]
                 }
                 UiEffect::SendGlobalToDevice(global) => {
                     self.global = *global;
@@ -150,8 +135,8 @@ impl AppState {
             },
             AppMsg::Io(io_effect) => match *io_effect {
                 IoEffect::PresetSaveResult(result) => match result {
-                    Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                        msg: "Preset saved".to_string(),
+                    Ok(preset_path) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: format!("Saved preset {}", preset_path),
                         kind: UserMsgKind::Status,
                         received_at: Instant::now(),
                     }))],
@@ -162,11 +147,17 @@ impl AppState {
                     }))],
                 },
                 IoEffect::PresetLoadResult(result) => match result {
-                    Ok(_) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                        msg: "Preset loaded".to_string(),
-                        kind: UserMsgKind::Status,
-                        received_at: Instant::now(),
-                    }))],
+                    Ok(preset) => {
+                        self.preset = *preset.clone();
+                        vec![
+                            AppEffect::Ui(UiMsg::UpdatePreset(preset)),
+                            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                                msg: "Preset loaded".to_string(),
+                                kind: UserMsgKind::Status,
+                                received_at: Instant::now(),
+                            })),
+                        ]
+                    }
                     Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: format!("Preset load failed: {e}"),
                         kind: UserMsgKind::Error,
@@ -461,83 +452,7 @@ mod tests {
     }
 
     #[test]
-    fn load_persisted_preset_with_config_path() {
-        let persistence_path = std::env::temp_dir();
-
-        let mut app = AppState {
-            config: AppConfig {
-                persistence_path: Some(persistence_path.clone()),
-            },
-            ..Default::default()
-        };
-
-        let mut effects = app.update(AppMsg::Ui(UiEffect::LoadPersistedPreset));
-
-        let eff = effects.pop().unwrap();
-        let path = match eff {
-            AppEffect::Io(msg) => match *msg {
-                IoMsg::LoadPreset { path } => path,
-                _ => panic!("wrong variant"),
-            },
-            _ => panic!("wrong variant"),
-        };
-
-        assert_eq!(
-            path.as_os_str(),
-            persistence_path.join("akai_mpd226-Midilab_-RAM.preset")
-        );
-    }
-
-    // todo: this test can't work without deleting the app config.
-    // it should be injected instead if we want to test it.
-    // #[test]
-    // fn load_persisted_preset_without_config_path() {
-    //     let mut app = AppState::default();
-
-    //     let mut effects = app.update(AppMsg::Ui(UiEffect::LoadPersistedPreset));
-
-    //     let eff = effects.pop().unwrap();
-    //     let ui_msg = match eff {
-    //         AppEffect::Ui(msg) => msg,
-    //         _ => panic!("wrong variant"),
-    //     };
-
-    //     assert!(matches!(ui_msg, UiMsg::ShowDirectoryPicker));
-    // }
-
-    // todo: this test can't work without deleting the app config.
-    // it should be injected instead if we want to test it.
-    // #[test]
-    // fn persist_preset_without_config_path() {
-    //     let mut app = AppState::default();
-    //     let preset = preset_with_slot(PresetSlot::Slot2);
-
-    //     let effects = app.update(AppMsg::Ui(UiEffect::PersistPreset(Box::new(preset))));
-
-    //     assert_eq!(effects.len(), 1);
-    //     assert!(matches!(
-    //         effects[0],
-    //         AppEffect::Ui(UiMsg::ShowDirectoryPicker)
-    //     ));
-
-    //     assert_eq!(app.preset.settings.slot, PresetSlot::Slot2);
-    // }
-
-    #[test]
-    fn set_preset_directory() {
-        let mut app = AppState::default();
-
-        let effects = app.update(AppMsg::Ui(UiEffect::SetPresetDirectory));
-
-        assert_eq!(effects.len(), 1);
-        assert!(matches!(
-            effects[0],
-            AppEffect::Ui(UiMsg::ShowDirectoryPicker)
-        ));
-    }
-
-    #[test]
-    fn persist_preset_directory() {
+    fn persist_preset_with_config_path() {
         let persistence_path = std::env::temp_dir();
 
         let config = AppConfig {
@@ -547,22 +462,33 @@ mod tests {
             config,
             ..Default::default()
         };
+        let preset = preset_with_slot(PresetSlot::Slot2);
 
-        let mut effects = app.update(AppMsg::Ui(UiEffect::PresetDirectorySelected(
-            persistence_path.clone(),
-        )));
+        let effects = app.update(AppMsg::Ui(UiEffect::PersistPreset {
+            preset: Box::new(preset),
+            path: persistence_path.join("test.preset"),
+        }));
 
         assert_eq!(app.config.persistence_path, Some(persistence_path.clone()));
+        assert_eq!(effects.len(), 2);
+    }
+
+    #[test]
+    fn load_preset_from_file() {
+        let persistence_path = std::env::temp_dir();
+
+        let mut app = AppState::default();
+
+        let mut effects = app.update(AppMsg::Ui(UiEffect::LoadPresetFromFile {
+            path: persistence_path.join("test.preset"),
+        }));
+
         assert_eq!(effects.len(), 1);
         let effect = effects.pop().unwrap();
-
-        let io_msg = *match effect {
-            AppEffect::Io(io_msg) => io_msg,
-            _ => panic!("wrong variant"),
-        };
-
-        // todo: this could be made more specific than ..
-        assert!(matches!(io_msg, IoMsg::PersistConfig { .. }))
+        assert!(matches!(
+            effect,
+            AppEffect::Io(msg) if matches!(msg.as_ref(), IoMsg::LoadPreset { path } if path == &persistence_path.join("test.preset"))
+        ));
     }
 
     #[test]
@@ -577,7 +503,9 @@ mod tests {
             ..Default::default()
         };
 
-        let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetSaveResult(Ok(())))));
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetSaveResult(Ok(
+            "saved".to_string(),
+        )))));
 
         assert_eq!(effects.len(), 1);
         assert!(matches!(
@@ -626,9 +554,9 @@ mod tests {
             Box::new(preset),
         )))));
 
-        assert_eq!(effects.len(), 1);
+        assert_eq!(effects.len(), 2);
         assert!(matches!(
-            effects[0],
+            effects[1],
             AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                 kind: UserMsgKind::Status,
                 msg: ref m,
