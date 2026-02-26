@@ -91,7 +91,7 @@ pub enum KeyModifier {
 pub struct PresetName(pub [u8; 8]);
 impl Default for PresetName {
     fn default() -> Self {
-        Self(*b"Midilab ")
+        Self(*b"Midilab\0")
     }
 }
 impl PresetName {

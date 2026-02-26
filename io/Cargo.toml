@@ -12,6 +12,7 @@ bytemuck.workspace = true
 midir.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
+serde_json.workspace = true
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 core-foundation = "0.10"

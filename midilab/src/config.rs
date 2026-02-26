@@ -36,7 +36,7 @@ impl From<serde_json::Error> for ConfigError {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub preset_directory: Option<PathBuf>,
+    pub persistence_path: Option<PathBuf>,
 }
 
 impl AppConfig {
@@ -45,58 +45,13 @@ impl AppConfig {
     }
 
     pub fn load() -> Self {
-        Self::config_path()
-            .and_then(|path| fs::read_to_string(&path).ok())
-            .and_then(|content| serde_json::from_str(&content).ok())
+        Self::load_with_path(&Self::config_path().expect("Failed to get config path"))
             .unwrap_or_default()
     }
 
-    pub fn save(&self) -> Result<(), ConfigError> {
-        let path = Self::config_path().ok_or_else(|| {
-            ConfigError::Io(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Could not determine config directory",
-            ))
-        })?;
-
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(&path, content)?;
-        Ok(())
-    }
-
-    pub fn preset_path(&self) -> Option<PathBuf> {
-        self.preset_directory
-            .as_ref()
-            .map(|dir| dir.join("akai_mpd226_preset"))
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AppSettings {
-    pending_action: Option<PendingAction>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PendingAction {
-    Save,
-    Load,
-}
-
-impl AppSettings {
-    pub fn has_pending_action(&self) -> bool {
-        self.pending_action.is_some()
-    }
-
-    pub fn set_save_action(&mut self) {
-        self.pending_action = Some(PendingAction::Save);
-    }
-
-    pub fn set_load_action(&mut self) {
-        self.pending_action = Some(PendingAction::Load);
-    }
-
-    pub fn take_action(&mut self) -> Option<PendingAction> {
-        self.pending_action.take()
+    pub fn load_with_path(path: &PathBuf) -> Result<Self, ConfigError> {
+        let content = fs::read_to_string(path).map_err(ConfigError::Io)?;
+        serde_json::from_str(&content).map_err(ConfigError::Json)
     }
 }
 
@@ -107,19 +62,7 @@ mod tests {
     #[test]
     fn default_config_has_no_preset_directory() {
         let config = AppConfig::default();
-        assert!(config.preset_directory.is_none());
-        assert!(config.preset_path().is_none());
-    }
-
-    #[test]
-    fn preset_path_appends_filename() {
-        let config = AppConfig {
-            preset_directory: Some(PathBuf::from("/some/dir")),
-        };
-        assert_eq!(
-            config.preset_path(),
-            Some(PathBuf::from("/some/dir/akai_mpd226_preset"))
-        );
+        assert!(config.persistence_path.is_none());
     }
 
     #[test]
@@ -128,29 +71,5 @@ mod tests {
         if let Some(p) = path {
             assert!(p.ends_with("midilab/config.json"));
         }
-    }
-
-    #[test]
-    fn default_settings_has_no_pending_action() {
-        let mut settings = AppSettings::default();
-        assert!(!settings.has_pending_action());
-        assert!(settings.take_action().is_none());
-    }
-
-    #[test]
-    fn can_set_and_take_save_action() {
-        let mut settings = AppSettings::default();
-        settings.set_save_action();
-        assert!(settings.has_pending_action());
-        assert_eq!(settings.take_action(), Some(PendingAction::Save));
-        assert!(!settings.has_pending_action());
-    }
-
-    #[test]
-    fn can_set_and_take_load_action() {
-        let mut settings = AppSettings::default();
-        settings.set_load_action();
-        assert!(settings.has_pending_action());
-        assert_eq!(settings.take_action(), Some(PendingAction::Load));
     }
 }

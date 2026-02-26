@@ -19,6 +19,7 @@ use midilab::state::AppState;
 use midilab_gui::AkaiMpd226Editor;
 use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
 use midilab_io::fs::load_akai_mpd226_preset_from_sysex;
+use midilab_io::fs::persist_config;
 use midilab_io::fs::save_akai_mpd226_preset;
 use midilab_io::midi::find_input_port;
 use midilab_io::midi::find_output_port;
@@ -54,6 +55,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .map(Box::new)
                         .map_err(|e| e.to_string()),
                 ),
+                IoMsg::PersistConfig { config, path } => IoEffect::PersistConfigResult(
+                    persist_config(config, &path)
+                        .await
+                        .map_err(|e| e.to_string()),
+                ),
             };
 
             io_app_tx.send(AppMsg::Io(Box::new(effect))).unwrap();
@@ -62,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let _midi = tokio::spawn(async move {
         while let Some(msg) = midi_rx.recv().await {
-            let result = handle_midi_msg(msg).await;
+            let result: Result<Vec<u8>, MidiError> = handle_midi_msg(msg).await;
 
             let msg = match result {
                 Ok(bytes) => match DeviceStatus::try_from(bytes.as_slice()) {

@@ -315,8 +315,8 @@ impl TryFrom<(ControlId, RawSwitch)> for Switch {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PresetSettings {
-    pub preset_slot: PresetSlot,
-    pub preset_name: PresetName,
+    pub slot: PresetSlot,
+    pub name: PresetName,
     pub tempo: Tempo,
     pub time_division_switch: TriggerKind,
     pub time_division: TimeDivision,
@@ -329,8 +329,8 @@ pub struct PresetSettings {
 impl Default for PresetSettings {
     fn default() -> Self {
         Self {
-            preset_slot: PresetSlot::default(),
-            preset_name: PresetName::default(),
+            slot: PresetSlot::default(),
+            name: PresetName::default(),
             tempo: Tempo::default(),
             time_division_switch: TriggerKind::Toggle,
             time_division: TimeDivision::default(),
@@ -664,7 +664,7 @@ mod tests {
         #[test]
         fn test_preset_settings_default() {
             let preset_settings = PresetSettings::default();
-            assert_eq!(preset_settings.preset_slot, PresetSlot::RAM);
+            assert_eq!(preset_settings.slot, PresetSlot::RAM);
             assert_eq!(preset_settings.tempo, Tempo(120));
             assert_eq!(preset_settings.time_division, TimeDivision::Div1_16);
             assert_eq!(preset_settings.gate, Gate::from(50));

@@ -54,7 +54,7 @@ impl AkaiMpd226Editor {
                     self.ui_state.user_msg = Some(e);
                 }
 
-                UiMsg::ShowDirectoryPicker { .. } => {
+                UiMsg::ShowDirectoryPicker => {
                     self.spawn_directory_picker();
                 }
 
