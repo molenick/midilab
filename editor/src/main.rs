@@ -1,6 +1,8 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use eframe::egui::ViewportBuilder;
+use midilab::config::AppConfig;
 use midilab::error::MidiError;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
 use midilab::manufacturer::akai::mpd226::dump_global_from_device;
@@ -110,10 +112,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_min_inner_size(APP_DIMENSIONS),
         ..Default::default()
     };
+    let config = Arc::new(AppConfig::load());
+
     eframe::run_native(
         "Akai MPD226 Editor",
         options,
-        Box::new(|_cc| Ok(Box::new(AkaiMpd226Editor::new(app_tx, ui_rx)))),
+        Box::new(move |_cc| {
+            Ok(Box::new(AkaiMpd226Editor::new(
+                app_tx,
+                ui_rx,
+                config.clone(),
+            )))
+        }),
     )?;
 
     Ok(())

@@ -100,9 +100,7 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
         MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Save preset").clicked() {
-                    // todo: need to show a dialogue to allow user to set the persisted preset name
-                    // to save we should get a string back we can use to construct the path
-                    outbox.push(UiEffect::PersistPreset(Box::new(ui_state.preset)));
+                    outbox.push(UiEffect::ShowPresetSaveDialog);
                 }
 
                 if ui.button("Load preset").clicked() {

@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use eframe::egui::Key;
 use egui_kittest::HarnessBuilder;
 use egui_kittest::kittest::Queryable;
+use midilab::config::AppConfig;
 use midilab_gui::AkaiMpd226Editor;
 use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
 use tokio::sync::mpsc::unbounded_channel;
@@ -9,7 +12,8 @@ use tokio::sync::mpsc::unbounded_channel;
 fn test_modal_for_different_control_types() {
     let (app_tx, _app_rx) = unbounded_channel();
     let (_ui_tx, ui_rx) = unbounded_channel();
-    let app = AkaiMpd226Editor::new(app_tx, ui_rx);
+    let config = Arc::new(AppConfig::default());
+    let app = AkaiMpd226Editor::new(app_tx, ui_rx, config);
 
     let mut harness = HarnessBuilder::default()
         .with_size(APP_DIMENSIONS)

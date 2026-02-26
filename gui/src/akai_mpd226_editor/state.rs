@@ -1,7 +1,9 @@
 use std::fmt::Display;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use eframe::egui::Context;
+use midilab::config::AppConfig;
 use midilab::manufacturer::akai::mpd226::ColorPattern;
 use midilab::manufacturer::akai::mpd226::ColorSequence;
 use midilab::manufacturer::akai::mpd226::Global;
@@ -30,15 +32,21 @@ pub struct AkaiMpd226Editor {
     outbox: Vec<UiEffect>,
     app_tx: UnboundedSender<AppMsg>,
     ui_rx: UnboundedReceiver<UiMsg>,
+    config: Arc<AppConfig>,
 }
 
 impl AkaiMpd226Editor {
-    pub fn new(app_tx: UnboundedSender<AppMsg>, ui_rx: UnboundedReceiver<UiMsg>) -> Self {
+    pub fn new(
+        app_tx: UnboundedSender<AppMsg>,
+        ui_rx: UnboundedReceiver<UiMsg>,
+        config: Arc<AppConfig>,
+    ) -> Self {
         Self {
             ui_state: UiState::default(),
             outbox: Vec::new(),
             app_tx,
             ui_rx,
+            config,
         }
     }
 
@@ -55,11 +63,15 @@ impl AkaiMpd226Editor {
                 }
 
                 UiMsg::ShowDirectoryPicker => {
-                    self.spawn_directory_picker();
+                    self.spawn_preset_save_dialog();
                 }
 
                 UiMsg::DirectoryConfigured(path) => {
                     self.ui_state.configured_directory = Some(path);
+                }
+
+                UiMsg::PresetFileSelected(path) => {
+                    self.spawn_preset_save_dialog_with_path(path);
                 }
 
                 UiMsg::UpdateGlobal(global) => {
@@ -71,17 +83,52 @@ impl AkaiMpd226Editor {
         }
     }
 
-    fn spawn_directory_picker(&self) {
+    fn spawn_preset_save_dialog(&self) {
         let app_tx = self.app_tx.clone();
+        let config = self.config.clone();
+        let preset = self.ui_state.preset;
+        tokio::spawn(async move {
+            let dialog = rfd::AsyncFileDialog::new().set_title("Save Preset");
+
+            let dialog = if let Some(ref dir) = config.persistence_path {
+                dialog.set_directory(dir)
+            } else {
+                dialog
+            };
+
+            let filename = preset.default_filename();
+            let dialog = dialog.set_file_name(&filename);
+
+            let handle: Option<_> = dialog.save_file().await;
+            if let Some(handle) = handle {
+                let path = handle.path().to_path_buf();
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistPreset {
+                    preset: Box::new(preset),
+                    path,
+                }));
+            }
+        });
+    }
+
+    fn spawn_preset_save_dialog_with_path(&self, path: PathBuf) {
+        let app_tx = self.app_tx.clone();
+        let preset = self.ui_state.preset;
         tokio::spawn(async move {
             let dialog = rfd::AsyncFileDialog::new()
-                .set_title("Select Preset Save Directory")
-                .pick_folder()
-                .await;
-            if let Some(handle) = dialog {
-                let _ = app_tx.send(AppMsg::Ui(UiEffect::PresetDirectorySelected(
-                    handle.path().to_path_buf(),
-                )));
+                .set_title("Save Preset")
+                .set_directory(path.parent().unwrap_or(&path))
+                .set_file_name(
+                    path.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string(),
+                );
+
+            if let Some(handle) = dialog.save_file().await {
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistPreset {
+                    preset: Box::new(preset),
+                    path: handle.path().to_path_buf(),
+                }));
             }
         });
     }
