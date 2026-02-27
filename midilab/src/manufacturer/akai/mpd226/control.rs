@@ -21,8 +21,8 @@ use crate::manufacturer::akai::mpd226::raw::RawDial;
 use crate::manufacturer::akai::mpd226::raw::RawFader;
 use crate::manufacturer::akai::mpd226::raw::RawPad;
 use crate::manufacturer::akai::mpd226::raw::RawSwitch;
-use crate::midi::MidiNote;
-use crate::midi::MidiValue;
+use crate::midi::Note;
+use crate::midi::Value;
 
 pub mod value_kind;
 
@@ -40,13 +40,13 @@ pub struct Pad {
     pub id: ControlId,
     pub kind: PadKind,
     pub channel: MidiChannel,
-    pub note: MidiNote,
+    pub note: Note,
     pub midi2din: ActiveState,
     pub mode: TriggerKind,
     pub aftertouch: AfterTouchKind,
-    pub program: MidiValue,
-    pub msb: MidiValue,
-    pub lsb: MidiValue,
+    pub program: Value,
+    pub msb: Value,
+    pub lsb: Value,
     pub off_color: PadColor,
     pub on_color: PadColor,
 }
@@ -110,13 +110,13 @@ pub struct Dial {
     pub id: ControlId,
     pub kind: DialKind,
     pub channel: MidiChannel,
-    pub midicc: MidiValue,
-    pub min: MidiValue,
-    pub max: MidiValue,
+    pub midicc: Value,
+    pub min: Value,
+    pub max: Value,
     pub midi2din: ActiveState,
-    pub msb: MidiValue,
-    pub lsb: MidiValue,
-    pub value: MidiValue,
+    pub msb: Value,
+    pub lsb: Value,
+    pub value: Value,
 }
 
 impl Default for Dial {
@@ -178,9 +178,9 @@ pub struct Fader {
     pub id: ControlId,
     pub kind: FaderKind,
     pub channel: MidiChannel,
-    pub midicc: MidiValue,
-    pub min: MidiValue,
-    pub max: MidiValue,
+    pub midicc: Value,
+    pub min: Value,
+    pub max: Value,
     pub midi2din: ActiveState,
 }
 
@@ -234,14 +234,14 @@ pub struct Switch {
     pub id: ControlId,
     pub kind: SwitchKind,
     pub channel: MidiChannel,
-    pub midicc: MidiValue,
+    pub midicc: Value,
     pub mode: TriggerKind,
-    pub prog: MidiValue,
-    pub msb: MidiValue,
-    pub lsb: MidiValue,
+    pub prog: Value,
+    pub msb: Value,
+    pub lsb: Value,
     pub midi2din: ActiveState,
-    pub note: MidiNote,
-    pub velo: MidiValue,
+    pub note: Note,
+    pub velo: Value,
     pub invert: ActiveState,
     pub key1: u8,
     pub key2: KeyModifier,
@@ -358,7 +358,7 @@ mod tests {
             let pad = Pad::new(ControlId(5));
             assert_eq!(pad.id, ControlId(5));
             assert_eq!(pad.kind, PadKind::default());
-            assert_eq!(pad.note, MidiNote::default());
+            assert_eq!(pad.note, Note::default());
         }
 
         #[test]
@@ -371,9 +371,9 @@ mod tests {
                 midi2din: ActiveState::Off,
                 mode: TriggerKind::Momentary,
                 aftertouch: AfterTouchKind::Channel,
-                program: MidiValue::default(),
-                msb: MidiValue::default(),
-                lsb: MidiValue::default(),
+                program: Value::default(),
+                msb: Value::default(),
+                lsb: Value::default(),
                 off_color: PadColor::Red,
                 on_color: PadColor::Green,
             };
@@ -407,7 +407,7 @@ mod tests {
             assert_eq!(pad.id, ControlId(3));
             assert_eq!(pad.kind, PadKind::Note);
             assert_eq!(pad.channel, MidiChannel::A5);
-            assert_eq!(pad.note, MidiNote::from(72));
+            assert_eq!(pad.note, Note::from(72));
             assert_eq!(pad.mode, TriggerKind::Toggle);
             assert_eq!(pad.aftertouch, AfterTouchKind::Poly);
             assert_eq!(pad.off_color, PadColor::Amber);

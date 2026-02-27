@@ -3,8 +3,7 @@ use num_enum::TryFromPrimitive;
 use strum_macros::Display;
 use strum_macros::EnumIter;
 
-use crate::midi::MidiNote;
-use crate::midi::Octave as MidiOctave;
+use crate::midi::Note;
 
 /// Chord voicings represent different ways to arrange the notes of a chord.
 #[derive(Clone, Copy, Debug, Display, EnumIter, PartialEq, Eq)]
@@ -60,13 +59,6 @@ pub struct Octave(pub i8);
 impl From<i8> for Octave {
     fn from(value: i8) -> Self {
         Self(value)
-    }
-}
-
-/// Converts a MIDI-bounded `midi::Octave` into an unbounded `music::Octave`.
-impl From<MidiOctave> for Octave {
-    fn from(o: MidiOctave) -> Self {
-        Octave(o as i8)
     }
 }
 
@@ -155,8 +147,8 @@ impl PitchClass {
     }
 }
 
-impl From<MidiNote> for PitchClass {
-    fn from(note: MidiNote) -> Self {
+impl From<Note> for PitchClass {
+    fn from(note: Note) -> Self {
         let semitone = note.as_u8() % 12;
         PitchClass::try_from_primitive(semitone).unwrap()
     }
@@ -229,7 +221,7 @@ impl ScaleKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::midi::MidiNote;
+    use crate::midi::Note;
 
     #[test]
     fn test_pitch_class_add_semitones() {
@@ -261,7 +253,7 @@ mod tests {
     fn test_negative_octaves_no_overflow() {
         // Osub1: 12 * (-1 + 1) + 0 = 0
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::C,
                 octave: Octave(-1)
             })
@@ -270,7 +262,7 @@ mod tests {
         );
         // Osub1: C# = 1
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::Cs,
                 octave: Octave(-1)
             })
@@ -279,7 +271,7 @@ mod tests {
         );
         // Osub2: 12 * (-2 + 1) + 0 = -12 → clamps to 0
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::C,
                 octave: Octave(-2)
             })
@@ -288,7 +280,7 @@ mod tests {
         );
         // Osub2: B = 11 → 12 * (-1) + 11 = -1 → clamps to 0
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::B,
                 octave: Octave(-2)
             })

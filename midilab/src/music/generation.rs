@@ -2,10 +2,10 @@ use strum_macros::Display;
 use strum_macros::EnumIter;
 
 use super::theory::ChordVoicing;
-use super::theory::Octave;
 use super::theory::Pitch;
 use super::theory::PitchClass;
 use super::theory::ScaleKind;
+use crate::music::theory;
 
 pub struct PitchSequence(pub Vec<Pitch>);
 
@@ -55,7 +55,7 @@ impl PitchClass {
 pub struct ChordRowSequence {
     pub tonic: PitchClass,
     pub scale: ScaleKind,
-    pub octave: Octave,
+    pub octave: theory::Octave,
     pub voicing: ChordVoicing,
     pub direction: SequenceDirection,
     pub length: usize,
@@ -66,7 +66,7 @@ impl Default for ChordRowSequence {
         Self {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Seventh,
             direction: SequenceDirection::Ascending,
             length: 64,
@@ -116,7 +116,7 @@ impl ChordRowSequence {
                     let base = scale_pitches[degree + off];
                     let pitch = Pitch {
                         class: base.class,
-                        octave: Octave(base.octave.0 + shift / 12),
+                        octave: theory::Octave(base.octave.0 + shift / 12),
                     };
                     pitches.push(pitch);
                 }
@@ -139,7 +139,7 @@ pub struct ScaleSequence {
     /// are the notes ascending or descending?
     pub direction: SequenceDirection,
     /// what is the octave of the tonic where the sequence begins?
-    pub octave: Octave,
+    pub octave: theory::Octave,
     /// how notes do we want the sequence to produce?
     pub length: usize,
 }
@@ -150,7 +150,7 @@ impl Default for ScaleSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 64,
         }
     }
@@ -227,7 +227,7 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 16,
         };
         let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
@@ -250,7 +250,7 @@ mod tests {
             tonic: PitchClass::A,
             scale: ScaleKind::NaturalMinor,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 16,
         };
         let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
@@ -273,7 +273,7 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
             direction: SequenceDirection::Descending,
-            octave: Octave(5),
+            octave: theory::Octave(5),
             length: 16,
         };
         let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
@@ -296,7 +296,7 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::MajorPentatonic,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 16,
         };
         let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
@@ -319,7 +319,7 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 16,
         };
         let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
@@ -341,7 +341,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Seventh,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -361,7 +361,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Triad,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -381,7 +381,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(9),
+            octave: theory::Octave(9),
             voicing: ChordVoicing::Seventh,
             direction: SequenceDirection::Ascending,
             length: 16,
@@ -399,7 +399,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Inversion1,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -417,7 +417,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Inversion2,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -435,7 +435,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Inversion3,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -453,7 +453,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Drop2,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -471,7 +471,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Quartal,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -489,7 +489,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Shell,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -507,7 +507,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Power,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -525,7 +525,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::Add9,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -543,7 +543,7 @@ mod tests {
         let seq = ChordRowSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             voicing: ChordVoicing::NinthNo5,
             direction: SequenceDirection::Ascending,
             length: 8,
@@ -562,14 +562,14 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave(2),
+            octave: theory::Octave(2),
             length: 1,
         };
         let o6 = ScaleSequence {
             tonic: PitchClass::C,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave(6),
+            octave: theory::Octave(6),
             length: 1,
         };
 

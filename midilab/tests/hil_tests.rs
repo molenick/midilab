@@ -10,7 +10,7 @@ use midilab::manufacturer::akai::mpd226::dump_preset_from_device;
 use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
-use midilab::midi::MidiNote;
+use midilab::midi::Note;
 
 const PORT_NAME: &str = "MPD226 Remote";
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -74,8 +74,8 @@ fn preset_round_trip() {
 
     let mut mutated = original;
     mutated.settings.name = PresetName(*b"HILTEST ");
-    mutated.pads.pads[0].note = MidiNote::from(72);
-    mutated.pads.pads[1].note = MidiNote::from(84);
+    mutated.pads.pads[0].note = Note::from(72);
+    mutated.pads.pads[1].note = Note::from(84);
     mutated.dials.0[0].midicc = 50.into();
     mutated.dials.0[1].midicc = 51.into();
     mutated.faders.0[0].midicc = 60.into();
@@ -113,8 +113,8 @@ fn preset_round_trip() {
     };
 
     assert_eq!(loaded.settings.name.0, *b"HILTEST ");
-    assert_eq!(loaded.pads.pads[0].note, MidiNote::from(72));
-    assert_eq!(loaded.pads.pads[1].note, MidiNote::from(84));
+    assert_eq!(loaded.pads.pads[0].note, Note::from(72));
+    assert_eq!(loaded.pads.pads[1].note, Note::from(84));
     assert_eq!(loaded.dials.0[0].midicc, 50.into());
     assert_eq!(loaded.dials.0[1].midicc, 51.into());
     assert_eq!(loaded.faders.0[0].midicc, 60.into());
