@@ -1,5 +1,6 @@
 use strum_macros::EnumIter;
 
+use crate::music::theory;
 use crate::music::theory::Pitch;
 use crate::music::theory::PitchClass;
 
@@ -147,6 +148,13 @@ impl RolandMidiOctave {
 impl std::fmt::Display for RolandMidiOctave {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+/// Converts a MIDI-bounded `midi::Octave` into an unbounded `music::Octave`.
+impl From<Octave> for theory::Octave {
+    fn from(o: Octave) -> Self {
+        theory::Octave(o as i8)
     }
 }
 

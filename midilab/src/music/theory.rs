@@ -4,7 +4,6 @@ use strum_macros::Display;
 use strum_macros::EnumIter;
 
 use crate::midi::Note;
-use crate::midi::Octave as MidiOctave;
 
 /// Chord voicings represent different ways to arrange the notes of a chord.
 #[derive(Clone, Copy, Debug, Display, EnumIter, PartialEq, Eq)]
@@ -60,13 +59,6 @@ pub struct Octave(pub i8);
 impl From<i8> for Octave {
     fn from(value: i8) -> Self {
         Self(value)
-    }
-}
-
-/// Converts a MIDI-bounded `midi::Octave` into an unbounded `music::Octave`.
-impl From<MidiOctave> for Octave {
-    fn from(o: MidiOctave) -> Self {
-        Octave(o as i8)
     }
 }
 
