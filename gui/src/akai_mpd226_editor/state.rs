@@ -19,7 +19,7 @@ use midilab::message::UserMsg;
 use midilab::music::generation::PitchPattern;
 use midilab::music::generation::ScaleSequence;
 use midilab::music::generation::SequenceDirection;
-use midilab::music::theory::Octave as MusicOctave;
+use midilab::music::theory;
 use midilab::music::theory::PitchClass;
 use midilab::music::theory::ScaleKind;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -271,7 +271,7 @@ impl Default for NoteMappingState {
                 tonic: PitchClass::C,
                 scale: ScaleKind::Chromatic,
                 direction: SequenceDirection::Ascending,
-                octave: MusicOctave(4),
+                octave: theory::Octave(4),
                 length: 64,
             }),
             starting_from_pad: 0,

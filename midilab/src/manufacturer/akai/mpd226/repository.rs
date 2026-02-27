@@ -236,8 +236,8 @@ mod tests {
     use crate::music::generation::ChordRowSequence;
     use crate::music::generation::ScaleSequence;
     use crate::music::generation::SequenceDirection;
+    use crate::music::theory;
     use crate::music::theory::ChordVoicing;
-    use crate::music::theory::Octave;
     use crate::music::theory::PitchClass;
     use crate::music::theory::ScaleKind;
 
@@ -249,7 +249,7 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 12,
         };
 
@@ -268,7 +268,7 @@ mod tests {
             tonic: PitchClass::C,
             scale: ScaleKind::Major,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 8,
         };
 
@@ -294,7 +294,7 @@ mod tests {
             tonic: PitchClass::D,
             scale: ScaleKind::Chromatic,
             direction: SequenceDirection::Ascending,
-            octave: Octave(4),
+            octave: theory::Octave(4),
             length: 8,
         };
 
@@ -720,7 +720,7 @@ mod tests {
             PitchPattern::ChordRow(ChordRowSequence {
                 tonic: PitchClass::C,
                 scale: ScaleKind::Major,
-                octave: Octave(4),
+                octave: theory::Octave(4),
                 voicing: ChordVoicing::Seventh,
                 direction: SequenceDirection::Ascending,
                 length: 8,
