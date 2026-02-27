@@ -109,6 +109,16 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
 
                 ui.separator();
 
+                if ui.button("Save global").clicked() {
+                    outbox.push(UiEffect::ShowGlobalSaveDialog);
+                }
+
+                if ui.button("Load global").clicked() {
+                    outbox.push(UiEffect::ShowGlobalLoadDialog);
+                }
+
+                ui.separator();
+
                 if ui.button("Quit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
@@ -215,6 +225,25 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect
                                 ui_state.user_msg = None;
                                 outbox
                                     .push(UiEffect::SendGlobalToDevice(Box::new(ui_state.global)));
+                            }
+                            ui.separator();
+
+                            if ui.button("Save").clicked() {
+                                ui_state.user_msg = None;
+                                let path = ui_state
+                                    .configured_directory_global
+                                    .clone()
+                                    .unwrap_or_else(std::env::temp_dir)
+                                    .join("akai_mpd226.global");
+                                outbox.push(UiEffect::PersistGlobal {
+                                    global: Box::new(ui_state.global),
+                                    path,
+                                });
+                            }
+
+                            if ui.button("Load").clicked() {
+                                ui_state.user_msg = None;
+                                outbox.push(UiEffect::ShowGlobalLoadDialog);
                             }
                             ui.separator();
 
