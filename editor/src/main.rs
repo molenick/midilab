@@ -20,8 +20,10 @@ use midilab::message::UserError;
 use midilab::state::AppState;
 use midilab_gui::AkaiMpd226Editor;
 use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
+use midilab_io::fs::load_akai_mpd226_global_from_bytes;
 use midilab_io::fs::load_akai_mpd226_preset_from_sysex;
 use midilab_io::fs::persist_config;
+use midilab_io::fs::save_akai_mpd226_global;
 use midilab_io::fs::save_akai_mpd226_preset;
 use midilab_io::midi::find_input_port;
 use midilab_io::midi::find_output_port;
@@ -53,6 +55,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
                 IoMsg::LoadPreset { path } => IoEffect::PresetLoadResult(
                     load_akai_mpd226_preset_from_sysex(&path)
+                        .await
+                        .map(Box::new)
+                        .map_err(|e| e.to_string()),
+                ),
+                IoMsg::SaveGlobal { global, path } => IoEffect::GlobalSaveResult(
+                    save_akai_mpd226_global(*global, &path)
+                        .await
+                        .map_err(|e| e.to_string()),
+                ),
+                IoMsg::LoadGlobal { path } => IoEffect::GlobalLoadResult(
+                    load_akai_mpd226_global_from_bytes(&path)
                         .await
                         .map(Box::new)
                         .map_err(|e| e.to_string()),

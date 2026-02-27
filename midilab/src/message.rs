@@ -28,12 +28,16 @@ pub enum IoMsg {
     PersistConfig { config: AppConfig, path: PathBuf },
     SavePreset { preset: Box<Preset>, path: PathBuf },
     LoadPreset { path: PathBuf },
+    SaveGlobal { global: Box<Global>, path: PathBuf },
+    LoadGlobal { path: PathBuf },
 }
 
 pub enum IoEffect {
     PersistConfigResult(Result<(), String>),
     PresetSaveResult(Result<String, String>),
     PresetLoadResult(Result<Box<Preset>, String>),
+    GlobalSaveResult(Result<String, String>),
+    GlobalLoadResult(Result<Box<Global>, String>),
 }
 
 /// Application system effects produced from processing AppMsgs
@@ -51,6 +55,9 @@ pub enum UiMsg {
     LoadPresetDialog,
     DirectoryConfigured(PathBuf),
     SavePresetDialog(PathBuf),
+    LoadGlobalDialog,
+    DirectoryConfiguredGlobal(PathBuf),
+    SaveGlobalDialog(PathBuf),
 }
 
 pub enum UiEffect {
@@ -62,6 +69,10 @@ pub enum UiEffect {
     LoadPresetFromFile { path: PathBuf },
     SendGlobalToDevice(Box<Global>),
     RequestGlobalFromDevice,
+    PersistGlobal { global: Box<Global>, path: PathBuf },
+    ShowGlobalSaveDialog,
+    ShowGlobalLoadDialog,
+    LoadGlobalFromFile { path: PathBuf },
 }
 impl UiEffect {
     pub fn as_app_msg(self) -> AppMsg {

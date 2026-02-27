@@ -66,7 +66,8 @@ impl AppState {
                     ]
                 }
                 UiEffect::ShowPresetSaveDialog => {
-                    vec![AppEffect::Ui(UiMsg::LoadPresetDialog)]
+                    let path = std::env::temp_dir().join("akai_mpd226.preset");
+                    vec![AppEffect::Ui(UiMsg::SavePresetDialog(path))]
                 }
                 UiEffect::ShowPresetLoadDialog => {
                     vec![AppEffect::Ui(UiMsg::LoadPresetDialog)]
@@ -82,6 +83,31 @@ impl AppState {
                 }
                 UiEffect::RequestGlobalFromDevice => {
                     vec![AppEffect::Device(DeviceMsg::DumpGlobal)]
+                }
+                UiEffect::PersistGlobal { global, path } => {
+                    self.global = *global;
+                    self.config.persistence_path =
+                        Some(path.parent().unwrap_or(&path).to_path_buf());
+
+                    let config_path = AppConfig::config_path().expect("Failed to get config path");
+
+                    vec![
+                        AppEffect::Io(Box::new(IoMsg::SaveGlobal { global, path })),
+                        AppEffect::Io(Box::new(IoMsg::PersistConfig {
+                            config: self.config.clone(),
+                            path: config_path,
+                        })),
+                    ]
+                }
+                UiEffect::ShowGlobalSaveDialog => {
+                    let path = std::env::temp_dir().join("akai_mpd226.global");
+                    vec![AppEffect::Ui(UiMsg::SaveGlobalDialog(path))]
+                }
+                UiEffect::ShowGlobalLoadDialog => {
+                    vec![AppEffect::Ui(UiMsg::LoadGlobalDialog)]
+                }
+                UiEffect::LoadGlobalFromFile { path } => {
+                    vec![AppEffect::Io(Box::new(IoMsg::LoadGlobal { path }))]
                 }
             },
             AppMsg::Device(msg) => match msg {
@@ -160,6 +186,36 @@ impl AppState {
                     }
                     Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: format!("Preset load failed: {e}"),
+                        kind: UserMsgKind::Error,
+                        received_at: Instant::now(),
+                    }))],
+                },
+                IoEffect::GlobalSaveResult(result) => match result {
+                    Ok(global_path) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: format!("Saved global {}", global_path),
+                        kind: UserMsgKind::Status,
+                        received_at: Instant::now(),
+                    }))],
+                    Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: format!("Global save failed: {e}"),
+                        kind: UserMsgKind::Error,
+                        received_at: Instant::now(),
+                    }))],
+                },
+                IoEffect::GlobalLoadResult(result) => match result {
+                    Ok(global) => {
+                        self.global = *global.clone();
+                        vec![
+                            AppEffect::Ui(UiMsg::UpdateGlobal(global)),
+                            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                                msg: "Global loaded".to_string(),
+                                kind: UserMsgKind::Status,
+                                received_at: Instant::now(),
+                            })),
+                        ]
+                    }
+                    Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: format!("Global load failed: {e}"),
                         kind: UserMsgKind::Error,
                         received_at: Instant::now(),
                     }))],
@@ -570,6 +626,145 @@ mod tests {
         let mut app = AppState::default();
 
         let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetLoadResult(Err(
+            "file not found".to_string(),
+        )))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Error,
+                msg: ref m,
+                ..
+            })) if m.contains("file not found")
+        ));
+    }
+
+    #[test]
+    fn persist_global_with_config_path() {
+        let persistence_path = std::env::temp_dir();
+
+        let config = AppConfig {
+            persistence_path: Some(persistence_path.clone()),
+        };
+        let mut app = AppState {
+            config,
+            ..Default::default()
+        };
+        let global = Global {
+            lcd_contrast: 42,
+            ..Default::default()
+        };
+
+        let effects = app.update(AppMsg::Ui(UiEffect::PersistGlobal {
+            global: Box::new(global),
+            path: persistence_path.join("test.global"),
+        }));
+
+        assert_eq!(app.config.persistence_path, Some(persistence_path.clone()));
+        assert_eq!(effects.len(), 2);
+    }
+
+    #[test]
+    fn load_global_from_file() {
+        let persistence_path = std::env::temp_dir();
+
+        let mut app = AppState::default();
+
+        let mut effects = app.update(AppMsg::Ui(UiEffect::LoadGlobalFromFile {
+            path: persistence_path.join("test.global"),
+        }));
+
+        assert_eq!(effects.len(), 1);
+        let effect = effects.pop().unwrap();
+        assert!(matches!(
+            effect,
+            AppEffect::Io(msg) if matches!(msg.as_ref(), IoMsg::LoadGlobal { path } if path == &persistence_path.join("test.global"))
+        ));
+    }
+
+    #[test]
+    fn io_global_save_success() {
+        let persistence_path = std::env::temp_dir();
+
+        let config = AppConfig {
+            persistence_path: Some(persistence_path),
+        };
+        let mut app = AppState {
+            config,
+            ..Default::default()
+        };
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::GlobalSaveResult(Ok(
+            "saved".to_string(),
+        )))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Status,
+                msg: ref m,
+                ..
+            })) if m.contains("saved")
+        ));
+    }
+
+    #[test]
+    fn io_global_save_failure() {
+        let mut app = AppState::default();
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::GlobalSaveResult(Err(
+            "disk full".to_string(),
+        )))));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Error,
+                msg: ref m,
+                ..
+            })) if m.contains("disk full")
+        ));
+    }
+
+    #[test]
+    fn io_global_load_success() {
+        let persistence_path = std::env::temp_dir();
+
+        let config = AppConfig {
+            persistence_path: Some(persistence_path),
+        };
+        let mut app = AppState {
+            config,
+            ..Default::default()
+        };
+        let global = Global {
+            lcd_contrast: 35,
+            ..Default::default()
+        };
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::GlobalLoadResult(Ok(
+            Box::new(global),
+        )))));
+
+        assert_eq!(effects.len(), 2);
+        assert!(matches!(
+            effects[1],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Status,
+                msg: ref m,
+                ..
+            })) if m.contains("loaded")
+        ));
+    }
+
+    #[test]
+    fn io_global_load_failure() {
+        let mut app = AppState::default();
+
+        let effects = app.update(AppMsg::Io(Box::new(IoEffect::GlobalLoadResult(Err(
             "file not found".to_string(),
         )))));
 

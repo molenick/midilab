@@ -57,17 +57,26 @@ impl AkaiMpd226Editor {
                     self.ui_state.preset = *preset;
                     self.ui_state.selected_item = None;
                 }
-                UiMsg::UserMsg(e) => {
-                    self.ui_state.user_msg = Some(e);
-                }
                 UiMsg::DirectoryConfigured(path) => {
                     self.ui_state.configured_directory = Some(path);
                 }
                 UiMsg::SavePresetDialog(path) => {
-                    self.spawn_preset_load_dialog_with_path(path);
+                    self.spawn_preset_save_dialog_with_path(path);
                 }
                 UiMsg::LoadPresetDialog => {
                     self.spawn_preset_load_dialog();
+                }
+                UiMsg::DirectoryConfiguredGlobal(path) => {
+                    self.ui_state.configured_directory_global = Some(path);
+                }
+                UiMsg::SaveGlobalDialog(path) => {
+                    self.spawn_global_save_dialog_with_path(path);
+                }
+                UiMsg::LoadGlobalDialog => {
+                    self.spawn_global_load_dialog();
+                }
+                UiMsg::UserMsg(e) => {
+                    self.ui_state.user_msg = Some(e);
                 }
                 UiMsg::UpdateGlobal(global) => {
                     self.ui_state.global = *global;
@@ -82,7 +91,9 @@ impl AkaiMpd226Editor {
         let app_tx = self.app_tx.clone();
         let config = self.config.clone();
         tokio::spawn(async move {
-            let dialog = rfd::AsyncFileDialog::new().set_title("Load Preset");
+            let dialog = rfd::AsyncFileDialog::new()
+                .set_title("Load Preset")
+                .add_filter("Preset files", &["preset"]);
 
             let dialog = if let Some(ref dir) = config.persistence_path {
                 dialog.set_directory(dir)
@@ -98,21 +109,84 @@ impl AkaiMpd226Editor {
         });
     }
 
-    fn spawn_preset_load_dialog_with_path(&self, path: PathBuf) {
+    fn spawn_preset_save_dialog_with_path(&self, path: PathBuf) {
         let app_tx = self.app_tx.clone();
+        let preset = self.ui_state.preset;
+        let config = self.config.clone();
         tokio::spawn(async move {
             let dialog = rfd::AsyncFileDialog::new()
-                .set_title("Load Preset")
+                .set_title("Save Preset")
                 .set_directory(path.parent().unwrap_or(&path))
                 .set_file_name(
                     path.file_name()
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string(),
-                );
+                )
+                .add_filter("Preset files", &["preset"]);
 
-            if let Some(handle) = dialog.pick_file().await {
-                let _ = app_tx.send(AppMsg::Ui(UiEffect::LoadPresetFromFile {
+            let dialog = if let Some(ref dir) = config.persistence_path {
+                dialog.set_directory(dir)
+            } else {
+                dialog
+            };
+
+            if let Some(handle) = dialog.save_file().await {
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistPreset {
+                    preset: Box::new(preset),
+                    path: handle.path().to_path_buf(),
+                }));
+            }
+        });
+    }
+
+    fn spawn_global_load_dialog(&self) {
+        let app_tx = self.app_tx.clone();
+        let config = self.config.clone();
+        tokio::spawn(async move {
+            let dialog = rfd::AsyncFileDialog::new()
+                .set_title("Load Global")
+                .add_filter("Global files", &["global"]);
+
+            let dialog = if let Some(ref dir) = config.persistence_path {
+                dialog.set_directory(dir)
+            } else {
+                dialog
+            };
+
+            let handle: Option<_> = dialog.pick_file().await;
+            if let Some(handle) = handle {
+                let path = handle.path().to_path_buf();
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::LoadGlobalFromFile { path }));
+            }
+        });
+    }
+
+    fn spawn_global_save_dialog_with_path(&self, path: PathBuf) {
+        let app_tx = self.app_tx.clone();
+        let global = self.ui_state.global;
+        let config = self.config.clone();
+        tokio::spawn(async move {
+            let dialog = rfd::AsyncFileDialog::new()
+                .set_title("Save Global")
+                .set_directory(path.parent().unwrap_or(&path))
+                .set_file_name(
+                    path.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string(),
+                )
+                .add_filter("Global files", &["global"]);
+
+            let dialog = if let Some(ref dir) = config.persistence_path {
+                dialog.set_directory(dir)
+            } else {
+                dialog
+            };
+
+            if let Some(handle) = dialog.save_file().await {
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistGlobal {
+                    global: Box::new(global),
                     path: handle.path().to_path_buf(),
                 }));
             }
@@ -181,6 +255,7 @@ pub struct UiState {
     pub aftertouch_kind: AfterTouchKind,
     pub user_msg: Option<UserMsg>,
     pub configured_directory: Option<PathBuf>,
+    pub configured_directory_global: Option<PathBuf>,
 }
 
 pub struct NoteMappingState {
