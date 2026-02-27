@@ -91,7 +91,9 @@ impl AkaiMpd226Editor {
         let app_tx = self.app_tx.clone();
         let config = self.config.clone();
         tokio::spawn(async move {
-            let dialog = rfd::AsyncFileDialog::new().set_title("Load Preset");
+            let dialog = rfd::AsyncFileDialog::new()
+                .set_title("Load Preset")
+                .add_filter("Preset files", &["preset"]);
 
             let dialog = if let Some(ref dir) = config.persistence_path {
                 dialog.set_directory(dir)
@@ -109,6 +111,8 @@ impl AkaiMpd226Editor {
 
     fn spawn_preset_save_dialog_with_path(&self, path: PathBuf) {
         let app_tx = self.app_tx.clone();
+        let preset = self.ui_state.preset;
+        let config = self.config.clone();
         tokio::spawn(async move {
             let dialog = rfd::AsyncFileDialog::new()
                 .set_title("Save Preset")
@@ -118,10 +122,18 @@ impl AkaiMpd226Editor {
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string(),
-                );
+                )
+                .add_filter("Preset files", &["preset"]);
+
+            let dialog = if let Some(ref dir) = config.persistence_path {
+                dialog.set_directory(dir)
+            } else {
+                dialog
+            };
 
             if let Some(handle) = dialog.save_file().await {
-                let _ = app_tx.send(AppMsg::Ui(UiEffect::LoadPresetFromFile {
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistPreset {
+                    preset: Box::new(preset),
                     path: handle.path().to_path_buf(),
                 }));
             }
@@ -132,7 +144,9 @@ impl AkaiMpd226Editor {
         let app_tx = self.app_tx.clone();
         let config = self.config.clone();
         tokio::spawn(async move {
-            let dialog = rfd::AsyncFileDialog::new().set_title("Load Global");
+            let dialog = rfd::AsyncFileDialog::new()
+                .set_title("Load Global")
+                .add_filter("Global files", &["global"]);
 
             let dialog = if let Some(ref dir) = config.persistence_path {
                 dialog.set_directory(dir)
@@ -150,6 +164,8 @@ impl AkaiMpd226Editor {
 
     fn spawn_global_save_dialog_with_path(&self, path: PathBuf) {
         let app_tx = self.app_tx.clone();
+        let global = self.ui_state.global;
+        let config = self.config.clone();
         tokio::spawn(async move {
             let dialog = rfd::AsyncFileDialog::new()
                 .set_title("Save Global")
@@ -159,10 +175,18 @@ impl AkaiMpd226Editor {
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string(),
-                );
+                )
+                .add_filter("Global files", &["global"]);
+
+            let dialog = if let Some(ref dir) = config.persistence_path {
+                dialog.set_directory(dir)
+            } else {
+                dialog
+            };
 
             if let Some(handle) = dialog.save_file().await {
-                let _ = app_tx.send(AppMsg::Ui(UiEffect::LoadGlobalFromFile {
+                let _ = app_tx.send(AppMsg::Ui(UiEffect::PersistGlobal {
+                    global: Box::new(global),
                     path: handle.path().to_path_buf(),
                 }));
             }
