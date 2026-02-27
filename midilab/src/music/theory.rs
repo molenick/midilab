@@ -3,7 +3,7 @@ use num_enum::TryFromPrimitive;
 use strum_macros::Display;
 use strum_macros::EnumIter;
 
-use crate::midi::MidiNote;
+use crate::midi::Note;
 use crate::midi::Octave as MidiOctave;
 
 /// Chord voicings represent different ways to arrange the notes of a chord.
@@ -155,8 +155,8 @@ impl PitchClass {
     }
 }
 
-impl From<MidiNote> for PitchClass {
-    fn from(note: MidiNote) -> Self {
+impl From<Note> for PitchClass {
+    fn from(note: Note) -> Self {
         let semitone = note.as_u8() % 12;
         PitchClass::try_from_primitive(semitone).unwrap()
     }
@@ -229,7 +229,7 @@ impl ScaleKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::midi::MidiNote;
+    use crate::midi::Note;
 
     #[test]
     fn test_pitch_class_add_semitones() {
@@ -261,7 +261,7 @@ mod tests {
     fn test_negative_octaves_no_overflow() {
         // Osub1: 12 * (-1 + 1) + 0 = 0
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::C,
                 octave: Octave(-1)
             })
@@ -270,7 +270,7 @@ mod tests {
         );
         // Osub1: C# = 1
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::Cs,
                 octave: Octave(-1)
             })
@@ -279,7 +279,7 @@ mod tests {
         );
         // Osub2: 12 * (-2 + 1) + 0 = -12 → clamps to 0
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::C,
                 octave: Octave(-2)
             })
@@ -288,7 +288,7 @@ mod tests {
         );
         // Osub2: B = 11 → 12 * (-1) + 11 = -1 → clamps to 0
         assert_eq!(
-            MidiNote::from(&Pitch {
+            Note::from(&Pitch {
                 class: PitchClass::B,
                 octave: Octave(-2)
             })

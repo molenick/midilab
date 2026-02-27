@@ -802,7 +802,7 @@ mod tests {
     use super::raw::RawPreset;
     use super::*;
     use crate::manufacturer::akai::mpd226::control::ControlId;
-    use crate::midi::MidiNote;
+    use crate::midi::Note;
     use crate::midi::generation::MidiNoteSequence;
     use crate::music::generation::PitchPattern;
     use crate::music::generation::ScaleSequence;
@@ -811,10 +811,10 @@ mod tests {
     #[test]
     fn test_pad_repository_direct_mutation() {
         let mut repo = PadRepository::default();
-        assert_eq!(repo.pads[0].note, MidiNote::from(60));
+        assert_eq!(repo.pads[0].note, Note::from(60));
 
-        repo.pads[0].note = MidiNote::from(105);
-        assert_eq!(repo.pads[0].note, MidiNote::from(105));
+        repo.pads[0].note = Note::from(105);
+        assert_eq!(repo.pads[0].note, Note::from(105));
     }
 
     #[test]

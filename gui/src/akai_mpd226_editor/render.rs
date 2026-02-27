@@ -36,8 +36,8 @@ use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
 use midilab::manufacturer::akai::mpd226::repository::SwitchRepository;
 use midilab::message::UiEffect;
-use midilab::midi::MidiNote;
-use midilab::midi::MidiValue;
+use midilab::midi::Note;
+use midilab::midi::Value;
 use midilab::music::generation::ChordRowSequence;
 use midilab::music::generation::PitchPattern;
 use midilab::music::generation::ScaleSequence;
@@ -955,22 +955,22 @@ where
     ui.end_row();
 }
 
-fn row_edit_midi_note(ui: &mut Ui, name: &str, value: &mut MidiNote) {
+fn row_edit_midi_note(ui: &mut Ui, name: &str, value: &mut Note) {
     ui.label(name);
     let mut val: u8 = (*value).into();
     if ui.add(DragValue::new(&mut val).range(0..=127)).changed() {
-        *value = MidiNote::from(val);
+        *value = Note::from(val);
     }
     ui.end_row();
 }
 
-fn row_edit_midi_value(ui: &mut Ui, name: &str, value: &mut MidiValue) {
+fn row_edit_midi_value(ui: &mut Ui, name: &str, value: &mut Value) {
     ui.label(name);
     let val: u8 = (*value).into();
     let mut val = val;
 
     if ui.add(DragValue::new(&mut val).range(0..=127)).changed() {
-        *value = MidiValue::from(val);
+        *value = Value::from(val);
     }
     ui.end_row();
 }
