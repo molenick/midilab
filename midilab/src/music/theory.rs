@@ -86,6 +86,12 @@ impl From<u8> for Pitch {
     }
 }
 
+impl core::fmt::Display for Pitch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.class, self.octave)
+    }
+}
+
 impl Pitch {
     pub fn add_semitones(self, semitones: i8) -> Self {
         let absolute = 12 * (self.octave.0 as i16 + 1) + u8::from(self.class) as i16;
