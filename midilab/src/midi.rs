@@ -47,7 +47,7 @@ impl From<i8> for Octave {
 }
 
 impl core::fmt::Display for Octave {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", *self as i8)
     }
 }
@@ -83,6 +83,15 @@ impl From<Value> for u8 {
 /// A MIDI note number, constrained to 0–127.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Note(Value);
+
+impl core::fmt::Display for Note {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let level = RolandMidiOctave::new(*self);
+        let pitch_class = PitchClass::from(*self);
+
+        write!(f, "{}{} ({})", pitch_class, level, self.as_u8())
+    }
+}
 
 impl Note {
     pub fn as_u8(&self) -> u8 {
@@ -123,15 +132,6 @@ impl From<&Pitch> for Note {
     }
 }
 
-impl std::fmt::Display for Note {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let level = RolandMidiOctave::new(*self);
-        let pitch_class = PitchClass::from(*self);
-
-        write!(f, "{}{}", pitch_class, level)
-    }
-}
-
 /// A representation of octave level in Scientific Pitch Notation. Named colloquially
 /// so we don't have to shorthand w/ acronym or use the monstrous ScientificPitchNotation.
 /// It's Roland, where middle C is C4 as opposed Yamaha where it is C3.
@@ -145,8 +145,8 @@ impl RolandMidiOctave {
         Self(clamped)
     }
 }
-impl std::fmt::Display for RolandMidiOctave {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for RolandMidiOctave {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -165,12 +165,12 @@ mod tests {
     #[test]
     fn test_midi_notes() {
         let note = Note::from(0);
-        assert_eq!(note.to_string(), "C-1");
+        assert_eq!(note.to_string(), "C-1 (0)");
 
         let note = Note::from(60);
-        assert_eq!(note.to_string(), "C4");
+        assert_eq!(note.to_string(), "C4 (60)");
 
         let note = Note::from(127);
-        assert_eq!(note.to_string(), "G9");
+        assert_eq!(note.to_string(), "G9 (127)");
     }
 }
