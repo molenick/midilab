@@ -109,11 +109,29 @@ impl AppState {
                 UiEffect::LoadGlobalFromFile { path } => {
                     vec![AppEffect::Io(Box::new(IoMsg::LoadGlobal { path }))]
                 }
+                UiEffect::ShowSettingsModal => {
+                    vec![AppEffect::Ui(UiMsg::ShowSettingsModal)]
+                }
+                UiEffect::PersistUserSettings { config, path } => {
+                    vec![AppEffect::Io(Box::new(IoMsg::PersistUserSettings {
+                        config,
+                        path,
+                    }))]
+                }
+                UiEffect::AutoSync => {
+                    vec![
+                        AppEffect::Device(DeviceMsg::DumpPreset(
+                            crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot::RAM,
+                        )),
+                        AppEffect::Device(DeviceMsg::DumpGlobal),
+                    ]
+                }
             },
             AppMsg::Device(msg) => match msg {
                 DeviceStatus::PresetData(preset) => {
                     let slot = preset.settings.slot;
                     self.preset = *preset.clone();
+
                     vec![
                         AppEffect::Ui(UiMsg::UpdatePreset(preset)),
                         AppEffect::Ui(UiMsg::UserMsg(UserMsg {
@@ -132,8 +150,10 @@ impl AppState {
                 }
                 DeviceStatus::GlobalData(global) => {
                     self.global = *global.clone();
+
                     vec![
                         AppEffect::Ui(UiMsg::UpdateGlobal(global)),
+                        // Only show combined message if we're still in auto sync mode
                         AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                             msg: "Loaded global settings from device".to_string(),
                             kind: UserMsgKind::Status,
@@ -228,6 +248,14 @@ impl AppState {
                         received_at: Instant::now(),
                     }))],
                 },
+                IoEffect::PersistUserSettingsResult(result) => match result {
+                    Ok(_) => vec![],
+                    Err(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                        msg: format!("User settings save failed: {e}"),
+                        kind: UserMsgKind::Error,
+                        received_at: Instant::now(),
+                    }))],
+                },
             },
             AppMsg::UserError(e) => match e {
                 UserError::Midi(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
@@ -255,6 +283,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::UserSettings;
     use crate::error::DeviceStatusParseError;
     use crate::error::MidiError;
     use crate::error::SysexParseError;
@@ -513,6 +542,7 @@ mod tests {
 
         let config = AppConfig {
             persistence_path: Some(persistence_path.clone()),
+            user: UserSettings::default(),
         };
         let mut app = AppState {
             config,
@@ -553,6 +583,7 @@ mod tests {
 
         let config = AppConfig {
             persistence_path: Some(persistence_path),
+            user: UserSettings::default(),
         };
         let mut app = AppState {
             config,
@@ -599,6 +630,7 @@ mod tests {
 
         let config = AppConfig {
             persistence_path: Some(persistence_path),
+            user: UserSettings::default(),
         };
         let mut app = AppState {
             config,
@@ -646,6 +678,7 @@ mod tests {
 
         let config = AppConfig {
             persistence_path: Some(persistence_path.clone()),
+            user: UserSettings::default(),
         };
         let mut app = AppState {
             config,
@@ -689,6 +722,7 @@ mod tests {
 
         let config = AppConfig {
             persistence_path: Some(persistence_path),
+            user: UserSettings::default(),
         };
         let mut app = AppState {
             config,
@@ -735,6 +769,7 @@ mod tests {
 
         let config = AppConfig {
             persistence_path: Some(persistence_path),
+            user: UserSettings::default(),
         };
         let mut app = AppState {
             config,
@@ -776,6 +811,23 @@ mod tests {
                 msg: ref m,
                 ..
             })) if m.contains("file not found")
+        ));
+    }
+
+    #[test]
+    fn test_auto_sync_sends_both_dumps() {
+        let mut app = AppState::default();
+
+        let effects = app.update(AppMsg::Ui(UiEffect::AutoSync));
+
+        assert_eq!(effects.len(), 2);
+        assert!(matches!(
+            &effects[0],
+            AppEffect::Device(DeviceMsg::DumpPreset(slot)) if *slot == PresetSlot::RAM
+        ));
+        assert!(matches!(
+            &effects[1],
+            AppEffect::Device(DeviceMsg::DumpGlobal)
         ));
     }
 }

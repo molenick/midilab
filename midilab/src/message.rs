@@ -30,6 +30,7 @@ pub enum IoMsg {
     LoadPreset { path: PathBuf },
     SaveGlobal { global: Box<Global>, path: PathBuf },
     LoadGlobal { path: PathBuf },
+    PersistUserSettings { config: AppConfig, path: PathBuf },
 }
 
 pub enum IoEffect {
@@ -38,6 +39,7 @@ pub enum IoEffect {
     PresetLoadResult(Result<Box<Preset>, String>),
     GlobalSaveResult(Result<String, String>),
     GlobalLoadResult(Result<Box<Global>, String>),
+    PersistUserSettingsResult(Result<(), String>),
 }
 
 /// Application system effects produced from processing AppMsgs
@@ -58,6 +60,9 @@ pub enum UiMsg {
     LoadGlobalDialog,
     DirectoryConfiguredGlobal(PathBuf),
     SaveGlobalDialog(PathBuf),
+    ShowSettingsModal,
+    UpdateUserSettings(crate::config::UserSettings),
+    AutoSync,
 }
 
 pub enum UiEffect {
@@ -73,11 +78,9 @@ pub enum UiEffect {
     ShowGlobalSaveDialog,
     ShowGlobalLoadDialog,
     LoadGlobalFromFile { path: PathBuf },
-}
-impl UiEffect {
-    pub fn as_app_msg(self) -> AppMsg {
-        AppMsg::Ui(self)
-    }
+    ShowSettingsModal,
+    PersistUserSettings { config: AppConfig, path: PathBuf },
+    AutoSync,
 }
 
 pub enum DeviceMsg {
@@ -96,16 +99,4 @@ pub struct UserMsg {
 pub enum UserMsgKind {
     Status,
     Error,
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_ui_effect_as_app_msg() {
-        let eff = UiEffect::RequestGlobalFromDevice;
-        let msg = eff.as_app_msg();
-        assert!(matches!(msg, AppMsg::Ui(UiEffect::RequestGlobalFromDevice)));
-    }
 }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use eframe::egui::Context;
 use midilab::config::AppConfig;
+use midilab::config::UserSettings;
 use midilab::manufacturer::akai::mpd226::ColorPattern;
 use midilab::manufacturer::akai::mpd226::ColorSequence;
 use midilab::manufacturer::akai::mpd226::Global;
@@ -41,8 +42,14 @@ impl AkaiMpd226Editor {
         ui_rx: UnboundedReceiver<UiMsg>,
         config: Arc<AppConfig>,
     ) -> Self {
+        let user_settings = UserSettings {
+            auto_sync_enabled: config.user.auto_sync_enabled,
+        };
         Self {
-            ui_state: UiState::default(),
+            ui_state: UiState {
+                user_settings,
+                ..Default::default()
+            },
             outbox: Vec::new(),
             app_tx,
             ui_rx,
@@ -80,6 +87,25 @@ impl AkaiMpd226Editor {
                 }
                 UiMsg::UpdateGlobal(global) => {
                     self.ui_state.global = *global;
+                }
+                UiMsg::ShowSettingsModal => {
+                    self.ui_state.show_settings = true;
+                }
+                UiMsg::AutoSync => {
+                    self.outbox.push(UiEffect::AutoSync);
+                }
+                UiMsg::UpdateUserSettings(settings) => {
+                    self.ui_state.user_settings = settings.clone();
+
+                    let config = AppConfig {
+                        persistence_path: self.config.persistence_path.clone(),
+                        user: settings,
+                    };
+                    let config_path = AppConfig::config_path().expect("Failed to get config path");
+                    self.outbox.push(UiEffect::PersistUserSettings {
+                        config,
+                        path: config_path,
+                    });
                 }
             }
 
@@ -197,7 +223,7 @@ impl AkaiMpd226Editor {
         ui(ctx, &mut self.ui_state, &mut self.outbox);
 
         for msg in self.outbox.drain(..) {
-            let _ = self.app_tx.send(msg.as_app_msg());
+            let _ = self.app_tx.send(AppMsg::Ui(msg));
         }
     }
 }
@@ -256,6 +282,8 @@ pub struct UiState {
     pub user_msg: Option<UserMsg>,
     pub configured_directory: Option<PathBuf>,
     pub configured_directory_global: Option<PathBuf>,
+    pub user_settings: UserSettings,
+    pub show_settings: bool,
 }
 
 pub struct NoteMappingState {

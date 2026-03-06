@@ -119,6 +119,12 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
 
                 ui.separator();
 
+                if ui.button("Settings...").clicked() {
+                    outbox.push(UiEffect::ShowSettingsModal);
+                }
+
+                ui.separator();
+
                 if ui.button("Quit").clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
@@ -156,7 +162,9 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
         });
     });
 
-    if ui_state.selected_item.is_some() {
+    if ui_state.show_settings {
+        settings_modal(ctx, ui_state, outbox);
+    } else if ui_state.selected_item.is_some() {
         modal_editor(ctx, ui_state, outbox);
     } else {
         CentralPanel::default().show(ctx, |ui| {
@@ -1011,4 +1019,41 @@ fn row_edit_preset_name(ui: &mut Ui, name: &str, value: &mut PresetName) {
     *value = PresetName(buf);
 
     ui.end_row();
+}
+
+fn settings_modal(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
+    let modal_response = Modal::new(egui::Id::new("settings_modal")).show(ctx, |ui| {
+        ui.heading("Settings");
+        ui.separator();
+
+        // Checkbox for auto sync
+        let mut checked = ui_state.user_settings.auto_sync_enabled;
+        if ui
+            .checkbox(
+                &mut checked,
+                "AutoSync: Sync Preset & Global from device on app start",
+            )
+            .clicked()
+        {
+            ui_state.user_settings.auto_sync_enabled = checked;
+            let config = midilab::config::AppConfig {
+                persistence_path: ui_state.configured_directory.clone(),
+                user: ui_state.user_settings.clone(),
+            };
+            let config_path =
+                midilab::config::AppConfig::config_path().expect("Failed to get config path");
+            outbox.push(UiEffect::PersistUserSettings {
+                config,
+                path: config_path,
+            });
+        }
+
+        if ui.button("Close").clicked() {
+            ui_state.show_settings = false;
+        }
+    });
+
+    if modal_response.should_close() {
+        ui_state.show_settings = false;
+    }
 }
