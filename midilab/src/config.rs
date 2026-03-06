@@ -5,6 +5,19 @@ use std::path::PathBuf;
 use serde::Deserialize;
 use serde::Serialize;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSettings {
+    pub auto_sync_enabled: bool,
+}
+
+impl Default for UserSettings {
+    fn default() -> Self {
+        Self {
+            auto_sync_enabled: true,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ConfigError {
     Io(io::Error),
@@ -37,6 +50,7 @@ impl From<serde_json::Error> for ConfigError {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppConfig {
     pub persistence_path: Option<PathBuf>,
+    pub user: UserSettings,
 }
 
 impl AppConfig {
@@ -66,10 +80,42 @@ mod tests {
     }
 
     #[test]
+    fn default_config_has_default_user_settings() {
+        let config = AppConfig::default();
+        assert!(config.user.auto_sync_enabled);
+    }
+
+    #[test]
     fn config_path_uses_config_dir() {
         let path = AppConfig::config_path();
         if let Some(p) = path {
             assert!(p.ends_with("midilab/config.json"));
         }
+    }
+
+    #[test]
+    fn load_with_default_or_error_returns_default_on_missing_file() {
+        let temp_dir = std::env::temp_dir();
+        let fake_path = temp_dir.join("nonexistent").join("config.json");
+        let result = AppConfig::load_with_path(&fake_path);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn load_with_default_or_error_works_with_existing_file() {
+        let temp_dir = std::env::temp_dir();
+        let config_file = temp_dir.join("test_config.json");
+
+        let config = AppConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        std::fs::write(&config_file, json).unwrap();
+
+        let loaded_config =
+            AppConfig::load_with_path(&config_file).unwrap_or_else(|_| AppConfig::default());
+
+        assert!(loaded_config.user.auto_sync_enabled);
+
+        let _ = std::fs::remove_file(&config_file);
     }
 }

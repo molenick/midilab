@@ -15,6 +15,7 @@ use midilab::message::AppMsg;
 use midilab::message::DeviceMsg;
 use midilab::message::IoEffect;
 use midilab::message::IoMsg;
+use midilab::message::UiEffect;
 use midilab::message::UiMsg;
 use midilab::message::UserError;
 use midilab::state::AppState;
@@ -23,6 +24,7 @@ use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
 use midilab_io::fs::load_akai_mpd226_global_from_bytes;
 use midilab_io::fs::load_akai_mpd226_preset_from_sysex;
 use midilab_io::fs::persist_config;
+use midilab_io::fs::persist_user_settings;
 use midilab_io::fs::save_akai_mpd226_global;
 use midilab_io::fs::save_akai_mpd226_preset;
 use midilab_io::midi::find_input_port;
@@ -33,8 +35,6 @@ use midir::MidiInput;
 use midir::MidiOutput;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
-
-// todo: auto sync device state once at app start
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -72,6 +72,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
                 IoMsg::PersistConfig { config, path } => IoEffect::PersistConfigResult(
                     persist_config(config, &path)
+                        .await
+                        .map_err(|e| e.to_string()),
+                ),
+                IoMsg::PersistUserSettings { config, path } => IoEffect::PersistUserSettingsResult(
+                    persist_user_settings(config.clone(), &path)
                         .await
                         .map_err(|e| e.to_string()),
                 ),
@@ -126,6 +131,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     let config = Arc::new(AppConfig::load());
+    if config.user.auto_sync_enabled {
+        let _ = app_tx.send(AppMsg::Ui(UiEffect::AutoSync));
+    }
 
     eframe::run_native(
         "Akai MPD226 Editor",

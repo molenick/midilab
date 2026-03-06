@@ -28,6 +28,10 @@ pub async fn persist_config(config: AppConfig, path: &Path) -> Result<(), Error>
     Ok(tokio::fs::write(path, serde_json::to_vec(&config)?).await?)
 }
 
+pub async fn persist_user_settings(config: AppConfig, path: &Path) -> Result<(), Error> {
+    Ok(tokio::fs::write(path, serde_json::to_vec(&config)?).await?)
+}
+
 pub async fn save_akai_mpd226_preset(
     preset: akai::mpd226::Preset,
     path: &Path,
