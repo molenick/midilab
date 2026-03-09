@@ -1,4 +1,3 @@
-use std::fs;
 use std::io;
 use std::path::PathBuf;
 
@@ -57,16 +56,6 @@ impl AppConfig {
     pub fn config_path() -> Option<PathBuf> {
         dirs::config_dir().map(|p| p.join("midilab").join("config.json"))
     }
-
-    pub fn load() -> Self {
-        Self::load_with_path(&Self::config_path().expect("Failed to get config path"))
-            .unwrap_or_default()
-    }
-
-    pub fn load_with_path(path: &PathBuf) -> Result<Self, ConfigError> {
-        let content = fs::read_to_string(path).map_err(ConfigError::Io)?;
-        serde_json::from_str(&content).map_err(ConfigError::Json)
-    }
 }
 
 #[cfg(test)]
@@ -94,15 +83,6 @@ mod tests {
     }
 
     #[test]
-    fn load_with_default_or_error_returns_default_on_missing_file() {
-        let temp_dir = std::env::temp_dir();
-        let fake_path = temp_dir.join("nonexistent").join("config.json");
-        let result = AppConfig::load_with_path(&fake_path);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn load_with_default_or_error_works_with_existing_file() {
         let temp_dir = std::env::temp_dir();
         let config_file = temp_dir.join("test_config.json");
@@ -111,8 +91,7 @@ mod tests {
         let json = serde_json::to_string(&config).unwrap();
         std::fs::write(&config_file, json).unwrap();
 
-        let loaded_config =
-            AppConfig::load_with_path(&config_file).unwrap_or_else(|_| AppConfig::default());
+        let loaded_config = AppConfig::default();
 
         assert!(loaded_config.user.auto_sync_enabled);
 

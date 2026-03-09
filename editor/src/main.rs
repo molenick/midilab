@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use eframe::egui::ViewportBuilder;
@@ -23,6 +22,7 @@ use midilab_gui::AkaiMpd226Editor;
 use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
 use midilab_io::fs::load_akai_mpd226_global_from_bytes;
 use midilab_io::fs::load_akai_mpd226_preset_from_sysex;
+use midilab_io::fs::load_app_config;
 use midilab_io::fs::persist_config;
 use midilab_io::fs::persist_user_settings;
 use midilab_io::fs::save_akai_mpd226_global;
@@ -103,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let mut app_state = AppState::new();
+    let mut app_state = AppState::new(AppConfig::default());
 
     let app_ui_tx = ui_tx.clone();
     let _app = tokio::spawn(async move {
@@ -130,7 +130,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with_min_inner_size(APP_DIMENSIONS),
         ..Default::default()
     };
-    let config = Arc::new(AppConfig::load());
+
+    // todo: we could inspect_err to tell user about errors via eprintln, maybe we want a gui mechanism tho
+    let config = load_app_config(&AppConfig::config_path().unwrap_or_default())
+        .await
+        .unwrap_or_default();
+
     if config.user.auto_sync_enabled {
         let _ = app_tx.send(AppMsg::Ui(UiEffect::AutoSync));
     }
@@ -142,7 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(Box::new(AkaiMpd226Editor::new(
                 app_tx,
                 ui_rx,
-                config.clone(),
+                config.into(),
             )))
         }),
     )?;
