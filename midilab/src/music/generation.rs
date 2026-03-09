@@ -7,15 +7,58 @@ use super::theory::PitchClass;
 use super::theory::ScaleKind;
 use crate::music::theory;
 
+/// Represents a sequence of pitches generated from a scale or chord pattern.
+///
+/// This is the core output type for music generation, containing an ordered
+/// collection of pitches that can be converted to MIDI notes.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PitchSequence(pub Vec<Pitch>);
 
+impl PitchSequence {
+    /// Returns the number of pitches in this sequence.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if this sequence contains no pitches.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Returns the underlying vector of pitches.
+    pub fn as_vec(&self) -> &[Pitch] {
+        &self.0
+    }
+}
+
+/// Direction in which a musical sequence proceeds.
 #[derive(Clone, Copy, Debug, Display, EnumIter, PartialEq, Eq)]
 pub enum SequenceDirection {
+    /// Moves upward through the scale (ascending pitch)
     Ascending,
+    /// Moves downward through the scale (descending pitch)
     Descending,
 }
 
 impl PitchClass {
+    /// Returns the next pitch class in the specified direction.
+    ///
+    /// Wraps around at octave boundaries (B → C or C → B).
+    ///
+    /// # Arguments
+    ///
+    /// * `direction` - Whether to move up (ascending) or down (descending)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use midilab::music::generation::SequenceDirection;
+    /// use midilab::music::theory::PitchClass;
+    ///
+    /// let c = PitchClass::C;
+    /// assert_eq!(c.next(SequenceDirection::Ascending), PitchClass::Cs);
+    /// assert_eq!(c.next(SequenceDirection::Descending), PitchClass::B);
+    /// ```
     pub fn next(&self, direction: SequenceDirection) -> Self {
         match direction {
             SequenceDirection::Ascending => match self {
@@ -50,14 +93,44 @@ impl PitchClass {
     }
 }
 
-/// Creates a "chord row" - a 4 note sequence that voices a chord
+/// A sequence that generates chord voicings across scale degrees.
+///
+/// This produces a "chord row" - a melodic pattern where each scale degree
+/// is voiced as a chord using the specified voicing (e.g., seventh, triad,
+/// drop 2, quartal).
+///
+/// Each chord is 4 notes, so a sequence of length N produces 4×N individual
+/// pitch events.
+///
+/// # Examples
+///
+/// ```
+/// use midilab::music::generation::{ChordRowSequence, SequenceDirection};
+/// use midilab::music::theory::{ScaleKind, Octave, PitchClass, ChordVoicing};
+///
+/// let seq = ChordRowSequence {
+///     tonic: PitchClass::C,
+///     scale: ScaleKind::Major,
+///     octave: Octave(4),
+///     voicing: ChordVoicing::Seventh,
+///     direction: SequenceDirection::Ascending,
+///     length: 8,
+/// };
+/// let pitches = seq.as_pitches();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ChordRowSequence {
+    /// The tonic (root) pitch class of the scale
     pub tonic: PitchClass,
+    /// The scale kind determining which intervals to use
     pub scale: ScaleKind,
+    /// The starting octave for the sequence
     pub octave: theory::Octave,
+    /// How to voice each chord (seventh, triad, drop2, etc.)
     pub voicing: ChordVoicing,
+    /// Whether to move ascending or descending through the scale
     pub direction: SequenceDirection,
+    /// Number of scale degrees to sequence (each produces 4 chord notes)
     pub length: usize,
 }
 
@@ -77,8 +150,9 @@ impl Default for ChordRowSequence {
 impl ChordRowSequence {
     pub fn as_pitches(&self) -> PitchSequence {
         let intervals = self.scale.intervals();
-        // +12 ensures enough scale pitches for the largest voicing offset (11, from Inversion3).
-        let needed_degrees = (self.length / 4) + 12;
+        const SAFE_SCALE_PADDING: usize = 12;
+        const MAX_VOICING_OFFSET: usize = 11;
+        let needed_degrees = (self.length / 4) + SAFE_SCALE_PADDING;
         let mut scale_pitches: Vec<Pitch> = Vec::with_capacity(needed_degrees);
 
         let mut current_pitch = Pitch {
@@ -105,7 +179,7 @@ impl ChordRowSequence {
         let mut degree = 0usize;
 
         let offsets = self.voicing.chord_offsets();
-        let max_offset = offsets.iter().map(|(o, _)| *o).max().unwrap_or(0);
+        let max_offset = MAX_VOICING_OFFSET;
 
         while pitches.len() < self.length && degree < scale_pitches.len() {
             if degree + max_offset >= scale_pitches.len() {
@@ -128,19 +202,38 @@ impl ChordRowSequence {
     }
 }
 
-/// ScaleSequences allow for the creation of note-mapping patterns from
-/// common musical scales
+/// A sequence that generates notes from a musical scale.
+///
+/// This produces a melodic pattern by traversing the intervals of a scale
+/// in the specified direction (ascending or descending) starting from a
+/// given tonic and octave.
+///
+/// # Examples
+///
+/// ```
+/// use midilab::music::generation::{ScaleSequence, SequenceDirection};
+/// use midilab::music::theory::{ScaleKind, Octave, PitchClass};
+///
+/// let seq = ScaleSequence {
+///     tonic: PitchClass::C,
+///     scale: ScaleKind::Major,
+///     direction: SequenceDirection::Ascending,
+///     octave: Octave(4),
+///     length: 16,
+/// };
+/// let pitches = seq.as_pitches();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScaleSequence {
-    /// the tonic of the scale
+    /// The tonic (root) pitch class of the scale
     pub tonic: PitchClass,
-    /// the supported scale kind, which determines intervals used
+    /// The scale kind determining which intervals to use
     pub scale: ScaleKind,
-    /// are the notes ascending or descending?
+    /// Whether to move ascending or descending through the scale
     pub direction: SequenceDirection,
-    /// what is the octave of the tonic where the sequence begins?
+    /// The starting octave for the sequence
     pub octave: theory::Octave,
-    /// how notes do we want the sequence to produce?
+    /// Number of notes to generate in the sequence
     pub length: usize,
 }
 
@@ -157,6 +250,31 @@ impl Default for ScaleSequence {
 }
 
 impl ScaleSequence {
+    /// Generates the pitch sequence according to this scale sequence configuration.
+    ///
+    /// Returns a `PitchSequence` containing the specified number of notes,
+    /// following the scale intervals in the specified direction.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The scale sequence configuration
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use midilab::music::generation::{ScaleSequence, SequenceDirection};
+    /// use midilab::music::theory::{ScaleKind, Octave, PitchClass};
+    ///
+    /// let seq = ScaleSequence {
+    ///     tonic: PitchClass::C,
+    ///     scale: ScaleKind::Major,
+    ///     direction: SequenceDirection::Ascending,
+    ///     octave: Octave(4),
+    ///     length: 8,
+    /// };
+    /// let pitches = seq.as_pitches();
+    /// assert_eq!(pitches.len(), 8);
+    /// ```
     pub fn as_pitches(&self) -> PitchSequence {
         let intervals = self.scale.intervals();
         let mut pitches = Vec::with_capacity(self.length);
@@ -181,15 +299,23 @@ impl ScaleSequence {
     }
 }
 
+/// A pattern that can generate pitch sequences.
+///
+/// This enum wraps both scale-based and chord-based generation patterns,
+/// providing a uniform interface for creating musical sequences.
 #[derive(Clone, Copy, Debug, Display, PartialEq)]
 pub enum PitchPattern {
-    #[strum(to_string = "Scale")]
+    /// A scale sequence generating notes from a musical scale
     Scale(ScaleSequence),
-    #[strum(to_string = "Chord")]
+    /// A chord row sequence generating chord voicings across scale degrees
     ChordRow(ChordRowSequence),
 }
 
 impl PitchPattern {
+    /// Generates the pitch sequence for this pattern.
+    ///
+    /// Delegates to the underlying scale or chord sequence to produce
+    /// the actual collection of pitches.
     pub fn as_pitches(&self) -> PitchSequence {
         match self {
             PitchPattern::Scale(sequence) => sequence.as_pitches(),
@@ -197,12 +323,21 @@ impl PitchPattern {
         }
     }
 
-    #[allow(clippy::len_without_is_empty)]
+    /// Returns the total number of notes this pattern will generate.
+    ///
+    /// For scale sequences, this is the configured length.
+    /// For chord row sequences, this is the number of scale degrees
+    /// (each producing 4 chord notes).
     pub fn len(&self) -> usize {
         match self {
             PitchPattern::Scale(sequence) => sequence.length,
             PitchPattern::ChordRow(sequence) => sequence.length,
         }
+    }
+
+    /// Returns true if this pattern will generate zero notes.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -575,5 +710,97 @@ mod tests {
 
         assert_eq!(MidiNoteSequence::from(o2.as_pitches()).0[0].as_u8(), 36);
         assert_eq!(MidiNoteSequence::from(o6.as_pitches()).0[0].as_u8(), 84);
+    }
+
+    #[test]
+    fn test_scale_sequence_length_one() {
+        let ss = ScaleSequence {
+            tonic: PitchClass::C,
+            scale: ScaleKind::Major,
+            direction: SequenceDirection::Ascending,
+            octave: theory::Octave(4),
+            length: 1,
+        };
+        let pitches = ss.as_pitches();
+        assert_eq!(pitches.len(), 1);
+        assert_eq!(pitches.as_vec()[0].class, PitchClass::C);
+    }
+
+    #[test]
+    fn test_scale_sequence_length_zero() {
+        let ss = ScaleSequence {
+            tonic: PitchClass::C,
+            scale: ScaleKind::Major,
+            direction: SequenceDirection::Ascending,
+            octave: theory::Octave(4),
+            length: 0,
+        };
+        let pitches = ss.as_pitches();
+        assert_eq!(pitches.len(), 0);
+        assert!(pitches.is_empty());
+    }
+
+    #[test]
+    fn test_chord_row_descending_c4_8_notes() {
+        let seq = ChordRowSequence {
+            tonic: PitchClass::C,
+            scale: ScaleKind::Major,
+            octave: theory::Octave(4),
+            voicing: ChordVoicing::Seventh,
+            direction: SequenceDirection::Descending,
+            length: 8,
+        };
+        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+            .0
+            .into_iter()
+            .map(u8::from)
+            .collect();
+        assert_eq!(notes.len(), 8);
+    }
+
+    #[test]
+    fn test_pitch_pattern_is_empty() {
+        let scale = ScaleSequence {
+            tonic: PitchClass::C,
+            scale: ScaleKind::Major,
+            direction: SequenceDirection::Ascending,
+            octave: theory::Octave(4),
+            length: 0,
+        };
+        let pattern = PitchPattern::Scale(scale);
+        assert!(pattern.is_empty());
+        assert_eq!(pattern.len(), 0);
+    }
+
+    #[test]
+    fn test_pitch_sequence_len_and_is_empty() {
+        let seq = ScaleSequence {
+            tonic: PitchClass::C,
+            scale: ScaleKind::Major,
+            direction: SequenceDirection::Ascending,
+            octave: theory::Octave(4),
+            length: 10,
+        };
+        let pitches = seq.as_pitches();
+        assert_eq!(pitches.len(), 10);
+        assert!(!pitches.is_empty());
+        assert_eq!(pitches.as_vec().len(), 10);
+    }
+
+    #[test]
+    fn test_chord_row_high_octave_all_notes_valid() {
+        let seq = ChordRowSequence {
+            tonic: PitchClass::C,
+            scale: ScaleKind::Major,
+            octave: theory::Octave(8),
+            voicing: ChordVoicing::Seventh,
+            direction: SequenceDirection::Ascending,
+            length: 4,
+        };
+        let notes = MidiNoteSequence::from(seq.as_pitches()).0;
+        assert_eq!(notes.len(), 4);
+        for n in &notes {
+            assert!(n.as_u8() <= 127);
+        }
     }
 }
