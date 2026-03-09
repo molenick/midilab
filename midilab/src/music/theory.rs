@@ -64,11 +64,7 @@ impl From<i8> for Octave {
 
 impl core::fmt::Display for Octave {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.0 >= 0 {
-            write!(f, "{}", self.0)
-        } else {
-            write!(f, "Sub{}", self.0.unsigned_abs())
-        }
+        write!(f, "{}", self.0)
     }
 }
 
@@ -88,7 +84,22 @@ impl From<u8> for Pitch {
 
 impl core::fmt::Display for Pitch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", self.class, self.octave)
+        let octave_superscript = self
+            .octave
+            .0
+            .to_string()
+            .replace('-', "⁻")
+            .replace('0', "⁰")
+            .replace('1', "¹")
+            .replace('2', "²")
+            .replace('3', "³")
+            .replace('4', "⁴")
+            .replace('5', "⁵")
+            .replace('6', "⁶")
+            .replace('7', "⁷")
+            .replace('8', "⁸")
+            .replace('9', "⁹");
+        write!(f, "{}{}", self.class, octave_superscript)
     }
 }
 
