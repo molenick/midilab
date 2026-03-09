@@ -2,7 +2,6 @@ use strum_macros::EnumIter;
 
 use crate::music::theory;
 use crate::music::theory::Pitch;
-use crate::music::theory::PitchClass;
 
 pub mod generation;
 
@@ -86,10 +85,8 @@ pub struct Note(Value);
 
 impl core::fmt::Display for Note {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let level = RolandMidiOctave::new(*self);
-        let pitch_class = PitchClass::from(*self);
-
-        write!(f, "{}{} ({})", pitch_class, level, self.as_u8())
+        let pitch = Pitch::from(self);
+        write!(f, "{}", pitch)
     }
 }
 
@@ -132,22 +129,10 @@ impl From<&Pitch> for Note {
     }
 }
 
-/// A representation of octave level in Scientific Pitch Notation. Named colloquially
-/// so we don't have to shorthand w/ acronym or use the monstrous ScientificPitchNotation.
-/// It's Roland, where middle C is C4 as opposed Yamaha where it is C3.
-#[derive(Debug)]
-pub struct RolandMidiOctave(i8);
-impl RolandMidiOctave {
-    pub fn new(note: Note) -> Self {
-        let level = note.as_u8() as i8 / 12 - 1;
-
-        let clamped = level.clamp(-1, 9);
-        Self(clamped)
-    }
-}
-impl core::fmt::Display for RolandMidiOctave {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.0)
+impl From<&Note> for Pitch {
+    fn from(note: &Note) -> Self {
+        let value: u8 = note.as_u8();
+        Pitch::from(value)
     }
 }
 
@@ -165,12 +150,12 @@ mod tests {
     #[test]
     fn test_midi_notes() {
         let note = Note::from(0);
-        assert_eq!(note.to_string(), "C-1 (0)");
+        assert_eq!(note.to_string(), "C⁻¹");
 
         let note = Note::from(60);
-        assert_eq!(note.to_string(), "C4 (60)");
+        assert_eq!(note.to_string(), "C⁴");
 
         let note = Note::from(127);
-        assert_eq!(note.to_string(), "G9 (127)");
+        assert_eq!(note.to_string(), "G⁹");
     }
 }
