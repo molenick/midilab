@@ -24,6 +24,11 @@ pub enum Error {
     JsonSerialization(#[from] serde_json::Error),
 }
 
+pub async fn load_app_config(path: &Path) -> Result<AppConfig, Error> {
+    let content = std::fs::read_to_string(path)?;
+    Ok(serde_json::from_str::<AppConfig>(&content)?)
+}
+
 pub async fn persist_config(config: AppConfig, path: &Path) -> Result<(), Error> {
     Ok(tokio::fs::write(path, serde_json::to_vec(&config)?).await?)
 }

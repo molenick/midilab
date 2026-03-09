@@ -22,18 +22,12 @@ pub struct AppState {
     pub config: AppConfig,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(config: AppConfig) -> Self {
         Self {
             preset: Preset::default(),
             global: Global::default(),
-            config: AppConfig::load(),
+            config,
         }
     }
 
@@ -305,7 +299,7 @@ mod tests {
 
     #[test]
     fn send_preset_to_device() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let preset = preset_with_slot(PresetSlot::Slot3);
 
         let effects = app.update(AppMsg::Ui(UiEffect::WritePreset(Box::new(preset))));
@@ -320,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_dump_preset() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let original_slot = app.preset.settings.slot;
 
         let effects = app.update(AppMsg::Ui(UiEffect::DumpPreset(PresetSlot::Slot4)));
@@ -335,7 +329,7 @@ mod tests {
 
     #[test]
     fn device_preset_data() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let preset = preset_with_slot(PresetSlot::Slot1);
 
         let effects = app.update(AppMsg::Device(DeviceStatus::PresetData(Box::new(preset))));
@@ -357,7 +351,7 @@ mod tests {
 
     #[test]
     fn device_received_preset_ack() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let original_slot = app.preset.settings.slot;
 
         let effects = app.update(AppMsg::Device(DeviceStatus::ReceivedPresetAck(PresetAck {
@@ -377,7 +371,7 @@ mod tests {
 
     #[test]
     fn midi_error() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let original_slot = app.preset.settings.slot;
 
         let effects = app.update(AppMsg::UserError(UserError::Midi(
@@ -397,7 +391,7 @@ mod tests {
 
     #[test]
     fn sysex_parse_error() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let original_slot = app.preset.settings.slot;
 
         let effects = app.update(AppMsg::UserError(UserError::SysexParse(
@@ -417,7 +411,7 @@ mod tests {
 
     #[test]
     fn device_status_parse_error() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let original_slot = app.preset.settings.slot;
 
         let effects = app.update(AppMsg::UserError(UserError::DeviceStatusParse(
@@ -437,7 +431,7 @@ mod tests {
 
     #[test]
     fn send_global_to_device() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let global = Global {
             lcd_contrast: 42,
             ..Default::default()
@@ -455,7 +449,7 @@ mod tests {
 
     #[test]
     fn request_global_from_device() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let original_contrast = app.global.lcd_contrast;
 
         let effects = app.update(AppMsg::Ui(UiEffect::RequestGlobalFromDevice));
@@ -467,7 +461,7 @@ mod tests {
 
     #[test]
     fn device_global_data() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
         let global = Global {
             lcd_contrast: 35,
             pad_threshold: 7,
@@ -494,7 +488,7 @@ mod tests {
 
     #[test]
     fn device_global_param_ack_success() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let mut effects = app.update(AppMsg::Device(DeviceStatus::GlobalParamAck(
             GlobalParamAck {
@@ -517,7 +511,7 @@ mod tests {
 
     #[test]
     fn device_global_param_ack_failure() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let effects = app.update(AppMsg::Device(DeviceStatus::GlobalParamAck(
             GlobalParamAck {
@@ -546,7 +540,8 @@ mod tests {
         };
         let mut app = AppState {
             config,
-            ..Default::default()
+            preset: Preset::default(),
+            global: Global::default(),
         };
         let preset = preset_with_slot(PresetSlot::Slot2);
 
@@ -563,7 +558,7 @@ mod tests {
     fn load_preset_from_file() {
         let persistence_path = std::env::temp_dir();
 
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let mut effects = app.update(AppMsg::Ui(UiEffect::LoadPresetFromFile {
             path: persistence_path.join("test.preset"),
@@ -587,7 +582,8 @@ mod tests {
         };
         let mut app = AppState {
             config,
-            ..Default::default()
+            preset: Preset::default(),
+            global: Global::default(),
         };
 
         let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetSaveResult(Ok(
@@ -607,7 +603,7 @@ mod tests {
 
     #[test]
     fn io_preset_save_failure() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetSaveResult(Err(
             "disk full".to_string(),
@@ -634,7 +630,8 @@ mod tests {
         };
         let mut app = AppState {
             config,
-            ..Default::default()
+            preset: Preset::default(),
+            global: Global::default(),
         };
         let preset = preset_with_slot(PresetSlot::Slot6);
 
@@ -655,7 +652,7 @@ mod tests {
 
     #[test]
     fn io_preset_load_failure() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let effects = app.update(AppMsg::Io(Box::new(IoEffect::PresetLoadResult(Err(
             "file not found".to_string(),
@@ -682,7 +679,8 @@ mod tests {
         };
         let mut app = AppState {
             config,
-            ..Default::default()
+            preset: Preset::default(),
+            global: Global::default(),
         };
         let global = Global {
             lcd_contrast: 42,
@@ -702,7 +700,7 @@ mod tests {
     fn load_global_from_file() {
         let persistence_path = std::env::temp_dir();
 
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let mut effects = app.update(AppMsg::Ui(UiEffect::LoadGlobalFromFile {
             path: persistence_path.join("test.global"),
@@ -726,7 +724,8 @@ mod tests {
         };
         let mut app = AppState {
             config,
-            ..Default::default()
+            preset: Preset::default(),
+            global: Global::default(),
         };
 
         let effects = app.update(AppMsg::Io(Box::new(IoEffect::GlobalSaveResult(Ok(
@@ -746,7 +745,7 @@ mod tests {
 
     #[test]
     fn io_global_save_failure() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let effects = app.update(AppMsg::Io(Box::new(IoEffect::GlobalSaveResult(Err(
             "disk full".to_string(),
@@ -773,7 +772,8 @@ mod tests {
         };
         let mut app = AppState {
             config,
-            ..Default::default()
+            preset: Preset::default(),
+            global: Global::default(),
         };
         let global = Global {
             lcd_contrast: 35,
@@ -797,7 +797,7 @@ mod tests {
 
     #[test]
     fn io_global_load_failure() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let effects = app.update(AppMsg::Io(Box::new(IoEffect::GlobalLoadResult(Err(
             "file not found".to_string(),
@@ -816,7 +816,7 @@ mod tests {
 
     #[test]
     fn test_auto_sync_sends_both_dumps() {
-        let mut app = AppState::default();
+        let mut app = AppState::new(AppConfig::default());
 
         let effects = app.update(AppMsg::Ui(UiEffect::AutoSync));
 
