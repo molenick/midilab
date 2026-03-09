@@ -344,12 +344,12 @@ impl PitchPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::midi::generation::MidiNoteSequence;
+    use crate::midi::NoteSequence;
 
     #[test]
     fn test_default_scale_sequence() {
         let ss = ScaleSequence::default();
-        let notes = MidiNoteSequence::from(ss.as_pitches()).0;
+        let notes = NoteSequence::from(ss.as_pitches()).0;
 
         assert_eq!(notes.len(), 64);
         assert_eq!(notes[0].as_u8(), 60);
@@ -365,7 +365,7 @@ mod tests {
             octave: theory::Octave(4),
             length: 16,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(ss.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -388,7 +388,7 @@ mod tests {
             octave: theory::Octave(4),
             length: 16,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(ss.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -411,7 +411,7 @@ mod tests {
             octave: theory::Octave(5),
             length: 16,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(ss.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -434,7 +434,7 @@ mod tests {
             octave: theory::Octave(4),
             length: 16,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(ss.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -457,7 +457,7 @@ mod tests {
             octave: theory::Octave(4),
             length: 16,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(ss.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(ss.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -481,7 +481,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -501,7 +501,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -521,7 +521,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 16,
         };
-        let notes = MidiNoteSequence::from(seq.as_pitches()).0;
+        let notes = NoteSequence::from(seq.as_pitches()).0;
         assert_eq!(notes.len(), 16);
         // Should not panic and all notes should be <= 127
         for n in &notes {
@@ -539,7 +539,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -557,7 +557,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -575,7 +575,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -593,7 +593,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -611,7 +611,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -629,7 +629,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -647,7 +647,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -665,7 +665,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -683,7 +683,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -708,8 +708,8 @@ mod tests {
             length: 1,
         };
 
-        assert_eq!(MidiNoteSequence::from(o2.as_pitches()).0[0].as_u8(), 36);
-        assert_eq!(MidiNoteSequence::from(o6.as_pitches()).0[0].as_u8(), 84);
+        assert_eq!(NoteSequence::from(o2.as_pitches()).0[0].as_u8(), 36);
+        assert_eq!(NoteSequence::from(o6.as_pitches()).0[0].as_u8(), 84);
     }
 
     #[test]
@@ -750,7 +750,7 @@ mod tests {
             direction: SequenceDirection::Descending,
             length: 8,
         };
-        let notes: Vec<u8> = MidiNoteSequence::from(seq.as_pitches())
+        let notes: Vec<u8> = NoteSequence::from(seq.as_pitches())
             .0
             .into_iter()
             .map(u8::from)
@@ -797,7 +797,7 @@ mod tests {
             direction: SequenceDirection::Ascending,
             length: 4,
         };
-        let notes = MidiNoteSequence::from(seq.as_pitches()).0;
+        let notes = NoteSequence::from(seq.as_pitches()).0;
         assert_eq!(notes.len(), 4);
         for n in &notes {
             assert!(n.as_u8() <= 127);

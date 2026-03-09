@@ -12,7 +12,7 @@ use crate::manufacturer::akai::mpd226::raw::RawDials;
 use crate::manufacturer::akai::mpd226::raw::RawFaders;
 use crate::manufacturer::akai::mpd226::raw::RawPads;
 use crate::manufacturer::akai::mpd226::raw::RawSwitches;
-use crate::midi::generation::MidiNoteSequence;
+use crate::midi::NoteSequence;
 use crate::music::generation::ScaleSequence;
 
 #[repr(C)]
@@ -31,7 +31,7 @@ impl PadRepository {
 
     pub fn set_note_pattern(&mut self, starting_position: usize, pattern: PitchPattern) {
         let clamped_starting_position = starting_position.min(TOTAL_PADS);
-        let notes = MidiNoteSequence::from(pattern.as_pitches()).0;
+        let notes = NoteSequence::from(pattern.as_pitches()).0;
         let changing_pads = &mut self.pads[clamped_starting_position..TOTAL_PADS];
 
         for (rel_idx, pad) in changing_pads.iter_mut().enumerate() {

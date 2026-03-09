@@ -803,7 +803,7 @@ mod tests {
     use super::*;
     use crate::manufacturer::akai::mpd226::control::ControlId;
     use crate::midi::Note;
-    use crate::midi::generation::MidiNoteSequence;
+    use crate::midi::NoteSequence;
     use crate::music::generation::PitchPattern;
     use crate::music::generation::ScaleSequence;
     use crate::sysex::Sysex;
@@ -824,7 +824,7 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(MidiNoteSequence::from(seq.as_pitches()).0.len(), 1);
+        assert_eq!(NoteSequence::from(seq.as_pitches()).0.len(), 1);
     }
 
     #[test]
@@ -1051,8 +1051,8 @@ mod tests {
         let seq = ScaleSequence::default();
         let pattern = PitchPattern::Scale(seq);
         assert_eq!(
-            MidiNoteSequence::from(pattern.as_pitches()).0,
-            MidiNoteSequence::from(seq.as_pitches()).0
+            NoteSequence::from(pattern.as_pitches()).0,
+            NoteSequence::from(seq.as_pitches()).0
         );
     }
 
