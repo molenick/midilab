@@ -1969,7 +1969,7 @@ dependencies = [
 
 [[package]]
 name = "midilab"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bytemuck",
  "dirs",
@@ -1987,7 +1987,7 @@ dependencies = [
 
 [[package]]
 name = "midilab-editor"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "eframe",
  "egui_kittest",
@@ -2001,7 +2001,7 @@ dependencies = [
 
 [[package]]
 name = "midilab-gui"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "eframe",
  "midilab",
@@ -2011,7 +2011,7 @@ dependencies = [
 
 [[package]]
 name = "midilab-io"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bytemuck",
  "core-foundation 0.10.1",
@@ -2024,7 +2024,7 @@ dependencies = [
 
 [[package]]
 name = "midilab-sim"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bytemuck",
  "midilab",
