@@ -1,10 +1,9 @@
+use std::f32::consts::GOLDEN_RATIO;
+
 /// Golden-ratio spacing function
 pub(crate) const fn spacing(n: i32) -> f32 {
-    8.0 * powi_i32(PHI, n)
+    8.0 * powi_i32(GOLDEN_RATIO, n)
 }
-
-/// Pre-calculated golden ratio for const use
-const PHI: f32 = 1.618_034;
 
 const fn powi_i32(mut base: f32, mut exp: i32) -> f32 {
     let mut acc = 1.0;
