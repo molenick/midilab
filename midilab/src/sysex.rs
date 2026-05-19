@@ -15,9 +15,41 @@ pub fn unpack_u14(bytes: [u8; 2]) -> u16 {
     (high << 7) | low
 }
 
-/// Simple Sysex wrapper for serializing into bytes or as a first step in transforming binary into structured domain messages.
-/// See the [spec](http://midi.teragonaudio.com/tech/midispec/sysex.htm) for additional information.
-/// Only single-byte manufacturer ids are supported at this time.
+pub fn pack_u7(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity((data.len() * 8).div_ceil(7));
+    for chunk in data.chunks(7) {
+        let mut msb_byte: u8 = 0;
+        for (i, &byte) in chunk.iter().enumerate() {
+            if byte & 0x80 != 0 {
+                msb_byte |= 1 << i;
+            }
+        }
+        out.push(msb_byte);
+        for &byte in chunk {
+            out.push(byte & 0x7F);
+        }
+    }
+    out
+}
+
+pub fn unpack_u7(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < data.len() {
+        let msb_byte = data[i];
+        i += 1;
+        for bit in 0..7 {
+            if i >= data.len() {
+                break;
+            }
+            let msb = if msb_byte & (1 << bit) != 0 { 0x80 } else { 0 };
+            out.push(data[i] | msb);
+            i += 1;
+        }
+    }
+    out
+}
+
 #[derive(Debug, Clone)]
 pub struct Sysex {
     payload: Vec<u8>,
@@ -262,6 +294,53 @@ mod tests {
         let result = Sysex::try_from(data.as_slice()).unwrap_err();
 
         assert!(matches!(result, SysexParseError::MissingEnding));
+    }
+
+    #[test]
+    fn test_pack_u7_known_vector() {
+        let input = [0x80, 0x00, 0x81, 0x00, 0x00, 0x00, 0x00];
+        let packed = pack_u7(&input);
+
+        assert_eq!(packed.len(), 8);
+        assert_eq!(packed[0], 0x05);
+        assert_eq!(packed[1], 0x00);
+        assert_eq!(packed[2], 0x00);
+        assert_eq!(packed[3], 0x01);
+        assert_eq!(packed[4], 0x00);
+        assert_eq!(packed[5], 0x00);
+        assert_eq!(packed[6], 0x00);
+        assert_eq!(packed[7], 0x00);
+
+        let unpacked = unpack_u7(&packed);
+        assert_eq!(unpacked, input);
+    }
+
+    #[test]
+    fn test_pack_u7_global_size() {
+        let data = vec![0u8; 80];
+        let packed = pack_u7(&data);
+        assert_eq!(packed.len(), 92);
+
+        let unpacked = unpack_u7(&packed);
+        assert_eq!(unpacked.len(), 80);
+    }
+
+    #[test]
+    fn test_pack_u7_program_size() {
+        let data = vec![0u8; 456];
+        let packed = pack_u7(&data);
+        assert_eq!(packed.len(), 522);
+
+        let unpacked = unpack_u7(&packed);
+        assert_eq!(unpacked.len(), 456);
+    }
+
+    #[test]
+    fn test_pack_u7_round_trip() {
+        let data = (0..=255).cycle().take(456).collect::<Vec<u8>>();
+        let packed = pack_u7(&data);
+        let unpacked = unpack_u7(&packed);
+        assert_eq!(unpacked, data);
     }
 
     #[test]
