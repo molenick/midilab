@@ -16,14 +16,16 @@ Software for programming midi controllers via Sysex messages
 | Crate | Directory | Description |
 |-|-|-|
 | **[midilab](./midilab)** | `midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
-| **[midilab-editor](./editor)** | `editor` | An application for programming MIDI controllers |
-| **[midilab-io](./io)** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for midilab-editor|
-| **[midilab-gui](./gui)** | `gui` | Graphical user interface library for midilab-editor |
-| **[midilab-sim](./sim)** | `sim` | Hardware device simulations for midilab-editor |
+| **[akai_mpd226_editor](./akai_mpd226_editor)** | `akai_mpd226_editor` | An application for programming the Akai MPD226 |
+| **[korg_r3_editor](./korg_r3_editor)** | `korg_r3_editor` | An application for programming the Korg R3 |
+| **[midilab-io](./io)** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for the midilab editors |
+| **[midilab-sim](./sim)** | `sim` | Hardware device simulations for the midilab editors |
 
 ## Supported devices
 
 Akai Mpd226 (work in progress)
+
+Korg R3 (work in progress)
 
 ## Credits
 

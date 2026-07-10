@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
 use midilab::manufacturer::akai::mpd226::Global;
+use midilab::manufacturer::akai::mpd226::PORT_NAME;
 use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PresetName;
 use midilab::manufacturer::akai::mpd226::dump_global_from_device;
@@ -12,7 +13,6 @@ use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab::midi::Note;
 
-const PORT_NAME: &str = "MPD226 Remote";
 const TIMEOUT: Duration = Duration::from_secs(5);
 
 fn midi_setup() -> (

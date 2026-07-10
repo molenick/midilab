@@ -1,6 +1,5 @@
+use midilab::manufacturer::akai::mpd226::PORT_NAME;
 use midilab_sim::manufacturer::akai::akai_mpd226::SimRunner;
-
-const PORT_NAME: &str = "MPD226 Remote";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

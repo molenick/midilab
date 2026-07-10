@@ -35,7 +35,6 @@ use midilab::manufacturer::akai::mpd226::repository::DialRepository;
 use midilab::manufacturer::akai::mpd226::repository::FaderRepository;
 use midilab::manufacturer::akai::mpd226::repository::PadRepository;
 use midilab::manufacturer::akai::mpd226::repository::SwitchRepository;
-use midilab::message::UiEffect;
 use midilab::midi::Note;
 use midilab::midi::Value;
 use midilab::music::generation::ChordRowSequence;
@@ -43,19 +42,17 @@ use midilab::music::generation::PitchPattern;
 use midilab::music::generation::ScaleSequence;
 use midilab::music::theory::PitchClass;
 
-use crate::akai_mpd226_editor::state::UiState;
-use crate::akai_mpd226_editor::state::UserSelection;
+use crate::message::UiEffect;
 use crate::spacing::spacing;
+use crate::state::UiState;
+use crate::state::UserSelection;
 
-// todo: further organization for a rainy day
 // modal can be a module, look at others
 
 mod palette {
     use eframe::egui::Color32;
 
     pub(crate) const CONTROL_BACKGROUND: Color32 = Color32::from_rgb(8, 8, 8);
-
-    // todo: maybe the pad colors live here one day
 }
 
 const DEFAULT_CONTROL_X: f32 = spacing(4);
@@ -205,7 +202,6 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect
                     ui.label("Pads:");
                     ui.label("Aftertouch");
                     enum_combo_box(ui, "aftertouch", &mut ui_state.aftertouch_kind, None);
-                    // todo: this means 2 taps, but we prob want to reduce to 1 later
                     if ui.button("Apply").clicked() {
                         ui_state
                             .preset
@@ -275,8 +271,8 @@ fn editor_actions(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect
 
                     if let Some(status) = &ui_state.user_msg {
                         let color = match status.kind {
-                            midilab::message::UserMsgKind::Status => Color32::GREEN,
-                            midilab::message::UserMsgKind::Error => Color32::RED,
+                            crate::message::UserMsgKind::Status => Color32::GREEN,
+                            crate::message::UserMsgKind::Error => Color32::RED,
                         };
 
                         ui.colored_label(color, &status.msg);
@@ -1036,12 +1032,12 @@ fn settings_modal(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffe
             .clicked()
         {
             ui_state.user_settings.auto_sync_enabled = checked;
-            let config = midilab::config::AppConfig {
+            let config = crate::config::AppConfig {
                 persistence_path: ui_state.configured_directory.clone(),
                 user: ui_state.user_settings.clone(),
             };
             let config_path =
-                midilab::config::AppConfig::config_path().expect("Failed to get config path");
+                crate::config::AppConfig::config_path().expect("Failed to get config path");
             outbox.push(UiEffect::PersistUserSettings {
                 config,
                 path: config_path,

@@ -1,5 +1,5 @@
 [workspace]
-members = ["midilab", "editor", "gui", "io", "sim"]
+members = ["midilab", "akai_mpd226_editor", "io", "sim", "korg_r3_editor"]
 resolver = "2"
 
 [workspace.package]
@@ -14,7 +14,6 @@ tag-name = "v{{version}}"
 
 [workspace.dependencies]
 midilab = { version = "0.2.6", path = "midilab" }
-midilab-gui = { version = "0.2.6", path = "gui" }
 midilab-io = { version = "0.2.6", path = "io" }
 midilab-sim = { version = "0.2.6", path = "sim" }
 bytemuck = { version = "1.24.0", features = ["derive", "impl_core_error"] }

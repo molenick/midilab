@@ -147,6 +147,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "akai_mpd226_editor"
+version = "0.2.6"
+dependencies = [
+ "bytemuck",
+ "dirs",
+ "eframe",
+ "egui_kittest",
+ "midilab",
+ "midilab-io",
+ "midir",
+ "rfd",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "alsa"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1842,6 +1860,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "korg_r3_editor"
+version = "0.2.6"
+dependencies = [
+ "bytemuck",
+ "dirs",
+ "eframe",
+ "egui_kittest",
+ "midilab",
+ "midilab-io",
+ "midir",
+ "rfd",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1972,13 +2008,10 @@ name = "midilab"
 version = "0.2.6"
 dependencies = [
  "bytemuck",
- "dirs",
  "enumeric",
  "midir",
  "num_enum",
  "sanitize-filename",
- "serde",
- "serde_json",
  "strum",
  "strum_macros",
  "thiserror 2.0.18",
@@ -1986,39 +2019,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "midilab-editor"
-version = "0.2.6"
-dependencies = [
- "eframe",
- "egui_kittest",
- "midilab",
- "midilab-gui",
- "midilab-io",
- "midir",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "midilab-gui"
-version = "0.2.6"
-dependencies = [
- "eframe",
- "midilab",
- "rfd",
- "tokio",
-]
-
-[[package]]
 name = "midilab-io"
 version = "0.2.6"
 dependencies = [
- "bytemuck",
  "core-foundation 0.10.1",
  "midilab",
  "midir",
- "serde_json",
- "thiserror 2.0.18",
  "tokio",
 ]
 

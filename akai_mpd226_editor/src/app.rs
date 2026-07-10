@@ -1,10 +1,12 @@
 use std::boxed::Box;
 use std::time::Instant;
 
+use midilab::manufacturer::akai::mpd226::DeviceStatus;
+use midilab::manufacturer::akai::mpd226::Global;
+use midilab::manufacturer::akai::mpd226::Preset;
+use midilab::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
+
 use crate::config::AppConfig;
-use crate::manufacturer::akai::mpd226::DeviceStatus;
-use crate::manufacturer::akai::mpd226::Global;
-use crate::manufacturer::akai::mpd226::Preset;
 use crate::message::AppEffect;
 use crate::message::AppMsg;
 use crate::message::DeviceMsg;
@@ -114,9 +116,7 @@ impl AppState {
                 }
                 UiEffect::AutoSync => {
                     vec![
-                        AppEffect::Device(DeviceMsg::DumpPreset(
-                            crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot::RAM,
-                        )),
+                        AppEffect::Device(DeviceMsg::DumpPreset(PresetSlot::RAM)),
                         AppEffect::Device(DeviceMsg::DumpGlobal),
                     ]
                 }
@@ -147,7 +147,6 @@ impl AppState {
 
                     vec![
                         AppEffect::Ui(UiMsg::UpdateGlobal(global)),
-                        // Only show combined message if we're still in auto sync mode
                         AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                             msg: "Loaded global settings from device".to_string(),
                             kind: UserMsgKind::Status,
@@ -276,16 +275,16 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
+    use midilab::error::DeviceStatusParseError;
+    use midilab::error::MidiError;
+    use midilab::error::SysexParseError;
+    use midilab::manufacturer::akai::mpd226::GlobalParamAck;
+    use midilab::manufacturer::akai::mpd226::GlobalParamCmdId;
+    use midilab::manufacturer::akai::mpd226::PresetAck;
+    use midilab::manufacturer::akai::mpd226::control::PresetSettings;
+
     use super::*;
     use crate::config::UserSettings;
-    use crate::error::DeviceStatusParseError;
-    use crate::error::MidiError;
-    use crate::error::SysexParseError;
-    use crate::manufacturer::akai::mpd226::GlobalParamAck;
-    use crate::manufacturer::akai::mpd226::GlobalParamCmdId;
-    use crate::manufacturer::akai::mpd226::PresetAck;
-    use crate::manufacturer::akai::mpd226::control::PresetSettings;
-    use crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
 
     fn preset_with_slot(slot: PresetSlot) -> Preset {
         Preset {
@@ -313,7 +312,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dump_preset() {
+    fn dump_preset() {
         let mut app = AppState::new(AppConfig::default());
         let original_slot = app.preset.settings.slot;
 
@@ -815,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_sync_sends_both_dumps() {
+    fn auto_sync_sends_both_dumps() {
         let mut app = AppState::new(AppConfig::default());
 
         let effects = app.update(AppMsg::Ui(UiEffect::AutoSync));

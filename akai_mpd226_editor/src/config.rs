@@ -54,7 +54,7 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|p| p.join("midilab").join("config.json"))
+        dirs::config_dir().map(|p| p.join("midilab").join("akai_mpd226.json"))
     }
 }
 
@@ -63,7 +63,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_has_no_preset_directory() {
+    fn default_config_has_no_persistence_path() {
         let config = AppConfig::default();
         assert!(config.persistence_path.is_none());
     }
@@ -78,23 +78,7 @@ mod tests {
     fn config_path_uses_config_dir() {
         let path = AppConfig::config_path();
         if let Some(p) = path {
-            assert!(p.ends_with("midilab/config.json"));
+            assert!(p.ends_with("midilab/akai_mpd226.json"));
         }
-    }
-
-    #[test]
-    fn load_with_default_or_error_works_with_existing_file() {
-        let temp_dir = std::env::temp_dir();
-        let config_file = temp_dir.join("test_config.json");
-
-        let config = AppConfig::default();
-        let json = serde_json::to_string(&config).unwrap();
-        std::fs::write(&config_file, json).unwrap();
-
-        let loaded_config = AppConfig::default();
-
-        assert!(loaded_config.user.auto_sync_enabled);
-
-        let _ = std::fs::remove_file(&config_file);
     }
 }

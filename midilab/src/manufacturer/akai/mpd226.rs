@@ -51,6 +51,7 @@ pub mod raw;
 pub mod repository;
 
 pub const DEVICE_ID: u8 = 0x35;
+pub const PORT_NAME: &str = "MPD226 Remote";
 const TOTAL_PADS: usize = 64;
 
 pub(crate) const PRESET_FOOTER_MAGIC_LEN: usize = 12;
@@ -349,7 +350,8 @@ impl TryFrom<&[u8]> for Preset {
     type Error = PresetParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let raw: RawPreset = *bytemuck::from_bytes(value);
+        let raw: RawPreset = *bytemuck::try_from_bytes(value)
+            .map_err(|_| PresetParseError::InvalidLength(value.len()))?;
         Preset::try_from(raw)
     }
 }

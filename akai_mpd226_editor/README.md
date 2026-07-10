@@ -1,17 +1,13 @@
-# midilab-editor
-An application for programming MIDI controllers
+# akai_mpd226_editor
+An application for programming the Akai MPD226 MIDI controller
 
-![MidiLab Editor Screenshot](https://raw.githubusercontent.com/molenick/midilab/main/editor/assets/screenshot.png)
-
-## Supported Controllers
-- Akai Mpd226
+![Akai MPD226 Editor Screenshot](https://raw.githubusercontent.com/molenick/midilab/main/akai_mpd226_editor/assets/screenshot.png)
 
 ## Editor usage
-Install and run midilab-editor:
+Run the editor from the workspace:
 
 ```bash
-cargo install midilab-editor
-midilab
+cargo run -p akai_mpd226_editor
 ```
 
 Optionally, you use a device simulator if you want to try the editor without real hardware:

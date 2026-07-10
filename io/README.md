@@ -1,5 +1,5 @@
 # midilab-io
-Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for midilab-editor
+Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for the midilab editors
 
 ## License
 Licensed under either of

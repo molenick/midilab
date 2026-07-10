@@ -1,16 +1,17 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::config::AppConfig;
-use crate::error::DeviceStatusParseError;
-use crate::error::MidiError;
-use crate::error::SysexParseError;
-use crate::manufacturer::akai::mpd226::DeviceStatus;
-use crate::manufacturer::akai::mpd226::Global;
-use crate::manufacturer::akai::mpd226::Preset;
-use crate::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
+use midilab::error::DeviceStatusParseError;
+use midilab::error::MidiError;
+use midilab::error::SysexParseError;
+use midilab::manufacturer::akai::mpd226::DeviceStatus;
+use midilab::manufacturer::akai::mpd226::Global;
+use midilab::manufacturer::akai::mpd226::Preset;
+use midilab::manufacturer::akai::mpd226::control::value_kind::PresetSlot;
 
-/// Application system messages that are processed into AppEffects
+use crate::config::AppConfig;
+use crate::config::UserSettings;
+
 pub enum AppMsg {
     Device(DeviceStatus),
     Ui(UiEffect),
@@ -26,42 +27,40 @@ pub enum UserError {
 
 pub enum IoMsg {
     PersistConfig { config: AppConfig, path: PathBuf },
+    PersistUserSettings { config: AppConfig, path: PathBuf },
     SavePreset { preset: Box<Preset>, path: PathBuf },
     LoadPreset { path: PathBuf },
     SaveGlobal { global: Box<Global>, path: PathBuf },
     LoadGlobal { path: PathBuf },
-    PersistUserSettings { config: AppConfig, path: PathBuf },
 }
 
 pub enum IoEffect {
     PersistConfigResult(Result<(), String>),
+    PersistUserSettingsResult(Result<(), String>),
     PresetSaveResult(Result<String, String>),
     PresetLoadResult(Result<Box<Preset>, String>),
     GlobalSaveResult(Result<String, String>),
     GlobalLoadResult(Result<Box<Global>, String>),
-    PersistUserSettingsResult(Result<(), String>),
 }
 
-/// Application system effects produced from processing AppMsgs
 pub enum AppEffect {
     Ui(UiMsg),
     Device(DeviceMsg),
     Io(Box<IoMsg>),
 }
 
-/// Notifies ui of updates
 pub enum UiMsg {
     UpdatePreset(Box<Preset>),
     UpdateGlobal(Box<Global>),
     UserMsg(UserMsg),
-    LoadPresetDialog,
     DirectoryConfigured(PathBuf),
+    LoadPresetDialog,
     SavePresetDialog(PathBuf),
     LoadGlobalDialog,
     DirectoryConfiguredGlobal(PathBuf),
     SaveGlobalDialog(PathBuf),
     ShowSettingsModal,
-    UpdateUserSettings(crate::config::UserSettings),
+    UpdateUserSettings(UserSettings),
     AutoSync,
 }
 
