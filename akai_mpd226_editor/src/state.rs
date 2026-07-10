@@ -3,8 +3,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use eframe::egui::Context;
-use midilab::config::AppConfig;
-use midilab::config::UserSettings;
 use midilab::manufacturer::akai::mpd226::ColorPattern;
 use midilab::manufacturer::akai::mpd226::ColorSequence;
 use midilab::manufacturer::akai::mpd226::Global;
@@ -13,10 +11,6 @@ use midilab::manufacturer::akai::mpd226::Preset;
 use midilab::manufacturer::akai::mpd226::control::ControlId;
 use midilab::manufacturer::akai::mpd226::control::value_kind::AfterTouchKind;
 use midilab::manufacturer::akai::mpd226::control::value_kind::PadColor;
-use midilab::message::AppMsg;
-use midilab::message::UiEffect;
-use midilab::message::UiMsg;
-use midilab::message::UserMsg;
 use midilab::music::generation::PitchPattern;
 use midilab::music::generation::ScaleSequence;
 use midilab::music::generation::SequenceDirection;
@@ -26,7 +20,13 @@ use midilab::music::theory::ScaleKind;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::akai_mpd226_editor::render::ui;
+use crate::config::AppConfig;
+use crate::config::UserSettings;
+use crate::message::AppMsg;
+use crate::message::UiEffect;
+use crate::message::UiMsg;
+use crate::message::UserMsg;
+use crate::render::ui;
 
 pub struct AkaiMpd226Editor {
     ui_state: UiState,

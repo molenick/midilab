@@ -1,32 +1,33 @@
 use std::time::Duration;
 
+use akai_mpd226_editor::APP_DIMENSIONS;
+use akai_mpd226_editor::AkaiMpd226Editor;
+use akai_mpd226_editor::app::AppState;
+use akai_mpd226_editor::config::AppConfig;
+use akai_mpd226_editor::fs::load_app_config;
+use akai_mpd226_editor::fs::load_global_from_file;
+use akai_mpd226_editor::fs::load_preset_from_file;
+use akai_mpd226_editor::fs::persist_config;
+use akai_mpd226_editor::fs::persist_user_settings;
+use akai_mpd226_editor::fs::save_global;
+use akai_mpd226_editor::fs::save_preset;
+use akai_mpd226_editor::message::AppEffect;
+use akai_mpd226_editor::message::AppMsg;
+use akai_mpd226_editor::message::DeviceMsg;
+use akai_mpd226_editor::message::IoEffect;
+use akai_mpd226_editor::message::IoMsg;
+use akai_mpd226_editor::message::UiEffect;
+use akai_mpd226_editor::message::UiMsg;
+use akai_mpd226_editor::message::UserError;
 use eframe::egui::ViewportBuilder;
-use midilab::config::AppConfig;
 use midilab::error::MidiError;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
+use midilab::manufacturer::akai::mpd226::PORT_NAME;
 use midilab::manufacturer::akai::mpd226::dump_global_from_device;
 use midilab::manufacturer::akai::mpd226::dump_preset_from_device;
 use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
-use midilab::message::AppEffect;
-use midilab::message::AppMsg;
-use midilab::message::DeviceMsg;
-use midilab::message::IoEffect;
-use midilab::message::IoMsg;
-use midilab::message::UiEffect;
-use midilab::message::UiMsg;
-use midilab::message::UserError;
-use midilab::state::AppState;
-use midilab_gui::AkaiMpd226Editor;
-use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
-use midilab_io::fs::load_akai_mpd226_global_from_bytes;
-use midilab_io::fs::load_akai_mpd226_preset_from_sysex;
-use midilab_io::fs::load_app_config;
-use midilab_io::fs::persist_config;
-use midilab_io::fs::persist_user_settings;
-use midilab_io::fs::save_akai_mpd226_global;
-use midilab_io::fs::save_akai_mpd226_preset;
 use midilab_io::midi::find_input_port;
 use midilab_io::midi::find_output_port;
 use midilab_io::midi::flush_coremidi_notifications;
@@ -49,23 +50,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(msg) = io_rx.recv().await {
             let effect = match msg {
                 IoMsg::SavePreset { preset, path } => IoEffect::PresetSaveResult(
-                    save_akai_mpd226_preset(*preset, &path)
-                        .await
-                        .map_err(|e| e.to_string()),
+                    save_preset(*preset, &path).await.map_err(|e| e.to_string()),
                 ),
                 IoMsg::LoadPreset { path } => IoEffect::PresetLoadResult(
-                    load_akai_mpd226_preset_from_sysex(&path)
+                    load_preset_from_file(&path)
                         .await
                         .map(Box::new)
                         .map_err(|e| e.to_string()),
                 ),
                 IoMsg::SaveGlobal { global, path } => IoEffect::GlobalSaveResult(
-                    save_akai_mpd226_global(*global, &path)
-                        .await
-                        .map_err(|e| e.to_string()),
+                    save_global(*global, &path).await.map_err(|e| e.to_string()),
                 ),
                 IoMsg::LoadGlobal { path } => IoEffect::GlobalLoadResult(
-                    load_akai_mpd226_global_from_bytes(&path)
+                    load_global_from_file(&path)
                         .await
                         .map(Box::new)
                         .map_err(|e| e.to_string()),
@@ -131,7 +128,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
 
-    // todo: we could inspect_err to tell user about errors via eprintln, maybe we want a gui mechanism tho
     let config = load_app_config(&AppConfig::config_path().unwrap_or_default())
         .await
         .unwrap_or_default();
@@ -154,8 +150,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-const PORT_NAME: &str = "MPD226 Remote";
 
 fn connect_midi_output() -> Result<midir::MidiOutputConnection, String> {
     flush_coremidi_notifications();
@@ -223,16 +217,8 @@ async fn handle_midi_msg(msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
 
             let mut bytes = vec![];
 
-            // Writing global data to device involves sending a two-byte
-            // command (address, value) per global value. After each, the
-            // device sends an ACK with the update value.
-
-            // This ensures each command receives its ACK, then we send off
-            // the final ACK as the accumulated sate changes.
-
             for msg in messages {
                 output.send(&msg).map_err(|_| MidiError::WritePreset)?;
-                // Wait for each ack before sending next
                 bytes = recv_device_bytes(&mut rx, Duration::from_millis(500))
                     .await
                     .unwrap();

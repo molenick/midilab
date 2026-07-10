@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use akai_mpd226_editor::APP_DIMENSIONS;
+use akai_mpd226_editor::AkaiMpd226Editor;
+use akai_mpd226_editor::config::AppConfig;
 use eframe::egui::Key;
 use egui_kittest::HarnessBuilder;
 use egui_kittest::kittest::Queryable;
-use midilab::config::AppConfig;
-use midilab_gui::AkaiMpd226Editor;
-use midilab_gui::akai_mpd226_editor::APP_DIMENSIONS;
 use tokio::sync::mpsc::unbounded_channel;
 
 #[test]

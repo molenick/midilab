@@ -42,6 +42,8 @@ pub enum PresetParseError {
         index: usize,
         source: SwitchParseError,
     },
+    #[error("invalid length: {0}")]
+    InvalidLength(usize),
 }
 
 #[derive(Debug, thiserror::Error)]
