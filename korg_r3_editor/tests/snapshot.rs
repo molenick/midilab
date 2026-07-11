@@ -27,10 +27,10 @@ fn every_page_renders() {
 
         let mut harness = HarnessBuilder::default()
             .with_size(eframe::egui::vec2(1200.0, 820.0))
-            .build_state(
-                move |ctx, app: &mut KorgR3Editor| {
+            .build_ui_state(
+                move |ui, app: &mut KorgR3Editor| {
                     app.set_tab_for_test(tab);
-                    app.render(ctx);
+                    app.render(ui);
                 },
                 app,
             );

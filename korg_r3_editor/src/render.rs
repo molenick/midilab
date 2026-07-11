@@ -26,8 +26,8 @@ fn sp(n: i32) -> f32 {
     8.0 * std::f32::consts::GOLDEN_RATIO.powi(n)
 }
 
-pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
-    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+pub fn ui(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
+    egui::Panel::top("top_panel").show(ui, |ui| {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Dump Program").clicked() {
@@ -55,7 +55,7 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
                 }
                 ui.separator();
                 if ui.button("Quit").clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
             ui.menu_button("Edit", |ui| {
@@ -83,9 +83,9 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     });
 
     if ui_state.show_settings {
-        render_settings_modal(ctx, ui_state, outbox);
+        render_settings_modal(ui.ctx(), ui_state, outbox);
     } else {
-        render_main_editor(ctx, ui_state, outbox);
+        render_main_editor(ui, ui_state, outbox);
     }
 }
 
@@ -123,14 +123,14 @@ fn render_settings_modal(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec
     }
 }
 
-fn render_main_editor(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
+fn render_main_editor(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     let before = ui_state.live_edit.then(|| ui_state.program.clone());
 
-    egui::SidePanel::left("device_panel")
-        .default_width(170.)
-        .min_width(140.)
-        .max_width(220.)
-        .show(ctx, |ui| {
+    egui::Panel::left("device_panel")
+        .default_size(170.)
+        .min_size(140.)
+        .max_size(220.)
+        .show(ui, |ui| {
             ui.add_space(sp(0));
             ui.heading("Device");
             ui.separator();
@@ -183,7 +183,7 @@ fn render_main_editor(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<Ui
             });
         });
 
-    CentralPanel::default().show(ctx, |ui| {
+    CentralPanel::default().show(ui, |ui| {
         ui.horizontal(|ui| {
             for tab in EditorTab::ALL {
                 let selected = ui_state.editor_tab == tab;
