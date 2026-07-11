@@ -8,8 +8,5 @@ repository.workspace = true
 
 [dependencies]
 midilab.workspace = true
-midir.workspace = true
+midi-io.workspace = true
 tokio.workspace = true
-
-[target.'cfg(target_vendor = "apple")'.dependencies]
-core-foundation = "0.10"

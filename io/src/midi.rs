@@ -1,36 +1,28 @@
 use std::time::Duration;
 
+use midi_io::Client;
+use midi_io::Destination;
+use midi_io::Source;
 use midilab::error::MidiError;
-use midir::MidiInput;
-use midir::MidiInputPort;
-use midir::MidiOutput;
-use midir::MidiOutputPort;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::timeout;
 
-#[cfg(target_vendor = "apple")]
-pub fn flush_coremidi_notifications() {
-    core_foundation::runloop::CFRunLoop::run_in_mode(
-        unsafe { core_foundation::runloop::kCFRunLoopDefaultMode },
-        Duration::from_millis(10),
-        true,
-    );
-}
-#[cfg(not(target_vendor = "apple"))]
-pub fn flush_coremidi_notifications() {}
-
-pub fn find_output_port(midi_out: &MidiOutput, name: &str) -> Option<MidiOutputPort> {
-    midi_out
-        .ports()
+pub async fn find_output_port(client: &Client, name: &str) -> Option<Destination> {
+    client
+        .destinations()
+        .await
+        .ok()?
         .into_iter()
-        .find(|p| midi_out.port_name(p).ok().as_deref() == Some(name))
+        .find(|p| p.name() == name)
 }
 
-pub fn find_input_port(midi_in: &MidiInput, name: &str) -> Option<MidiInputPort> {
-    midi_in
-        .ports()
+pub async fn find_input_port(client: &Client, name: &str) -> Option<Source> {
+    client
+        .sources()
+        .await
+        .ok()?
         .into_iter()
-        .find(|p| midi_in.port_name(p).ok().as_deref() == Some(name))
+        .find(|p| p.name() == name)
 }
 
 pub async fn recv_device_bytes(

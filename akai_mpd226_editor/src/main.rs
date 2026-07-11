@@ -20,6 +20,9 @@ use akai_mpd226_editor::message::UiEffect;
 use akai_mpd226_editor::message::UiMsg;
 use akai_mpd226_editor::message::UserError;
 use eframe::egui::ViewportBuilder;
+use midi_io::Client;
+use midi_io::DestinationConnection;
+use midi_io::SysEx;
 use midilab::error::MidiError;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
 use midilab::manufacturer::akai::mpd226::PORT_NAME;
@@ -30,10 +33,7 @@ use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab_io::midi::find_input_port;
 use midilab_io::midi::find_output_port;
-use midilab_io::midi::flush_coremidi_notifications;
 use midilab_io::midi::recv_device_bytes;
-use midir::MidiInput;
-use midir::MidiOutput;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -84,8 +84,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let _midi = tokio::spawn(async move {
+        let client = Client::new("mpd226")
+            .await
+            .expect("failed to init MIDI client");
+
         while let Some(msg) = midi_rx.recv().await {
-            let result: Result<Vec<u8>, MidiError> = handle_midi_msg(msg).await;
+            let result: Result<Vec<u8>, MidiError> = handle_midi_msg(&client, msg).await;
 
             let msg = match result {
                 Ok(bytes) => match DeviceStatus::try_from(bytes.as_slice()) {
@@ -151,47 +155,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn connect_midi_output() -> Result<midir::MidiOutputConnection, String> {
-    flush_coremidi_notifications();
-    let midi_out =
-        MidiOutput::new("mpd226").map_err(|e| format!("Failed to create MIDI output: {}", e))?;
-
-    let port = find_output_port(&midi_out, PORT_NAME)
+async fn connect_midi_output(client: &Client) -> Result<DestinationConnection, String> {
+    let port = find_output_port(client, PORT_NAME)
+        .await
         .ok_or_else(|| "MPD226 not found - make sure device is connected".to_string())?;
-    midi_out
-        .connect(&port, PORT_NAME)
+    client
+        .connect_destination(&port)
+        .await
         .map_err(|e| format!("Failed to connect to MIDI output: {}", e))
 }
 
-fn connect_midi_input(
-    tx: UnboundedSender<Vec<u8>>,
-) -> Result<midir::MidiInputConnection<()>, String> {
-    let midi_in =
-        MidiInput::new("mpd226-recv").map_err(|e| format!("Failed to create MIDI input: {}", e))?;
-    let port = find_input_port(&midi_in, PORT_NAME)
+async fn connect_midi_input(client: &Client, tx: UnboundedSender<Vec<u8>>) -> Result<(), String> {
+    let port = find_input_port(client, PORT_NAME)
+        .await
         .ok_or_else(|| "MPD226 not found - make sure device is connected".to_string())?;
-    midi_in
-        .connect(
-            &port,
-            PORT_NAME,
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .map_err(|e| format!("Failed to connect to MIDI input: {}", e))
+    let conn = client
+        .connect_source(&port)
+        .await
+        .map_err(|e| format!("Failed to connect to MIDI input: {}", e))?;
+
+    tokio::spawn(async move {
+        let mut sysex = conn.into_sysex();
+        while let Some(timed) = sysex.recv().await {
+            let _ = tx.send(timed.payload.to_wire_bytes());
+        }
+    });
+
+    Ok(())
 }
 
-async fn handle_midi_msg(msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
-    let mut output = connect_midi_output().map_err(MidiError::OutputConnection)?;
+async fn send_bytes(output: &DestinationConnection, bytes: &[u8]) -> Result<(), ()> {
+    let sysex = SysEx::try_from(bytes).map_err(|_| ())?;
+    output.send_sysex(&sysex).await.map_err(|_| ())
+}
+
+async fn handle_midi_msg(client: &Client, msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
+    let output = connect_midi_output(client)
+        .await
+        .map_err(MidiError::OutputConnection)?;
 
     let (tx, mut rx) = unbounded_channel::<Vec<u8>>();
-    let _input = connect_midi_input(tx).map_err(MidiError::InputConnection)?;
+    connect_midi_input(client, tx)
+        .await
+        .map_err(MidiError::InputConnection)?;
 
     match msg {
         DeviceMsg::DumpPreset(slot) => {
             let request = dump_preset_from_device(slot as u8);
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(&output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
             Ok(bytes)
@@ -199,14 +212,18 @@ async fn handle_midi_msg(msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
         DeviceMsg::WritePreset(preset) => {
             let raw_preset = RawPreset::from(preset.as_ref());
             let bytes = write_preset_to_device(&raw_preset);
-            output.send(&bytes).map_err(|_| MidiError::WritePreset)?;
+            send_bytes(&output, &bytes)
+                .await
+                .map_err(|_| MidiError::WritePreset)?;
 
             let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
             Ok(bytes)
         }
         DeviceMsg::DumpGlobal => {
             let request = dump_global_from_device();
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(&output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
             Ok(bytes)
@@ -218,7 +235,9 @@ async fn handle_midi_msg(msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
             let mut bytes = vec![];
 
             for msg in messages {
-                output.send(&msg).map_err(|_| MidiError::WritePreset)?;
+                send_bytes(&output, &msg)
+                    .await
+                    .map_err(|_| MidiError::WritePreset)?;
                 bytes = recv_device_bytes(&mut rx, Duration::from_millis(500))
                     .await
                     .unwrap();

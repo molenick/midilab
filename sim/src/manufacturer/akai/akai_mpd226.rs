@@ -1,3 +1,5 @@
+use midi_io::Client;
+use midi_io::SysEx;
 use midilab::manufacturer::akai::SYSEX_MANUFACTURER_ID;
 use midilab::manufacturer::akai::mpd226::DeviceCommandId;
 use midilab::manufacturer::akai::mpd226::DeviceMessagePayload;
@@ -10,13 +12,7 @@ use midilab::manufacturer::akai::mpd226::raw::RawHeader;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::sysex::Sysex;
 use midilab::sysex::pack_u14;
-use midir::ConnectError;
-use midir::MidiInput;
-use midir::MidiOutput;
-use midir::os::unix::VirtualInput;
-use midir::os::unix::VirtualOutput;
 use thiserror::Error;
-use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::oneshot;
 
 pub enum SimMsg {
@@ -163,18 +159,13 @@ fn ack_global(addr: u8) -> Vec<u8> {
 #[derive(Debug, Error)]
 pub enum SimRunnerError {
     #[error("MIDI initialization error: {0}")]
-    MidiInit(#[from] midir::InitError),
-    #[error("Output port creation error: {0}")]
-    OutputPortCreation(#[source] ConnectError<MidiOutput>),
-    #[error("Input port creation error: {0}")]
-    InputPortCreation(#[source] ConnectError<MidiInput>),
+    MidiInit(#[from] midi_io::Error),
 }
 
 pub struct SimRunner {
     sim: Mpd226Sim,
-    raw_midi_rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
-    out_port: midir::MidiOutputConnection,
-    _in_conn: midir::MidiInputConnection<()>,
+    sysex_in: midi_io::SysexStream,
+    out_port: midi_io::VirtualSource,
     shutdown_rx: oneshot::Receiver<()>,
 }
 
@@ -183,31 +174,18 @@ pub struct SimHandle {
 }
 
 impl SimRunner {
-    pub fn start(port_name: &str) -> Result<(Self, SimHandle), SimRunnerError> {
-        let (raw_midi_tx, raw_midi_rx) = unbounded_channel::<Vec<u8>>();
+    pub async fn start(port_name: &str) -> Result<(Self, SimHandle), SimRunnerError> {
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-        let midi_out = MidiOutput::new("Mpd226 Remote")?;
-        let out_port = midi_out
-            .create_virtual(port_name)
-            .map_err(SimRunnerError::OutputPortCreation)?;
-
-        let midi_in = MidiInput::new("Mpd226 Remote")?;
-        let _in_conn = midi_in
-            .create_virtual(
-                port_name,
-                move |_ts, data, _| {
-                    let _ = raw_midi_tx.send(data.to_vec());
-                },
-                (),
-            )
-            .map_err(SimRunnerError::InputPortCreation)?;
+        let client = Client::new("Mpd226 Remote").await?;
+        let out_port = client.create_virtual_source(port_name).await?;
+        let in_port = client.create_virtual_destination(port_name).await?;
+        let sysex_in = in_port.into_sysex();
 
         let runner = SimRunner {
             sim: Mpd226Sim::default(),
-            raw_midi_rx,
+            sysex_in,
             out_port,
-            _in_conn,
             shutdown_rx,
         };
 
@@ -224,27 +202,23 @@ impl SimRunner {
                 _ = &mut self.shutdown_rx => {
                     break;
                 }
-                Some(raw) = self.raw_midi_rx.recv() => {
-                    let sysex_in = match Sysex::try_from(raw.as_slice()) {
-                        Ok(s) => {
-                            println!("received sysex payload: {}", s.preview());
-                            s
-                        },
-                        Err(e) => {
-                            eprintln!("{e}");
-                            continue;
-                        }
-                    };
+                Some(timed) = self.sysex_in.recv() => {
+                    let sysex_in = Sysex::new(timed.payload.bytes().to_vec());
+                    println!("received sysex payload: {}", sysex_in.preview());
 
                     let effect = self.sim.update(SimMsg::SysexReceived(sysex_in));
 
                     match effect {
                         SimEffect::SendSysex(sysex_out) => {
                             println!("sending sysex payload: {}", sysex_out.preview());
-                            let bytes = sysex_out.as_bytes();
 
-                            if let Err(e) = self.out_port.send(&bytes) {
-                                eprintln!("MIDI send error: {e}");
+                            match SysEx::new(sysex_out.payload()) {
+                                Ok(sysex) => {
+                                    if let Err(e) = self.out_port.send_sysex(&sysex).await {
+                                        eprintln!("MIDI send error: {e}");
+                                    }
+                                }
+                                Err(e) => eprintln!("MIDI send error: {e}"),
                             }
                         }
                         SimEffect::Noop => {
