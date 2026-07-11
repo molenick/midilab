@@ -9,6 +9,6 @@ repository.workspace = true
 [dependencies]
 bytemuck.workspace = true
 midilab.workspace = true
-midir.workspace = true
+midi-io = { workspace = true, features = ["io"] }
 thiserror.workspace = true
 tokio.workspace = true

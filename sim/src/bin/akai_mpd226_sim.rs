@@ -3,7 +3,7 @@ use midilab_sim::manufacturer::akai::akai_mpd226::SimRunner;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (runner, _handle) = SimRunner::start(PORT_NAME)?;
+    let (runner, _handle) = SimRunner::start(PORT_NAME).await?;
 
     println!("MPD226 simulator running on virtual port: {PORT_NAME}");
     println!("Press Ctrl+C to exit");

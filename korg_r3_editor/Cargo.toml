@@ -17,7 +17,7 @@ dirs.workspace = true
 eframe.workspace = true
 midilab.workspace = true
 midilab-io.workspace = true
-midir.workspace = true
+midi-io = { workspace = true, features = ["io"] }
 rfd.workspace = true
 serde.workspace = true
 serde_json.workspace = true

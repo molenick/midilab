@@ -21,7 +21,7 @@ dirs = "6.0"
 eframe = "0.35"
 egui_kittest = { version = "0.35", features = ["wgpu", "snapshot"] }
 enumeric = "0.1.2"
-midir = "0.10.3"
+midi-io = { version = "0.1.0", default-features = false }
 num_enum = "0.7.5"
 rfd = "0.15"
 serde = { version = "1.0", features = ["derive"] }

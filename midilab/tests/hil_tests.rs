@@ -1,6 +1,8 @@
-use std::sync::mpsc;
 use std::time::Duration;
 
+use midi_io::Client;
+use midi_io::DestinationConnection;
+use midi_io::SysEx;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
 use midilab::manufacturer::akai::mpd226::Global;
 use midilab::manufacturer::akai::mpd226::PORT_NAME;
@@ -12,58 +14,64 @@ use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab::midi::Note;
+use tokio::sync::mpsc;
+use tokio::time::timeout;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
-fn midi_setup() -> (
-    midir::MidiOutputConnection,
-    mpsc::Receiver<Vec<u8>>,
-    midir::MidiInputConnection<()>,
-) {
-    let midi_out = midir::MidiOutput::new("mpd226").unwrap();
-    let out_ports = midi_out.ports();
-    let out_port = out_ports
-        .iter()
-        .find(|p| midi_out.port_name(p).unwrap() == PORT_NAME)
-        .unwrap();
-    let conn_out = midi_out.connect(out_port, "mpd226-send").unwrap();
+async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>>) {
+    let client = Client::new("mpd226").await.unwrap();
 
-    let midi_in = midir::MidiInput::new("mpd226-recv").unwrap();
-    let in_ports = midi_in.ports();
-    let in_port = in_ports
-        .iter()
-        .find(|p| midi_in.port_name(p).unwrap() == PORT_NAME)
+    let out_port = client
+        .destinations()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|p| p.name() == PORT_NAME)
         .unwrap();
+    let conn_out = client.connect_destination(&out_port).await.unwrap();
 
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let conn_in = midi_in
-        .connect(
-            in_port,
-            "mpd226-recv",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
+    let in_port = client
+        .sources()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|p| p.name() == PORT_NAME)
         .unwrap();
+    let conn_in = client.connect_source(&in_port).await.unwrap();
 
-    std::thread::sleep(Duration::from_millis(100));
+    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    tokio::spawn(async move {
+        let mut sysex = conn_in.into_sysex();
+        while let Some(timed) = sysex.recv().await {
+            let _ = tx.send(timed.payload.to_wire_bytes());
+        }
+    });
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
     while rx.try_recv().is_ok() {}
 
-    (conn_out, rx, conn_in)
+    (conn_out, rx)
+}
+
+async fn send_bytes(conn: &DestinationConnection, bytes: &[u8]) {
+    let sysex = SysEx::try_from(bytes).unwrap();
+    conn.send_sysex(&sysex).await.unwrap();
+}
+
+async fn recv_bytes(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<u8> {
+    timeout(TIMEOUT, rx.recv()).await.unwrap().unwrap()
 }
 
 #[ignore = "requires connected MPD226"]
-#[test]
-fn preset_round_trip() {
-    let (mut conn, rx, _in_conn) = midi_setup();
+#[tokio::test]
+async fn preset_round_trip() {
+    let (conn, mut rx) = midi_setup().await;
 
     let original = {
-        let conn: &mut midir::MidiOutputConnection = &mut conn;
-        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
-        conn.send(&dump_preset_from_device(0x00)).unwrap();
+        send_bytes(&conn, &dump_preset_from_device(0x00)).await;
         let res = {
-            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            let data = recv_bytes(&mut rx).await;
             DeviceStatus::try_from(data.as_slice()).unwrap()
         };
         match res {
@@ -84,13 +92,11 @@ fn preset_round_trip() {
     mutated.switches.0[1].midicc = 71.into();
 
     {
-        let conn: &mut midir::MidiOutputConnection = &mut conn;
-        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
         let preset: &Preset = &mutated;
         let raw = RawPreset::from(preset);
-        conn.send(&write_preset_to_device(&raw)).unwrap();
+        send_bytes(&conn, &write_preset_to_device(&raw)).await;
         let res = {
-            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            let data = recv_bytes(&mut rx).await;
             DeviceStatus::try_from(data.as_slice()).unwrap()
         };
         match res {
@@ -99,11 +105,9 @@ fn preset_round_trip() {
         }
     };
     let loaded = {
-        let conn: &mut midir::MidiOutputConnection = &mut conn;
-        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
-        conn.send(&dump_preset_from_device(0x00)).unwrap();
+        send_bytes(&conn, &dump_preset_from_device(0x00)).await;
         let res = {
-            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            let data = recv_bytes(&mut rx).await;
             DeviceStatus::try_from(data.as_slice()).unwrap()
         };
         match res {
@@ -123,13 +127,11 @@ fn preset_round_trip() {
     assert_eq!(loaded.switches.0[1].midicc, 71.into());
 
     {
-        let conn: &mut midir::MidiOutputConnection = &mut conn;
-        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
         let preset: &Preset = &original;
         let raw = RawPreset::from(preset);
-        conn.send(&write_preset_to_device(&raw)).unwrap();
+        send_bytes(&conn, &write_preset_to_device(&raw)).await;
         let res = {
-            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            let data = recv_bytes(&mut rx).await;
             DeviceStatus::try_from(data.as_slice()).unwrap()
         };
         match res {
@@ -138,11 +140,9 @@ fn preset_round_trip() {
         }
     };
     let restored = {
-        let conn: &mut midir::MidiOutputConnection = &mut conn;
-        let rx: &mpsc::Receiver<Vec<u8>> = &rx;
-        conn.send(&dump_preset_from_device(0x00)).unwrap();
+        send_bytes(&conn, &dump_preset_from_device(0x00)).await;
         let res = {
-            let data = rx.recv_timeout(TIMEOUT).unwrap();
+            let data = recv_bytes(&mut rx).await;
             DeviceStatus::try_from(data.as_slice()).unwrap()
         };
         match res {
@@ -158,15 +158,15 @@ fn preset_round_trip() {
     );
 }
 
-fn send_global(
-    conn: &mut midir::MidiOutputConnection,
-    rx: &mpsc::Receiver<Vec<u8>>,
+async fn send_global(
+    conn: &DestinationConnection,
+    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
     global: &Global,
 ) {
     let raw = RawGlobal::from(global);
     for msg in raw.global_send_messages() {
-        conn.send(&msg).unwrap();
-        let data = rx.recv_timeout(TIMEOUT).unwrap();
+        send_bytes(conn, &msg).await;
+        let data = recv_bytes(rx).await;
         let res = DeviceStatus::try_from(data.as_slice()).unwrap();
         match res {
             DeviceStatus::GlobalParamAck(_) => {}
@@ -175,9 +175,12 @@ fn send_global(
     }
 }
 
-fn read_global(conn: &mut midir::MidiOutputConnection, rx: &mpsc::Receiver<Vec<u8>>) -> Global {
-    conn.send(&dump_global_from_device()).unwrap();
-    let data = rx.recv_timeout(TIMEOUT).unwrap();
+async fn read_global(
+    conn: &DestinationConnection,
+    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+) -> Global {
+    send_bytes(conn, &dump_global_from_device()).await;
+    let data = recv_bytes(rx).await;
     let res = DeviceStatus::try_from(data.as_slice()).unwrap();
     match res {
         DeviceStatus::GlobalData(g) => *g,
@@ -186,16 +189,16 @@ fn read_global(conn: &mut midir::MidiOutputConnection, rx: &mpsc::Receiver<Vec<u
 }
 
 #[ignore = "requires connected MPD226"]
-#[test]
-fn global_round_trip() {
-    let (mut conn, rx, _in_conn) = midi_setup();
-    let device_original = read_global(&mut conn, &rx);
+#[tokio::test]
+async fn global_round_trip() {
+    let (conn, mut rx) = midi_setup().await;
+    let device_original = read_global(&conn, &mut rx).await;
 
-    send_global(&mut conn, &rx, &Global::default());
-    let loaded_default = read_global(&mut conn, &rx);
+    send_global(&conn, &mut rx, &Global::default()).await;
+    let loaded_default = read_global(&conn, &mut rx).await;
     assert_eq!(loaded_default, Global::default());
 
-    send_global(&mut conn, &rx, &device_original);
-    let restored = read_global(&mut conn, &rx);
+    send_global(&conn, &mut rx, &device_original).await;
+    let restored = read_global(&conn, &mut rx).await;
     assert_eq!(restored, device_original);
 }

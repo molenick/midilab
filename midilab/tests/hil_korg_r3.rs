@@ -1,7 +1,9 @@
-use std::sync::mpsc;
 use std::time::Duration;
 
 use bytemuck::Zeroable;
+use midi_io::Client;
+use midi_io::DestinationConnection;
+use midi_io::SysEx;
 use midilab::manufacturer::korg::r3::KorgR3Message;
 use midilab::manufacturer::korg::r3::PORT_KBD_KNOB;
 use midilab::manufacturer::korg::r3::PORT_SOUND;
@@ -21,68 +23,91 @@ use midilab::manufacturer::korg::r3::raw::RawGlobal;
 use midilab::manufacturer::korg::r3::raw::RawProgram;
 use midilab::manufacturer::korg::r3::wrappers::Global;
 use midilab::manufacturer::korg::r3::wrappers::Program;
+use tokio::sync::mpsc;
+use tokio::time::timeout;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 const CHANNEL: u8 = 0x00;
 
-fn recv(rx: &mpsc::Receiver<Vec<u8>>, timeout: Duration) -> Vec<u8> {
-    let deadline = std::time::Instant::now() + timeout;
-    loop {
-        if let Ok(data) = rx.try_recv()
-            && data.first() == Some(&0xF0)
-        {
-            return data;
+async fn connect(name: &str) -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>>) {
+    let client = Client::new(name).await.unwrap();
+
+    let sound_port = client
+        .destinations()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|p| p.name() == PORT_SOUND)
+        .expect("no R3 SOUND");
+    let conn = client.connect_destination(&sound_port).await.unwrap();
+
+    let kbd_port = client
+        .sources()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|p| p.name() == PORT_KBD_KNOB)
+        .expect("no R3 KBD/KNOB");
+    let conn_in = client.connect_source(&kbd_port).await.unwrap();
+
+    let (tx, rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    tokio::spawn(async move {
+        let mut sysex = conn_in.into_sysex();
+        while let Some(timed) = sysex.recv().await {
+            let _ = tx.send(timed.payload.to_wire_bytes());
         }
-        if std::time::Instant::now() >= deadline {
-            panic!("timed out waiting for sysex response");
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    });
+
+    (conn, rx)
 }
 
-fn try_recv(rx: &mpsc::Receiver<Vec<u8>>, timeout: Duration) -> Option<Vec<u8>> {
-    let deadline = std::time::Instant::now() + timeout;
-    loop {
-        if let Ok(data) = rx.try_recv()
-            && data.first() == Some(&0xF0)
-        {
-            return Some(data);
-        }
-        if std::time::Instant::now() >= deadline {
-            return None;
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    }
+async fn send_bytes(conn: &DestinationConnection, bytes: &[u8]) {
+    let sysex = SysEx::try_from(bytes).unwrap();
+    conn.send_sysex(&sysex).await.unwrap();
 }
 
-fn read_global(conn: &mut midir::MidiOutputConnection, rx: &mpsc::Receiver<Vec<u8>>) -> RawGlobal {
-    conn.send(&global_dump_request(CHANNEL)).unwrap();
-    let data = recv(rx, TIMEOUT);
+async fn recv(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>, dur: Duration) -> Vec<u8> {
+    timeout(dur, rx.recv())
+        .await
+        .expect("timed out waiting for sysex response")
+        .expect("channel closed")
+}
+
+async fn try_recv(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>, dur: Duration) -> Option<Vec<u8>> {
+    timeout(dur, rx.recv()).await.ok().flatten()
+}
+
+async fn read_global(
+    conn: &DestinationConnection,
+    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+) -> RawGlobal {
+    send_bytes(conn, &global_dump_request(CHANNEL)).await;
+    let data = recv(rx, TIMEOUT).await;
     match KorgR3Message::try_from(data.as_slice()).expect("parse global dump") {
         KorgR3Message::GlobalDump(g) => *g,
         other => panic!("expected GlobalDump, got {other:?}"),
     }
 }
 
-fn read_current_program(
-    conn: &mut midir::MidiOutputConnection,
-    rx: &mpsc::Receiver<Vec<u8>>,
+async fn read_current_program(
+    conn: &DestinationConnection,
+    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
 ) -> RawProgram {
-    conn.send(&current_program_dump_request(CHANNEL)).unwrap();
-    let data = recv(rx, TIMEOUT);
+    send_bytes(conn, &current_program_dump_request(CHANNEL)).await;
+    let data = recv(rx, TIMEOUT).await;
     match KorgR3Message::try_from(data.as_slice()).expect("parse program dump") {
         KorgR3Message::CurrentProgramDump(p) => *p,
         other => panic!("expected CurrentProgramDump, got {other:?}"),
     }
 }
 
-fn read_slot(
-    conn: &mut midir::MidiOutputConnection,
-    rx: &mpsc::Receiver<Vec<u8>>,
+async fn read_slot(
+    conn: &DestinationConnection,
+    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
     slot: u16,
 ) -> RawProgram {
-    conn.send(&program_dump_request(CHANNEL, slot)).unwrap();
-    let data = recv(rx, TIMEOUT);
+    send_bytes(conn, &program_dump_request(CHANNEL, slot)).await;
+    let data = recv(rx, TIMEOUT).await;
     match KorgR3Message::try_from(data.as_slice()).expect("parse slot dump") {
         KorgR3Message::ProgramDump {
             program_no,
@@ -95,15 +120,14 @@ fn read_slot(
     }
 }
 
-fn read_motion(
-    conn: &mut midir::MidiOutputConnection,
-    rx: &mpsc::Receiver<Vec<u8>>,
+async fn read_motion(
+    conn: &DestinationConnection,
+    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
     motion_no: u8,
 ) -> (u16, Vec<RawFormantStep>) {
-    conn.send(&formant_motion_dump_request(CHANNEL, motion_no))
-        .unwrap();
+    send_bytes(conn, &formant_motion_dump_request(CHANNEL, motion_no)).await;
     loop {
-        let data = recv(rx, TIMEOUT);
+        let data = recv(rx, TIMEOUT).await;
         match KorgR3Message::try_from(data.as_slice()).expect("parse motion dump") {
             KorgR3Message::FormantMotionDump {
                 motion_no: n,
@@ -119,23 +143,21 @@ fn read_motion(
     }
 }
 
-fn write_motion(
-    conn: &mut midir::MidiOutputConnection,
-    rx: &mpsc::Receiver<Vec<u8>>,
+async fn write_motion(
+    conn: &DestinationConnection,
+    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
     motion_no: u8,
     steps: &[RawFormantStep],
 ) {
-    conn.send(&current_formant_motion_dump_message(CHANNEL, steps))
-        .unwrap();
-    expect_data_load_completed(rx);
-    conn.send(&formant_motion_write_request(CHANNEL, motion_no))
-        .unwrap();
-    expect_data_load_completed(rx);
+    send_bytes(conn, &current_formant_motion_dump_message(CHANNEL, steps)).await;
+    expect_data_load_completed(rx).await;
+    send_bytes(conn, &formant_motion_write_request(CHANNEL, motion_no)).await;
+    expect_data_load_completed(rx).await;
 }
 
-fn expect_data_load_completed(rx: &mpsc::Receiver<Vec<u8>>) {
+async fn expect_data_load_completed(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) {
     loop {
-        let data = recv(rx, TIMEOUT);
+        let data = recv(rx, TIMEOUT).await;
         match KorgR3Message::try_from(data.as_slice()).expect("parse ack") {
             KorgR3Message::DataLoadCompleted | KorgR3Message::WriteCompleted => return,
             KorgR3Message::ParameterChange(_) => continue,
@@ -145,40 +167,15 @@ fn expect_data_load_completed(rx: &mpsc::Receiver<Vec<u8>>) {
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn global_dump_discovery() {
-    let midi_out = midir::MidiOutput::new("r3-disc").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-disc-send").unwrap();
-
-    let midi_in = midir::MidiInput::new("r3-disc-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-disc-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
+#[tokio::test]
+async fn global_dump_discovery() {
+    let (conn, mut rx) = connect("r3-disc").await;
 
     eprintln!("Scanning channels 0-15...");
     let mut found_ch: Option<u8> = None;
     for try_ch in 0u8..=15 {
-        conn.send(&global_dump_request(try_ch)).unwrap();
-        if let Some(data) = try_recv(&rx, Duration::from_secs(5)) {
+        send_bytes(&conn, &global_dump_request(try_ch)).await;
+        if let Some(data) = try_recv(&mut rx, Duration::from_secs(5)).await {
             eprintln!(
                 "  *** RESPONSE ch={try_ch}: {} bytes {:02X?} ***",
                 data.len(),
@@ -197,8 +194,8 @@ fn global_dump_discovery() {
     }
 
     let ch = found_ch.unwrap_or(ch);
-    conn.send(&global_dump_request(ch)).unwrap();
-    let data = recv(&rx, TIMEOUT);
+    send_bytes(&conn, &global_dump_request(ch)).await;
+    let data = recv(&mut rx, TIMEOUT).await;
     eprintln!("Raw: {} bytes", data.len());
 
     match KorgR3Message::try_from(data.as_slice()).expect("parse global") {
@@ -211,37 +208,12 @@ fn global_dump_discovery() {
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn current_program_dump_discovery() {
-    let midi_out = midir::MidiOutput::new("r3-pd").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-pd-send").unwrap();
+#[tokio::test]
+async fn current_program_dump_discovery() {
+    let (conn, mut rx) = connect("r3-pd").await;
 
-    let midi_in = midir::MidiInput::new("r3-pd-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-pd-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    conn.send(&current_program_dump_request(CHANNEL)).unwrap();
-    let data = recv(&rx, TIMEOUT);
+    send_bytes(&conn, &current_program_dump_request(CHANNEL)).await;
+    let data = recv(&mut rx, TIMEOUT).await;
     eprintln!("Raw: {} bytes", data.len());
 
     match KorgR3Message::try_from(data.as_slice()).expect("parse program") {
@@ -255,36 +227,11 @@ fn current_program_dump_discovery() {
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn global_round_trip() {
-    let midi_out = midir::MidiOutput::new("r3-gt").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-gt-send").unwrap();
+#[tokio::test]
+async fn global_round_trip() {
+    let (conn, mut rx) = connect("r3-gt").await;
 
-    let midi_in = midir::MidiInput::new("r3-gt-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-gt-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    let original = read_global(&mut conn, &rx);
+    let original = read_global(&conn, &mut rx).await;
     let protect_on = original.flags_2 & 0x80 != 0;
     eprintln!(
         "master_tune = {}, protect = {}",
@@ -301,51 +248,26 @@ fn global_round_trip() {
     let mut modified = original;
     modified.master_tune = new_tune;
 
-    conn.send(&global_dump_message(CHANNEL, &modified)).unwrap();
-    expect_data_load_completed(&rx);
+    send_bytes(&conn, &global_dump_message(CHANNEL, &modified)).await;
+    expect_data_load_completed(&mut rx).await;
 
-    let readback = read_global(&mut conn, &rx);
+    let readback = read_global(&conn, &mut rx).await;
     assert_eq!(readback.master_tune, new_tune);
 
-    conn.send(&global_dump_message(CHANNEL, &original)).unwrap();
-    expect_data_load_completed(&rx);
+    send_bytes(&conn, &global_dump_message(CHANNEL, &original)).await;
+    expect_data_load_completed(&mut rx).await;
 
-    let restored = read_global(&mut conn, &rx);
+    let restored = read_global(&conn, &mut rx).await;
     assert_eq!(bytemuck::bytes_of(&restored), bytemuck::bytes_of(&original));
     eprintln!("Global round-trip OK");
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn program_round_trip() {
-    let midi_out = midir::MidiOutput::new("r3-pt").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-pt-send").unwrap();
+#[tokio::test]
+async fn program_round_trip() {
+    let (conn, mut rx) = connect("r3-pt").await;
 
-    let midi_in = midir::MidiInput::new("r3-pt-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-pt-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    let original = read_current_program(&mut conn, &rx);
+    let original = read_current_program(&conn, &mut rx).await;
     eprintln!(
         "name = {:?}",
         std::str::from_utf8(&original.name).unwrap_or("<non-utf8>")
@@ -354,112 +276,57 @@ fn program_round_trip() {
     let mut modified = original;
     modified.name = *b"HILTEST ";
 
-    conn.send(&current_program_dump_message(CHANNEL, &modified))
-        .unwrap();
-    expect_data_load_completed(&rx);
+    send_bytes(&conn, &current_program_dump_message(CHANNEL, &modified)).await;
+    expect_data_load_completed(&mut rx).await;
 
-    let readback = read_current_program(&mut conn, &rx);
+    let readback = read_current_program(&conn, &mut rx).await;
     assert_eq!(&readback.name, b"HILTEST ");
 
-    conn.send(&current_program_dump_message(CHANNEL, &original))
-        .unwrap();
-    expect_data_load_completed(&rx);
+    send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+    expect_data_load_completed(&mut rx).await;
 
-    let restored = read_current_program(&mut conn, &rx);
+    let restored = read_current_program(&conn, &mut rx).await;
     assert_eq!(bytemuck::bytes_of(&restored), bytemuck::bytes_of(&original));
     eprintln!("Program round-trip OK");
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn parameter_change_program() {
-    let midi_out = midir::MidiOutput::new("r3-pc").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-pc-send").unwrap();
+#[tokio::test]
+async fn parameter_change_program() {
+    let (conn, mut rx) = connect("r3-pc").await;
 
-    let midi_in = midir::MidiInput::new("r3-pc-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-pc-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    let original = read_current_program(&mut conn, &rx);
+    let original = read_current_program(&conn, &mut rx).await;
     let orig_name0 = original.name[0];
 
     let new_name0: u8 = if orig_name0 != b'Z' { b'Z' } else { b'Y' };
-    conn.send(&parameter_change_message(
-        CHANNEL,
-        0x00,
-        0x00,
-        new_name0 as u16,
-    ))
-    .unwrap();
-    let _ = try_recv(&rx, Duration::from_millis(500));
+    send_bytes(
+        &conn,
+        &parameter_change_message(CHANNEL, 0x00, 0x00, new_name0 as u16),
+    )
+    .await;
+    let _ = try_recv(&mut rx, Duration::from_millis(500)).await;
 
-    let changed = read_current_program(&mut conn, &rx);
+    let changed = read_current_program(&conn, &mut rx).await;
     assert_eq!(
         changed.name[0], new_name0,
         "parameter change did not update current program name[0]"
     );
 
-    conn.send(&current_program_dump_message(CHANNEL, &original))
-        .unwrap();
-    expect_data_load_completed(&rx);
-    let restored = read_current_program(&mut conn, &rx);
+    send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+    expect_data_load_completed(&mut rx).await;
+    let restored = read_current_program(&conn, &mut rx).await;
     assert_eq!(bytemuck::bytes_of(&restored), bytemuck::bytes_of(&original));
     eprintln!("Parameter change (program) OK");
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn program_dump_slot() {
-    let midi_out = midir::MidiOutput::new("r3-sl").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-sl-send").unwrap();
-
-    let midi_in = midir::MidiInput::new("r3-sl-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-sl-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
+#[tokio::test]
+async fn program_dump_slot() {
+    let (conn, mut rx) = connect("r3-sl").await;
 
     for slot in [0, 1, 32, 64] {
-        conn.send(&program_dump_request(CHANNEL, slot)).unwrap();
-        let data = recv(&rx, TIMEOUT);
+        send_bytes(&conn, &program_dump_request(CHANNEL, slot)).await;
+        let data = recv(&mut rx, TIMEOUT).await;
         eprintln!("Slot {slot}: {} bytes", data.len());
 
         match KorgR3Message::try_from(data.as_slice()).expect("parse slot dump") {
@@ -480,36 +347,11 @@ fn program_dump_slot() {
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn program_write_slot() {
-    let midi_out = midir::MidiOutput::new("r3-ws").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-ws-send").unwrap();
+#[tokio::test]
+async fn program_write_slot() {
+    let (conn, mut rx) = connect("r3-ws").await;
 
-    let midi_in = midir::MidiInput::new("r3-ws-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-ws-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    let original = read_current_program(&mut conn, &rx);
+    let original = read_current_program(&conn, &mut rx).await;
     eprintln!(
         "original name = {:?}",
         std::str::from_utf8(&original.name).unwrap_or("<non-utf8>")
@@ -518,21 +360,21 @@ fn program_write_slot() {
     let mut modified = original;
     modified.name = *b"WRITESL ";
 
-    conn.send(&current_program_dump_message(CHANNEL, &modified))
-        .unwrap();
-    expect_data_load_completed(&rx);
+    send_bytes(&conn, &current_program_dump_message(CHANNEL, &modified)).await;
+    expect_data_load_completed(&mut rx).await;
 
     let target_slot: u16 = 0;
-    conn.send(&program_write_request(CHANNEL, target_slot))
-        .unwrap();
+    send_bytes(&conn, &program_write_request(CHANNEL, target_slot)).await;
 
-    match KorgR3Message::try_from(recv(&rx, TIMEOUT).as_slice()).expect("parse write ack") {
+    match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice()).expect("parse write ack")
+    {
         KorgR3Message::DataLoadCompleted | KorgR3Message::WriteCompleted => {
             eprintln!("write to slot {target_slot} succeeded");
 
-            conn.send(&program_dump_request(CHANNEL, target_slot))
-                .unwrap();
-            match KorgR3Message::try_from(recv(&rx, TIMEOUT).as_slice()).expect("read back") {
+            send_bytes(&conn, &program_dump_request(CHANNEL, target_slot)).await;
+            match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice())
+                .expect("read back")
+            {
                 KorgR3Message::ProgramDump {
                     program_no,
                     program: p,
@@ -543,16 +385,15 @@ fn program_write_slot() {
                 other => panic!("expected ProgramDump on read-back, got {other:?}"),
             }
 
-            conn.send(&current_program_dump_message(CHANNEL, &original))
-                .unwrap();
-            expect_data_load_completed(&rx);
-            conn.send(&program_write_request(CHANNEL, target_slot))
-                .unwrap();
-            expect_data_load_completed(&rx);
+            send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+            expect_data_load_completed(&mut rx).await;
+            send_bytes(&conn, &program_write_request(CHANNEL, target_slot)).await;
+            expect_data_load_completed(&mut rx).await;
 
-            conn.send(&program_dump_request(CHANNEL, target_slot))
-                .unwrap();
-            match KorgR3Message::try_from(recv(&rx, TIMEOUT).as_slice()).expect("read restored") {
+            send_bytes(&conn, &program_dump_request(CHANNEL, target_slot)).await;
+            match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice())
+                .expect("read restored")
+            {
                 KorgR3Message::ProgramDump {
                     program: restored, ..
                 } => {
@@ -570,36 +411,11 @@ fn program_write_slot() {
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn program_model_round_trip() {
-    let midi_out = midir::MidiOutput::new("r3-mrt").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-mrt-send").unwrap();
+#[tokio::test]
+async fn program_model_round_trip() {
+    let (conn, mut rx) = connect("r3-mrt").await;
 
-    let midi_in = midir::MidiInput::new("r3-mrt-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-mrt-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    let original = read_current_program(&mut conn, &rx);
+    let original = read_current_program(&conn, &mut rx).await;
     let orig_bytes = bytemuck::bytes_of(&original).to_vec();
     eprintln!(
         "patch name = {:?}",
@@ -638,10 +454,9 @@ fn program_model_round_trip() {
         diffs.len()
     );
 
-    conn.send(&current_program_dump_message(CHANNEL, &raw2))
-        .unwrap();
-    expect_data_load_completed(&rx);
-    let readback = read_current_program(&mut conn, &rx);
+    send_bytes(&conn, &current_program_dump_message(CHANNEL, &raw2)).await;
+    expect_data_load_completed(&mut rx).await;
+    let readback = read_current_program(&conn, &mut rx).await;
     let prog_rb = Program::try_from(readback).expect("decode device readback");
     assert_eq!(
         prog_rb.as_bytes(),
@@ -649,45 +464,19 @@ fn program_model_round_trip() {
         "modeled parameters did not survive a real device round-trip"
     );
 
-    conn.send(&current_program_dump_message(CHANNEL, &original))
-        .unwrap();
-    expect_data_load_completed(&rx);
-    let restored = read_current_program(&mut conn, &rx);
+    send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+    expect_data_load_completed(&mut rx).await;
+    let restored = read_current_program(&conn, &mut rx).await;
     assert_eq!(bytemuck::bytes_of(&restored), orig_bytes.as_slice());
     eprintln!("Program model round-trip OK");
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn global_model_round_trip() {
-    let midi_out = midir::MidiOutput::new("r3-gm").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-gm-send").unwrap();
+#[tokio::test]
+async fn global_model_round_trip() {
+    let (conn, mut rx) = connect("r3-gm").await;
 
-    let midi_in = midir::MidiInput::new("r3-gm-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-gm-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    let original = read_global(&mut conn, &rx);
+    let original = read_global(&conn, &mut rx).await;
     let orig_bytes = bytemuck::bytes_of(&original).to_vec();
 
     let g = Global::try_from(original).expect("decode real global to typed Global");
@@ -717,52 +506,27 @@ fn global_model_round_trip() {
         return;
     }
     let raw2: RawGlobal = *bytemuck::from_bytes(&encoded);
-    conn.send(&global_dump_message(CHANNEL, &raw2)).unwrap();
-    expect_data_load_completed(&rx);
-    let readback = read_global(&mut conn, &rx);
+    send_bytes(&conn, &global_dump_message(CHANNEL, &raw2)).await;
+    expect_data_load_completed(&mut rx).await;
+    let readback = read_global(&conn, &mut rx).await;
     assert_eq!(
         bytemuck::bytes_of(&readback),
         encoded.as_slice(),
         "global did not survive device round-trip"
     );
-    conn.send(&global_dump_message(CHANNEL, &original)).unwrap();
-    expect_data_load_completed(&rx);
+    send_bytes(&conn, &global_dump_message(CHANNEL, &original)).await;
+    expect_data_load_completed(&mut rx).await;
     eprintln!("Global model round-trip OK");
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn tempo_encoding_probe() {
-    let midi_out = midir::MidiOutput::new("r3-tp").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-tp-send").unwrap();
-
-    let midi_in = midir::MidiInput::new("r3-tp-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-tp-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
+#[tokio::test]
+async fn tempo_encoding_probe() {
+    let (conn, mut rx) = connect("r3-tp").await;
 
     for slot in [0u16, 1, 16, 32, 64, 99, 127] {
-        conn.send(&program_dump_request(CHANNEL, slot)).unwrap();
-        let data = recv(&rx, TIMEOUT);
+        send_bytes(&conn, &program_dump_request(CHANNEL, slot)).await;
+        let data = recv(&mut rx, TIMEOUT).await;
         match KorgR3Message::try_from(data.as_slice()).expect("parse slot dump") {
             KorgR3Message::ProgramDump { program: p, .. } => {
                 let raw = bytemuck::bytes_of(&*p);
@@ -784,38 +548,12 @@ fn tempo_encoding_probe() {
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn formant_motion_dump() {
-    let midi_out = midir::MidiOutput::new("r3-mo").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-mo-send").unwrap();
+#[tokio::test]
+async fn formant_motion_dump() {
+    let (conn, mut rx) = connect("r3-mo").await;
 
-    let midi_in = midir::MidiInput::new("r3-mo-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-mo-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    conn.send(&current_formant_motion_dump_request(CHANNEL))
-        .unwrap();
-    let data = recv(&rx, TIMEOUT);
+    send_bytes(&conn, &current_formant_motion_dump_request(CHANNEL)).await;
+    let data = recv(&mut rx, TIMEOUT).await;
     eprintln!("current formant motion: {} bytes", data.len());
 
     match KorgR3Message::try_from(data.as_slice()).expect("parse formant") {
@@ -836,37 +574,12 @@ fn formant_motion_dump() {
 }
 
 #[ignore = "requires connected Korg R3"]
-#[test]
-fn formant_dump_all() {
-    let midi_out = midir::MidiOutput::new("r3-mo").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-mo-send").unwrap();
-
-    let midi_in = midir::MidiInput::new("r3-mo-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-mo-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
+#[tokio::test]
+async fn formant_dump_all() {
+    let (conn, mut rx) = connect("r3-mo").await;
 
     for i in 0u8..16 {
-        let (size, steps) = read_motion(&mut conn, &rx, i);
+        let (size, steps) = read_motion(&conn, &mut rx, i).await;
         assert_eq!(
             steps.len(),
             size as usize,
@@ -881,38 +594,13 @@ fn formant_dump_all() {
 }
 
 #[ignore = "requires connected Korg R3 (memory protect OFF); writes formant motion 15"]
-#[test]
-fn formant_write_path() {
-    let midi_out = midir::MidiOutput::new("r3-mo").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-mo-send").unwrap();
-
-    let midi_in = midir::MidiInput::new("r3-mo-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-mo-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
+#[tokio::test]
+async fn formant_write_path() {
+    let (conn, mut rx) = connect("r3-mo").await;
 
     const SCRATCH: u8 = 15;
 
-    let (orig_size, orig_steps) = read_motion(&mut conn, &rx, SCRATCH);
+    let (orig_size, orig_steps) = read_motion(&conn, &mut rx, SCRATCH).await;
     eprintln!("scratch motion {SCRATCH} original: {orig_size} frames");
 
     let mut synth = vec![RawFormantStep::zeroed(); 4];
@@ -925,9 +613,9 @@ fn formant_write_path() {
     synth[1].bands[5] = 0x80;
     synth[3].bands[15] = 0x7F;
 
-    write_motion(&mut conn, &rx, SCRATCH, &synth);
+    write_motion(&conn, &mut rx, SCRATCH, &synth).await;
 
-    let (rb_size, rb_steps) = read_motion(&mut conn, &rx, SCRATCH);
+    let (rb_size, rb_steps) = read_motion(&conn, &mut rx, SCRATCH).await;
     eprintln!("readback: {rb_size} frames");
     assert_eq!(
         rb_size as usize,
@@ -941,42 +629,17 @@ fn formant_write_path() {
         "readback bytes differ from written motion"
     );
 
-    write_motion(&mut conn, &rx, SCRATCH, &orig_steps);
-    let (restored_size, _) = read_motion(&mut conn, &rx, SCRATCH);
+    write_motion(&conn, &mut rx, SCRATCH, &orig_steps).await;
+    let (restored_size, _) = read_motion(&conn, &mut rx, SCRATCH).await;
     assert_eq!(restored_size, orig_size, "scratch motion restored");
 }
 
 #[ignore = "requires connected Korg R3 (memory protect OFF); writes slot 0"]
-#[test]
-fn editor_write_path_fix_slot0_name() {
-    let midi_out = midir::MidiOutput::new("r3-fix").unwrap();
-    let sound_port = midi_out
-        .ports()
-        .into_iter()
-        .find(|p| midi_out.port_name(p).ok() == Some(PORT_SOUND.to_string()))
-        .expect("no R3 SOUND");
-    let mut conn = midi_out.connect(&sound_port, "r3-fix-send").unwrap();
+#[tokio::test]
+async fn editor_write_path_fix_slot0_name() {
+    let (conn, mut rx) = connect("r3-fix").await;
 
-    let midi_in = midir::MidiInput::new("r3-fix-rx").unwrap();
-    let kbd_port = midi_in
-        .ports()
-        .into_iter()
-        .find(|p| midi_in.port_name(p).ok() == Some(PORT_KBD_KNOB.to_string()))
-        .expect("no R3 KBD/KNOB");
-
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    let _conn_in = midi_in
-        .connect(
-            &kbd_port,
-            "r3-fix-rx-kbd",
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .unwrap();
-
-    let original = read_slot(&mut conn, &rx, 0);
+    let original = read_slot(&conn, &mut rx, 0).await;
     eprintln!(
         "slot 0 name before: {:?}",
         std::str::from_utf8(&original.name)
@@ -993,17 +656,17 @@ fn editor_write_path_fix_slot0_name() {
         "typed encode changed bytes other than the name"
     );
 
-    conn.send(&current_program_dump_message(CHANNEL, &fixed))
-        .unwrap();
-    expect_data_load_completed(&rx);
-    conn.send(&program_write_request(CHANNEL, 0)).unwrap();
-    match KorgR3Message::try_from(recv(&rx, TIMEOUT).as_slice()).expect("parse write ack") {
+    send_bytes(&conn, &current_program_dump_message(CHANNEL, &fixed)).await;
+    expect_data_load_completed(&mut rx).await;
+    send_bytes(&conn, &program_write_request(CHANNEL, 0)).await;
+    match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice()).expect("parse write ack")
+    {
         KorgR3Message::DataLoadCompleted | KorgR3Message::WriteCompleted => {}
         KorgR3Message::DataLoadError => panic!("write REJECTED — memory protect is ON"),
         other => panic!("expected write ack, got {other:?}"),
     }
 
-    let readback = read_slot(&mut conn, &rx, 0);
+    let readback = read_slot(&conn, &mut rx, 0).await;
     eprintln!(
         "slot 0 name after: {:?}",
         std::str::from_utf8(&readback.name)

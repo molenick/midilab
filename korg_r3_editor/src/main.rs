@@ -19,6 +19,9 @@ use korg_r3_editor::message::DeviceMsg;
 use korg_r3_editor::message::IoEffect;
 use korg_r3_editor::message::IoMsg;
 use korg_r3_editor::message::UserError;
+use midi_io::Client;
+use midi_io::DestinationConnection;
+use midi_io::SysEx;
 use midilab::error::MidiError;
 use midilab::manufacturer::korg::r3::KorgR3Message;
 use midilab::manufacturer::korg::r3::PORT_KBD_KNOB;
@@ -36,10 +39,7 @@ use midilab::manufacturer::korg::r3::program_write_request;
 use midilab::manufacturer::korg::r3::raw::RawProgram;
 use midilab_io::midi::find_input_port;
 use midilab_io::midi::find_output_port;
-use midilab_io::midi::flush_coremidi_notifications;
 use midilab_io::midi::recv_device_bytes;
-use midir::MidiInput;
-use midir::MidiOutput;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
@@ -105,9 +105,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         use std::collections::HashMap;
         use std::time::Instant;
 
+        let client = Client::new("korg_r3")
+            .await
+            .expect("failed to init MIDI client");
+
         let (dev_tx, mut dev_rx) = unbounded_channel::<Vec<u8>>();
-        let mut output: Option<midir::MidiOutputConnection> = connect_output().ok();
-        let mut input = connect_input(dev_tx.clone()).ok();
+        let mut output: Option<DestinationConnection> = connect_output(&client).await.ok();
+        let mut input = connect_input(&client, dev_tx.clone()).await.ok();
 
         let mut pending: HashMap<(u16, u16), u16> = HashMap::new();
         let mut flush_at: Option<Instant> = None;
@@ -121,13 +125,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             if flush_at.is_some_and(|at| Instant::now() >= at) {
-                if let Some(out) = output.as_mut() {
+                if let Some(out) = output.as_ref() {
                     for ((id, sub), value) in pending.drain() {
                         let lp = LiveParam {
                             addr: ParamAddr { id, sub },
                             value,
                         };
-                        let _ = out.send(&lp.to_sysex(0x00));
+                        let _ = send_bytes(out, &lp.to_sysex(0x00)).await;
                     }
                 } else {
                     pending.clear();
@@ -154,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if output.is_none() {
-                match connect_output() {
+                match connect_output(&client).await {
                     Ok(o) => output = Some(o),
                     Err(e) => {
                         let _ = midi_app_tx.send(AppMsg::UserError(UserError::Midi(
@@ -165,9 +169,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             if input.is_none() {
-                input = connect_input(dev_tx.clone()).ok();
+                input = connect_input(&client, dev_tx.clone()).await.ok();
             }
-            let out = output.as_mut().unwrap();
+            let out = output.as_ref().unwrap();
 
             let result: Result<Vec<u8>, MidiError> = handle_midi_msg(msg, out, &mut dev_rx).await;
 
@@ -225,51 +229,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn connect_output() -> Result<midir::MidiOutputConnection, String> {
-    flush_coremidi_notifications();
-    let midi_out =
-        MidiOutput::new("korg_r3").map_err(|e| format!("Failed to create MIDI output: {}", e))?;
-
-    let port = find_output_port(&midi_out, PORT_SOUND)
+async fn connect_output(client: &Client) -> Result<DestinationConnection, String> {
+    let port = find_output_port(client, PORT_SOUND)
+        .await
         .ok_or_else(|| format!("R3 not found (no '{PORT_SOUND}' output) - is it connected?"))?;
-    midi_out
-        .connect(&port, PORT_SOUND)
+    client
+        .connect_destination(&port)
+        .await
         .map_err(|e| format!("Failed to connect to MIDI output: {}", e))
 }
 
-fn connect_input(tx: UnboundedSender<Vec<u8>>) -> Result<midir::MidiInputConnection<()>, String> {
-    let midi_in = MidiInput::new("korg_r3-recv")
-        .map_err(|e| format!("Failed to create MIDI input: {}", e))?;
-    let port = find_input_port(&midi_in, PORT_KBD_KNOB)
+async fn connect_input(client: &Client, tx: UnboundedSender<Vec<u8>>) -> Result<(), String> {
+    let port = find_input_port(client, PORT_KBD_KNOB)
+        .await
         .ok_or_else(|| format!("R3 not found (no '{PORT_KBD_KNOB}' input) - is it connected?"))?;
-    midi_in
-        .connect(
-            &port,
-            PORT_KBD_KNOB,
-            move |_ts, data, _| {
-                let _ = tx.send(data.to_vec());
-            },
-            (),
-        )
-        .map_err(|e| format!("Failed to connect to MIDI input: {}", e))
+    let conn = client
+        .connect_source(&port)
+        .await
+        .map_err(|e| format!("Failed to connect to MIDI input: {}", e))?;
+
+    tokio::spawn(async move {
+        let mut sysex = conn.into_sysex();
+        while let Some(timed) = sysex.recv().await {
+            let _ = tx.send(timed.payload.to_wire_bytes());
+        }
+    });
+
+    Ok(())
+}
+
+async fn send_bytes(output: &DestinationConnection, bytes: &[u8]) -> Result<(), ()> {
+    let sysex = SysEx::try_from(bytes).map_err(|_| ())?;
+    output.send_sysex(&sysex).await.map_err(|_| ())
 }
 
 async fn handle_midi_msg(
     msg: DeviceMsg,
-    output: &mut midir::MidiOutputConnection,
+    output: &DestinationConnection,
     rx: &mut UnboundedReceiver<Vec<u8>>,
 ) -> Result<Vec<u8>, MidiError> {
     match msg {
         DeviceMsg::DumpCurrentProgram => {
             let request = current_program_dump_request(0x00);
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(rx, Duration::from_secs(3)).await?;
             Ok(bytes)
         }
         DeviceMsg::DumpProgram(slot) => {
             let request = midilab::manufacturer::korg::r3::program_dump_request(0x00, slot as u16);
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(rx, Duration::from_secs(3)).await?;
             Ok(bytes)
@@ -277,28 +290,36 @@ async fn handle_midi_msg(
         DeviceMsg::DumpSlot(slot) => {
             let request =
                 midilab::manufacturer::korg::r3::program_dump_request(0x00, slot.as_u16());
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(rx, Duration::from_secs(3)).await?;
             Ok(bytes)
         }
         DeviceMsg::DumpGlobal => {
             let request = global_dump_request(0x00);
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(rx, Duration::from_secs(3)).await?;
             Ok(bytes)
         }
         DeviceMsg::DumpCurrentFormantMotion => {
             let request = current_formant_motion_dump_request(0x00);
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(rx, Duration::from_secs(3)).await?;
             Ok(bytes)
         }
         DeviceMsg::DumpFormantMotion(motion_no) => {
             let request = formant_motion_dump_request(0x00, motion_no);
-            output.send(&request).map_err(|_| MidiError::DumpPreset)?;
+            send_bytes(output, &request)
+                .await
+                .map_err(|_| MidiError::DumpPreset)?;
 
             let bytes = recv_device_bytes(rx, Duration::from_secs(3)).await?;
             Ok(bytes)
@@ -319,20 +340,20 @@ async fn handle_midi_msg(
 }
 
 async fn do_write_program(
-    output: &mut midir::MidiOutputConnection,
+    output: &DestinationConnection,
     rx: &mut UnboundedReceiver<Vec<u8>>,
     program: &RawProgram,
     slot: u16,
 ) -> Result<Vec<u8>, MidiError> {
     while let Ok(_v) = rx.try_recv() {}
 
-    output
-        .send(&current_program_dump_message(0x00, program))
+    send_bytes(output, &current_program_dump_message(0x00, program))
+        .await
         .map_err(|_| MidiError::WritePreset)?;
     wait_for_ack(rx).await?;
 
-    output
-        .send(&program_write_request(0x00, slot))
+    send_bytes(output, &program_write_request(0x00, slot))
+        .await
         .map_err(|_| MidiError::WritePreset)?;
     wait_for_ack(rx).await?;
 
@@ -340,20 +361,23 @@ async fn do_write_program(
 }
 
 async fn do_write_formant_motion(
-    output: &mut midir::MidiOutputConnection,
+    output: &DestinationConnection,
     rx: &mut UnboundedReceiver<Vec<u8>>,
     motion: &midilab::manufacturer::korg::r3::wrappers::FormantMotion,
     motion_no: u8,
 ) -> Result<Vec<u8>, MidiError> {
     while let Ok(_v) = rx.try_recv() {}
 
-    output
-        .send(&current_formant_motion_dump_message(0x00, &motion.to_raw()))
-        .map_err(|_| MidiError::WritePreset)?;
+    send_bytes(
+        output,
+        &current_formant_motion_dump_message(0x00, &motion.to_raw()),
+    )
+    .await
+    .map_err(|_| MidiError::WritePreset)?;
     wait_for_ack(rx).await?;
 
-    output
-        .send(&formant_motion_write_request(0x00, motion_no))
+    send_bytes(output, &formant_motion_write_request(0x00, motion_no))
+        .await
         .map_err(|_| MidiError::WritePreset)?;
     wait_for_ack(rx).await?;
 
