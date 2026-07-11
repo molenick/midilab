@@ -394,7 +394,7 @@ mod tests {
         let original_slot = app.preset.settings.slot;
 
         let effects = app.update(AppMsg::UserError(UserError::SysexParse(
-            SysexParseError::InvalidStart(0x00),
+            SysexParseError::Codec(midi_io::SysExError::MissingStart),
         )));
 
         assert_eq!(app.preset.settings.slot, original_slot);

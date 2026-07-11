@@ -652,9 +652,9 @@ mod tests {
 
     #[test]
     fn test_parse_unknown_function() {
-        let data = vec![0xF0, 0x42, 0x30, 0x7D, 0xFF, 0xF7];
+        let data = vec![0xF0, 0x42, 0x30, 0x7D, 0x7F, 0xF7];
         let err = KorgR3Message::try_from(data.as_slice()).unwrap_err();
-        assert!(matches!(err, ParseError::UnknownFunction(0xFF)));
+        assert!(matches!(err, ParseError::UnknownFunction(0x7F)));
     }
 
     #[test]

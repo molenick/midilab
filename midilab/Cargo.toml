@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 bytemuck.workspace = true
 enumeric.workspace = true
+midi-io.workspace = true
 num_enum.workspace = true
 sanitize-filename = "0.6"
 strum_macros.workspace = true
@@ -18,5 +19,5 @@ strum.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-midi-io.workspace = true
+midi-io = { workspace = true, features = ["io"] }
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

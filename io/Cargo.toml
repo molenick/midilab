@@ -8,5 +8,5 @@ repository.workspace = true
 
 [dependencies]
 midilab.workspace = true
-midi-io.workspace = true
+midi-io = { workspace = true, features = ["io"] }
 tokio.workspace = true
