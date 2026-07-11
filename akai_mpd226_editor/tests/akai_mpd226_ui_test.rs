@@ -17,9 +17,9 @@ fn test_modal_for_different_control_types() {
 
     let mut harness = HarnessBuilder::default()
         .with_size(APP_DIMENSIONS)
-        .build_state(
-            |ctx, app: &mut AkaiMpd226Editor| {
-                app.render(ctx);
+        .build_ui_state(
+            |ui, app: &mut AkaiMpd226Editor| {
+                app.render(ui);
             },
             app,
         );

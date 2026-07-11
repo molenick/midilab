@@ -282,8 +282,8 @@ impl KorgR3Editor {
         self.ui_state.editor_tab = tab;
     }
 
-    pub fn render(&mut self, ctx: &Context) {
-        crate::render::ui(ctx, &mut self.ui_state, &mut self.outbox);
+    pub fn render(&mut self, ui: &mut eframe::egui::Ui) {
+        crate::render::ui(ui, &mut self.ui_state, &mut self.outbox);
 
         for msg in self.outbox.drain(..) {
             let _ = self.app_tx.send(AppMsg::Ui(msg));
@@ -292,10 +292,10 @@ impl KorgR3Editor {
 }
 
 impl eframe::App for KorgR3Editor {
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        self.poll_ui_msgs(ctx);
-        self.render(ctx);
-        ctx.request_repaint_after_secs(0.064);
+    fn ui(&mut self, ui: &mut eframe::egui::Ui, _frame: &mut eframe::Frame) {
+        self.poll_ui_msgs(ui.ctx());
+        self.render(ui);
+        ui.ctx().request_repaint_after_secs(0.064);
     }
 }
 

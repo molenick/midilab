@@ -219,8 +219,8 @@ impl AkaiMpd226Editor {
         });
     }
 
-    pub fn render(&mut self, ctx: &Context) {
-        ui(ctx, &mut self.ui_state, &mut self.outbox);
+    pub fn render(&mut self, egui_ui: &mut eframe::egui::Ui) {
+        ui(egui_ui, &mut self.ui_state, &mut self.outbox);
 
         for msg in self.outbox.drain(..) {
             let _ = self.app_tx.send(AppMsg::Ui(msg));
@@ -229,10 +229,10 @@ impl AkaiMpd226Editor {
 }
 
 impl eframe::App for AkaiMpd226Editor {
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        self.poll_ui_msgs(ctx);
-        self.render(ctx);
-        ctx.request_repaint_after_secs(0.064);
+    fn ui(&mut self, egui_ui: &mut eframe::egui::Ui, _frame: &mut eframe::Frame) {
+        self.poll_ui_msgs(egui_ui.ctx());
+        self.render(egui_ui);
+        egui_ui.ctx().request_repaint_after_secs(0.064);
     }
 }
 

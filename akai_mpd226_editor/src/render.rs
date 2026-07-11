@@ -11,10 +11,10 @@ use eframe::egui::DragValue;
 use eframe::egui::Grid;
 use eframe::egui::Layout;
 use eframe::egui::MenuBar;
+use eframe::egui::Panel;
 use eframe::egui::Rect;
 use eframe::egui::Sense;
 use eframe::egui::TextEdit;
-use eframe::egui::TopBottomPanel;
 use eframe::egui::Ui;
 use eframe::egui::Vec2;
 use eframe::egui::containers::Modal;
@@ -92,8 +92,8 @@ const CONTROLS_PER_CONTROL_BANK: usize = 4;
 
 const CONTROL_BANK_LABEL_X: f32 = DEFAULT_CONTROL_X * 4. + DEFAULT_CONTROL_SPACING * 4.;
 
-pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
-    TopBottomPanel::top("top_panel").show(ctx, |ui| {
+pub fn ui(ui: &mut Ui, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
+    Panel::top("top_panel").show(ui, |ui| {
         MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Save preset").clicked() {
@@ -123,7 +123,7 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
                 ui.separator();
 
                 if ui.button("Quit").clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
             ui.menu_button("Edit", |ui| {
@@ -160,11 +160,11 @@ pub fn ui(ctx: &Context, ui_state: &mut UiState, outbox: &mut Vec<UiEffect>) {
     });
 
     if ui_state.show_settings {
-        settings_modal(ctx, ui_state, outbox);
+        settings_modal(ui.ctx(), ui_state, outbox);
     } else if ui_state.selected_item.is_some() {
-        modal_editor(ctx, ui_state, outbox);
+        modal_editor(ui.ctx(), ui_state, outbox);
     } else {
-        CentralPanel::default().show(ctx, |ui| {
+        CentralPanel::default().show(ui, |ui| {
             editor_actions(ui, ui_state, outbox);
 
             ui.horizontal(|ui| {
