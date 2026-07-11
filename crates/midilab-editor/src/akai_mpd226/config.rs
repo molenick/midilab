@@ -1,4 +1,3 @@
-use std::io;
 use std::path::PathBuf;
 
 use serde::Deserialize;
@@ -14,35 +13,6 @@ impl Default for UserSettings {
         Self {
             auto_sync_enabled: true,
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum ConfigError {
-    Io(io::Error),
-    Json(serde_json::Error),
-}
-
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConfigError::Io(e) => write!(f, "Config IO error: {}", e),
-            ConfigError::Json(e) => write!(f, "Config JSON error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for ConfigError {}
-
-impl From<io::Error> for ConfigError {
-    fn from(e: io::Error) -> Self {
-        ConfigError::Io(e)
-    }
-}
-
-impl From<serde_json::Error> for ConfigError {
-    fn from(e: serde_json::Error) -> Self {
-        ConfigError::Json(e)
     }
 }
 
