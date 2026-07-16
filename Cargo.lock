@@ -280,6 +280,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
+name = "arturia_minilab_mk2_editor"
+version = "0.2.6"
+dependencies = [
+ "bytemuck",
+ "dirs",
+ "eframe",
+ "egui_kittest",
+ "midi-io",
+ "midilab",
+ "midilab-io",
+ "rfd",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "as-raw-xcb-connection"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

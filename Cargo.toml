@@ -1,5 +1,12 @@
 [workspace]
-members = ["midilab", "akai_mpd226_editor", "io", "sim", "korg_r3_editor"]
+members = [
+    "midilab",
+    "akai_mpd226_editor",
+    "arturia_minilab_mk2_editor",
+    "io",
+    "sim",
+    "korg_r3_editor",
+]
 resolver = "2"
 
 [workspace.package]
