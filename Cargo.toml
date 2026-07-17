@@ -6,6 +6,7 @@ members = [
     "io",
     "sim",
     "korg_r3_editor",
+    "nektar_impact_lx_plus_editor",
 ]
 resolver = "2"
 

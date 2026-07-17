@@ -19,6 +19,7 @@ Software for programming midi controllers via Sysex messages
 | **[akai_mpd226_editor](./akai_mpd226_editor)** | `akai_mpd226_editor` | An application for programming the Akai MPD226 |
 | **[arturia_minilab_mk2_editor](./arturia_minilab_mk2_editor)** | `arturia_minilab_mk2_editor` | An application for programming the Arturia MiniLab mkII |
 | **[korg_r3_editor](./korg_r3_editor)** | `korg_r3_editor` | An application for programming the Korg R3 |
+| **[nektar_impact_lx_plus_editor](./nektar_impact_lx_plus_editor)** | `nektar_impact_lx_plus_editor` | An application for programming Nektar Impact LX+ controllers |
 | **[midilab-io](./io)** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for the midilab editors |
 | **[midilab-sim](./sim)** | `sim` | Hardware device simulations for the midilab editors |
 
@@ -29,6 +30,8 @@ Akai Mpd226 (work in progress)
 Arturia MiniLab mkII (work in progress)
 
 Korg R3 (work in progress)
+
+Nektar Impact LX+ series (LX25+/49+/61+/88+)
 
 ## Credits
 

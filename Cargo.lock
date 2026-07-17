@@ -2261,6 +2261,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nektar_impact_lx_plus_editor"
+version = "0.2.6"
+dependencies = [
+ "dirs",
+ "eframe",
+ "egui_kittest",
+ "midi-io",
+ "midilab",
+ "rfd",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "nohash-hasher"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
