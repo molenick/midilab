@@ -111,11 +111,6 @@ impl ImpactLxPlusEditor {
         });
     }
 
-    #[doc(hidden)]
-    pub fn set_tab_for_test(&mut self, tab: EditorTab) {
-        self.ui_state.editor_tab = tab;
-    }
-
     pub fn render(&mut self, ui: &mut eframe::egui::Ui) {
         crate::render::ui(ui, &mut self.ui_state, &mut self.outbox);
 
