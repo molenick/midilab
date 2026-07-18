@@ -160,24 +160,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "akai_mpd226_editor"
-version = "0.2.6"
-dependencies = [
- "bytemuck",
- "dirs",
- "eframe",
- "egui_kittest",
- "midi-io",
- "midilab",
- "midilab-io",
- "rfd",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
-]
-
-[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -276,24 +258,6 @@ name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
-
-[[package]]
-name = "arturia_minilab_mk2_editor"
-version = "0.2.6"
-dependencies = [
- "bytemuck",
- "dirs",
- "eframe",
- "egui_kittest",
- "midi-io",
- "midilab",
- "midilab-io",
- "rfd",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
-]
 
 [[package]]
 name = "as-raw-xcb-connection"
@@ -1973,24 +1937,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "korg_r3_editor"
-version = "0.2.6"
-dependencies = [
- "bytemuck",
- "dirs",
- "eframe",
- "egui_kittest",
- "midi-io",
- "midilab",
- "midilab-io",
- "rfd",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
-]
-
-[[package]]
 name = "kurbo"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2143,6 +2089,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "midilab-editor"
+version = "0.2.6"
+dependencies = [
+ "bytemuck",
+ "dirs",
+ "eframe",
+ "egui_kittest",
+ "midi-io",
+ "midilab",
+ "midilab-io",
+ "rfd",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "midilab-io"
 version = "0.2.6"
 dependencies = [
@@ -2236,22 +2200,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee6cda3051665f1fb8d9e08fc35c96d5a244fb1be711a03b71118828afc9a873"
 dependencies = [
  "jni-sys 0.3.1",
-]
-
-[[package]]
-name = "nektar_impact_lx_plus_editor"
-version = "0.2.6"
-dependencies = [
- "dirs",
- "eframe",
- "egui_kittest",
- "midi-io",
- "midilab",
- "rfd",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]

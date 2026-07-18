@@ -1,0 +1,24 @@
+[package]
+name = "midilab-editor"
+description = "GUI applications for programming MIDI controllers via Sysex (one binary per device)"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bytemuck.workspace = true
+dirs.workspace = true
+eframe.workspace = true
+midilab.workspace = true
+midilab-io.workspace = true
+midi-io = { workspace = true, features = ["io"] }
+rfd.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+egui_kittest.workspace = true
