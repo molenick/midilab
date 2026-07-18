@@ -47,6 +47,10 @@ fn default_dump_encodes_byte_perfect_factory_dump() {
 
     assert_eq!(encoded.len(), captured.len());
     for (index, (encoded, captured)) in encoded.iter().zip(captured.iter()).enumerate() {
-        assert_eq!(encoded, captured, "message {index} differs");
+        assert_eq!(
+            &encoded.to_wire_bytes(),
+            captured,
+            "message {index} differs"
+        );
     }
 }

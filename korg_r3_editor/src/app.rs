@@ -465,7 +465,7 @@ mod tests {
             value: 77,
         }
         .to_sysex(0x00);
-        let kmsg = KorgR3Message::try_from(bytes.as_slice()).expect("valid sysex");
+        let kmsg = KorgR3Message::try_from(&bytes).expect("valid sysex");
 
         let effects = app.update(AppMsg::Device(kmsg));
 

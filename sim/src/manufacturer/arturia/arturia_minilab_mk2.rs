@@ -8,7 +8,7 @@ use midilab::manufacturer::arturia::minilab_mk2::Preset;
 use midilab::manufacturer::arturia::minilab_mk2::SYSEX_COMMAND_HEADER;
 use midilab::manufacturer::arturia::minilab_mk2::identity_reply_message;
 use midilab::manufacturer::arturia::minilab_mk2::write_value_message;
-use midilab::sysex::Sysex;
+use midilab::sysex::SysExPreview;
 use thiserror::Error;
 use tokio::sync::oneshot;
 
@@ -17,11 +17,11 @@ const SIM_FIRMWARE: [u8; 4] = [0x01, 0x00, 0x02, 0x05];
 const IDENTITY_REQUEST_PAYLOAD: [u8; 4] = [0x7E, 0x7F, 0x06, 0x01];
 
 pub enum SimMsg {
-    SysexReceived(Sysex),
+    SysexReceived(SysEx),
 }
 
 pub enum SimEffect {
-    SendSysex(Sysex),
+    SendSysex(SysEx),
     Noop,
 }
 
@@ -48,8 +48,8 @@ fn seeded_store() -> ParamStore {
         .chain(Global::default().send_messages());
 
     for message in messages {
-        let status = DeviceStatus::try_from(message.as_slice())
-            .expect("default preset/global messages must parse");
+        let status =
+            DeviceStatus::try_from(message).expect("default preset/global messages must parse");
         store.apply(&status);
     }
 
@@ -64,14 +64,12 @@ impl MinilabMk2Sim {
         }
     }
 
-    fn handle_sysex(&mut self, sysex: &Sysex) -> SimEffect {
-        let payload = sysex.payload();
+    fn handle_sysex(&mut self, sysex: &SysEx) -> SimEffect {
+        let payload = sysex.bytes();
 
         if payload == IDENTITY_REQUEST_PAYLOAD {
             println!("decoded identity request");
-            return SimEffect::SendSysex(
-                Sysex::try_from(identity_reply_message(SIM_FIRMWARE).as_slice()).unwrap(),
-            );
+            return SimEffect::SendSysex(identity_reply_message(SIM_FIRMWARE));
         }
 
         if !payload.starts_with(&SYSEX_COMMAND_HEADER) {
@@ -95,8 +93,7 @@ impl MinilabMk2Sim {
                 match self.working.get(*param, *control) {
                     Some(value) => {
                         println!("read param {param:#04x} control {control:#04x} -> {value}");
-                        let reply = write_value_message(*param, *control, value);
-                        SimEffect::SendSysex(Sysex::try_from(reply.as_slice()).unwrap())
+                        SimEffect::SendSysex(write_value_message(*param, *control, value))
                     }
                     None => {
                         eprintln!("read of unknown param {param:#04x} control {control:#04x}");
@@ -194,7 +191,7 @@ impl SimRunner {
                     break;
                 }
                 Some(timed) = self.sysex_in.recv() => {
-                    let sysex_in = Sysex::new(timed.payload.bytes().to_vec());
+                    let sysex_in = timed.payload;
                     println!("received sysex payload: {}", sysex_in.preview());
 
                     let effect = self.sim.update(SimMsg::SysexReceived(sysex_in));
@@ -203,13 +200,8 @@ impl SimRunner {
                         SimEffect::SendSysex(sysex_out) => {
                             println!("sending sysex payload: {}", sysex_out.preview());
 
-                            match SysEx::new(sysex_out.payload()) {
-                                Ok(sysex) => {
-                                    if let Err(e) = self.out_port.send_sysex(&sysex).await {
-                                        eprintln!("MIDI send error: {e}");
-                                    }
-                                }
-                                Err(e) => eprintln!("MIDI send error: {e}"),
+                            if let Err(e) = self.out_port.send_sysex(&sysex_out).await {
+                                eprintln!("MIDI send error: {e}");
                             }
                         }
                         SimEffect::Noop => {}
@@ -246,14 +238,13 @@ mod tests {
 
     use super::*;
 
-    fn sim_request(sim: &mut MinilabMk2Sim, bytes: &[u8]) -> SimEffect {
-        let sysex = Sysex::try_from(bytes).unwrap();
+    fn sim_request(sim: &mut MinilabMk2Sim, sysex: SysEx) -> SimEffect {
         sim.update(SimMsg::SysexReceived(sysex))
     }
 
     fn expect_status(effect: SimEffect) -> DeviceStatus {
         match effect {
-            SimEffect::SendSysex(s) => DeviceStatus::try_from(s.as_bytes().as_slice()).unwrap(),
+            SimEffect::SendSysex(s) => DeviceStatus::try_from(s).unwrap(),
             SimEffect::Noop => panic!("expected SendSysex"),
         }
     }
@@ -261,7 +252,7 @@ mod tests {
     fn read_full_preset(sim: &mut MinilabMk2Sim) -> Preset {
         let mut store = ParamStore::default();
         for message in Preset::read_messages() {
-            let status = expect_status(sim_request(sim, &message));
+            let status = expect_status(sim_request(sim, message));
             store.apply(&status);
         }
         store.try_into_preset().unwrap()
@@ -271,7 +262,7 @@ mod tests {
     fn test_sim_identity_request() {
         let mut sim = MinilabMk2Sim::default();
 
-        let status = expect_status(sim_request(&mut sim, &identity_request_message()));
+        let status = expect_status(sim_request(&mut sim, identity_request_message()));
 
         match status {
             DeviceStatus::IdentityReply(reply) => assert_eq!(reply.firmware, SIM_FIRMWARE),
@@ -285,7 +276,7 @@ mod tests {
 
         let status = expect_status(sim_request(
             &mut sim,
-            &read_param_message(ParamId::Data1, ControlId::Knob1),
+            read_param_message(ParamId::Data1, ControlId::Knob1),
         ));
 
         match status {
@@ -304,13 +295,13 @@ mod tests {
 
         let effect = sim_request(
             &mut sim,
-            &write_param_message(ParamId::PadColor, ControlId::Pad3, PadColor::Purple.into()),
+            write_param_message(ParamId::PadColor, ControlId::Pad3, PadColor::Purple.into()),
         );
         assert!(matches!(effect, SimEffect::Noop));
 
         let status = expect_status(sim_request(
             &mut sim,
-            &read_param_message(ParamId::PadColor, ControlId::Pad3),
+            read_param_message(ParamId::PadColor, ControlId::Pad3),
         ));
 
         match status {
@@ -330,7 +321,7 @@ mod tests {
         mutated.pads.pads[9].color = PadColor::Cyan;
 
         for message in mutated.send_messages() {
-            let effect = sim_request(&mut sim, &message);
+            let effect = sim_request(&mut sim, message);
             assert!(matches!(effect, SimEffect::Noop));
         }
 
@@ -343,7 +334,7 @@ mod tests {
 
         let effect = sim_request(
             &mut sim,
-            &write_global_message(
+            write_global_message(
                 GlobalParamId::KnobAcceleration,
                 KnobAcceleration::Fast.into(),
             ),
@@ -352,7 +343,7 @@ mod tests {
 
         let mut store = ParamStore::default();
         for message in Global::read_messages() {
-            let status = expect_status(sim_request(&mut sim, &message));
+            let status = expect_status(sim_request(&mut sim, message));
             store.apply(&status);
         }
 
@@ -367,19 +358,19 @@ mod tests {
         let mut first = Preset::default();
         first.knobs.knobs[0].cc = 11.into();
         for message in first.send_messages() {
-            let _ = sim_request(&mut sim, &message);
+            let _ = sim_request(&mut sim, message);
         }
 
-        let _ = sim_request(&mut sim, &store_memory_message(MemorySlot::Slot2));
+        let _ = sim_request(&mut sim, store_memory_message(MemorySlot::Slot2));
 
         let mut second = Preset::default();
         second.knobs.knobs[0].cc = 22.into();
         for message in second.send_messages() {
-            let _ = sim_request(&mut sim, &message);
+            let _ = sim_request(&mut sim, message);
         }
         assert_eq!(read_full_preset(&mut sim), second);
 
-        let _ = sim_request(&mut sim, &recall_memory_message(MemorySlot::Slot2));
+        let _ = sim_request(&mut sim, recall_memory_message(MemorySlot::Slot2));
         assert_eq!(read_full_preset(&mut sim), first);
     }
 
@@ -389,7 +380,7 @@ mod tests {
 
         let status = expect_status(sim_request(
             &mut sim,
-            &read_global_message(GlobalParamId::KeyboardChannel),
+            read_global_message(GlobalParamId::KeyboardChannel),
         ));
 
         assert!(matches!(status, DeviceStatus::GlobalValue(_)));

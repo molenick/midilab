@@ -1,4 +1,5 @@
-use crate::error::SysexParseError;
+use bytemuck::Pod;
+pub use midi_io::SysEx;
 
 pub fn pack_u14(val: u16) -> [u8; 2] {
     let high = ((val >> 7) & 0x7F) as u8;
@@ -47,50 +48,32 @@ pub fn unpack_u7(data: &[u8]) -> Vec<u8> {
     out
 }
 
-#[derive(Debug, Clone)]
-pub struct Sysex(midi_io::SysEx);
+pub fn sysex(payload: impl AsRef<[u8]>) -> SysEx {
+    SysEx::new(payload.as_ref()).expect("sysex payload must be non-empty and 7-bit clean")
+}
 
-use bytemuck::Pod;
+pub fn from_header_and_body<H: Pod, B: AsRef<[u8]>>(header: &H, body: B) -> SysEx {
+    let mut payload = bytemuck::bytes_of(header).to_vec();
+    payload.extend_from_slice(body.as_ref());
+    sysex(payload)
+}
 
-impl Sysex {
-    pub fn new(payload: Vec<u8>) -> Self {
-        Self(
-            midi_io::SysEx::new(&payload).expect("sysex payload must be non-empty and 7-bit clean"),
-        )
-    }
+pub trait SysExPreview {
+    fn preview(&self) -> String;
+}
 
-    pub fn payload(&self) -> &[u8] {
-        self.0.bytes()
-    }
-
-    pub fn as_bytes(&self) -> Vec<u8> {
-        self.0.to_wire_bytes()
-    }
-
-    pub fn from_header_and_body<H: Pod, B: AsRef<[u8]>>(header: &H, body: B) -> Self {
-        let mut payload = bytemuck::bytes_of(header).to_vec();
-        payload.extend_from_slice(body.as_ref());
-        Self::new(payload)
-    }
-
-    pub fn from_header_and_body_as_bytes<H: Pod, B: AsRef<[u8]>>(header: &H, body: B) -> Vec<u8> {
-        let sysex = Self::from_header_and_body(header, body);
-        sysex.as_bytes()
-    }
-
-    pub fn preview(&self) -> String {
+impl SysExPreview for SysEx {
+    fn preview(&self) -> String {
         const CHUNK_HEAD_LEN: usize = 4;
         const CHUNK_TAIL_LEN: usize = 4;
         const CHUNK_TOTAL_LEN: usize = CHUNK_HEAD_LEN + CHUNK_TAIL_LEN;
 
-        if self.payload().len() <= CHUNK_TOTAL_LEN {
-            let s = self.payload();
-            format!("{s:02x?}, {} bytes", self.payload().len())
+        let payload = self.bytes();
+        if payload.len() <= CHUNK_TOTAL_LEN {
+            format!("{payload:02x?}, {} bytes", payload.len())
         } else {
-            let chunk_head = self.payload()[0..CHUNK_HEAD_LEN].to_vec();
-            let chunk_tail = self.payload()
-                [(self.payload().len() - CHUNK_TAIL_LEN)..self.payload().len()]
-                .to_vec();
+            let chunk_head = &payload[0..CHUNK_HEAD_LEN];
+            let chunk_tail = &payload[payload.len() - CHUNK_TAIL_LEN..];
 
             let hs: Vec<String> = chunk_head.iter().map(|i| format!("{i:02x}")).collect();
             let hs = hs.join(", ");
@@ -98,33 +81,27 @@ impl Sysex {
             let ts: Vec<String> = chunk_tail.iter().map(|i| format!("{i:02x}")).collect();
             let ts = ts.join(", ");
 
-            format!("[{hs}, ..., {ts}], {} bytes", self.payload().len())
+            format!("[{hs}, ..., {ts}], {} bytes", payload.len())
         }
-    }
-}
-
-impl TryFrom<&[u8]> for Sysex {
-    type Error = SysexParseError;
-
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        Ok(Sysex(midi_io::SysEx::try_from(data)?))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use midi_io::SysExError;
+
     use super::*;
 
     #[test]
     fn test_sysex_preview_short_payload() {
-        let s = Sysex::new(vec![0, 1, 2, 3, 4, 5, 6, 7]);
+        let s = sysex([0, 1, 2, 3, 4, 5, 6, 7]);
 
         assert_eq!(&s.preview(), "[00, 01, 02, 03, 04, 05, 06, 07], 8 bytes");
     }
 
     #[test]
     fn test_sysex_preview_long_payload() {
-        let s = Sysex::new(vec![0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        let s = sysex([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
         assert_eq!(
             &s.preview(),
@@ -212,11 +189,10 @@ mod tests {
     }
 
     #[test]
-    fn test_sysex_as_bytes() {
-        let payload = vec![0x47, 0x00, 0x35];
-        let sysex = Sysex::new(payload);
+    fn test_sysex_to_wire_bytes() {
+        let s = sysex([0x47, 0x00, 0x35]);
 
-        let bytes = sysex.as_bytes();
+        let bytes = s.to_wire_bytes();
         assert_eq!(bytes[0], 0xf0);
         assert_eq!(bytes[1], 0x47);
         assert_eq!(bytes[2], 0x00);
@@ -228,64 +204,49 @@ mod tests {
     #[test]
     fn test_sysex_try_from_vec_valid() {
         let data = vec![0xf0, 0x47, 0x00, 0x35, 0xf7];
-        let sysex = Sysex::try_from(data.as_slice()).unwrap();
+        let s = SysEx::try_from(data.as_slice()).unwrap();
 
-        assert_eq!(sysex.payload(), &[0x47, 0x00, 0x35]);
+        assert_eq!(s.bytes(), &[0x47, 0x00, 0x35]);
     }
 
     #[test]
     fn test_sysex_try_from_empty_payload_is_err() {
         let data = vec![0xf0, 0xf7];
-        let result = Sysex::try_from(data.as_slice()).unwrap_err();
+        let result = SysEx::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(
-            result,
-            SysexParseError::Codec(midi_io::SysExError::EmptyBody)
-        ));
+        assert!(matches!(result, SysExError::EmptyBody));
     }
 
     #[test]
     fn test_sysex_try_from_invalid_start_byte() {
         let data = vec![0x00, 0x47, 0x00, 0x35, 0xf7];
-        let result = Sysex::try_from(data.as_slice()).unwrap_err();
+        let result = SysEx::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(
-            result,
-            SysexParseError::Codec(midi_io::SysExError::MissingStart)
-        ))
+        assert!(matches!(result, SysExError::MissingStart))
     }
 
     #[test]
     fn test_sysex_try_from_invalid_end_byte() {
         let data = vec![0xf0, 0x47, 0x00, 0x35, 0x00];
-        let result = Sysex::try_from(data.as_slice()).unwrap_err();
+        let result = SysEx::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(
-            result,
-            SysexParseError::Codec(midi_io::SysExError::Unterminated)
-        ))
+        assert!(matches!(result, SysExError::Unterminated))
     }
 
     #[test]
     fn test_sysex_try_from_empty_data() {
         let data: Vec<u8> = vec![];
-        let result = Sysex::try_from(data.as_slice()).unwrap_err();
+        let result = SysEx::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(
-            result,
-            SysexParseError::Codec(midi_io::SysExError::MissingStart)
-        ));
+        assert!(matches!(result, SysExError::MissingStart));
     }
 
     #[test]
     fn test_sysex_try_from_single_byte() {
         let data = vec![0xf0];
-        let result = Sysex::try_from(data.as_slice()).unwrap_err();
+        let result = SysEx::try_from(data.as_slice()).unwrap_err();
 
-        assert!(matches!(
-            result,
-            SysexParseError::Codec(midi_io::SysExError::Unterminated)
-        ));
+        assert!(matches!(result, SysExError::Unterminated));
     }
 
     #[test]
@@ -338,10 +299,10 @@ mod tests {
     #[test]
     fn test_sysex_round_trip() {
         let original_payload = vec![0x47, 0x00, 0x35, 0x10, 0x08, 0x33];
-        let sysex = Sysex::new(original_payload.clone());
-        let bytes = sysex.as_bytes();
-        let reconstructed = Sysex::try_from(bytes.as_slice()).unwrap();
+        let s = sysex(&original_payload);
+        let bytes = s.to_wire_bytes();
+        let reconstructed = SysEx::try_from(bytes.as_slice()).unwrap();
 
-        assert_eq!(reconstructed.payload(), &original_payload);
+        assert_eq!(reconstructed.bytes(), &original_payload);
     }
 }

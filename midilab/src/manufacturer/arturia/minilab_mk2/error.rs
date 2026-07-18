@@ -1,6 +1,6 @@
+use midi_io::SysExError;
 use num_enum::TryFromPrimitiveError;
 
-use crate::error::SysexParseError;
 use crate::manufacturer::arturia::minilab_mk2::control::value_kind::ButtonMode;
 use crate::manufacturer::arturia::minilab_mk2::control::value_kind::ControlChannel;
 use crate::manufacturer::arturia::minilab_mk2::control::value_kind::KnobAcceleration;
@@ -17,7 +17,7 @@ use crate::manufacturer::arturia::minilab_mk2::control::value_kind::VelocityCurv
 #[derive(Debug, thiserror::Error)]
 pub enum DeviceStatusParseError {
     #[error("invalid sysex: {0}")]
-    InvalidSysex(#[from] SysexParseError),
+    InvalidSysex(#[from] SysExError),
     #[error("invalid header")]
     InvalidHeader,
     #[error("invalid op code: {0}")]

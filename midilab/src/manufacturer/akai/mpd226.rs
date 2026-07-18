@@ -42,7 +42,8 @@ use crate::manufacturer::akai::mpd226::repository::PadRepository;
 use crate::manufacturer::akai::mpd226::repository::SwitchRepository;
 use crate::music::generation::PitchPattern;
 use crate::music::theory::PitchClass;
-use crate::sysex::Sysex;
+use crate::sysex::SysEx;
+use crate::sysex::from_header_and_body;
 use crate::sysex::unpack_u14;
 
 pub mod control;
@@ -97,17 +98,17 @@ pub enum DeviceCommandId {
     WriteGlobal = 0x34,
 }
 
-pub fn dump_preset_from_device(slot: u8) -> Vec<u8> {
+pub fn dump_preset_from_device(slot: u8) -> SysEx {
     let header = RawHeader::dump_preset();
-    Sysex::from_header_and_body_as_bytes(&header, [slot])
+    from_header_and_body(&header, [slot])
 }
 
-pub fn write_preset_to_device(preset: &RawPreset) -> Vec<u8> {
+pub fn write_preset_to_device(preset: &RawPreset) -> SysEx {
     let header = RawHeader::write_preset();
-    Sysex::from_header_and_body_as_bytes(&header, bytemuck::bytes_of(preset))
+    from_header_and_body(&header, bytemuck::bytes_of(preset))
 }
 
-pub fn dump_global_from_device() -> Vec<u8> {
+pub fn dump_global_from_device() -> SysEx {
     let length = u16::from_le_bytes([0x00, 0x03]).to_le_bytes();
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
@@ -116,10 +117,10 @@ pub fn dump_global_from_device() -> Vec<u8> {
         cmd: DeviceCommandId::DumpGlobal.into(),
         length,
     };
-    Sysex::from_header_and_body_as_bytes(&header, SEND_GLOBAL_PADDING_BYTES)
+    from_header_and_body(&header, SEND_GLOBAL_PADDING_BYTES)
 }
 
-pub fn write_global_param_to_device(addr: u8, value: u8) -> Vec<u8> {
+pub fn write_global_param_to_device(addr: u8, value: u8) -> SysEx {
     let length = u16::from_le_bytes([0x00, 0x04]).to_le_bytes();
     let header = RawHeader {
         mfg_id: SYSEX_MANUFACTURER_ID,
@@ -128,7 +129,7 @@ pub fn write_global_param_to_device(addr: u8, value: u8) -> Vec<u8> {
         cmd: DeviceCommandId::WriteGlobal.into(),
         length,
     };
-    Sysex::from_header_and_body_as_bytes(
+    from_header_and_body(
         &header,
         [GLOBAL_VALUE_MAGIC[0], GLOBAL_VALUE_MAGIC[1], addr, value],
     )
@@ -142,7 +143,7 @@ impl<C: TryFrom<u8>> TryFrom<&[u8]> for DeviceMessagePayload<C> {
     type Error = DeviceStatusParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let s = Sysex::try_from(value)?;
+        let s = SysEx::try_from(value)?;
         DeviceMessagePayload::try_from(s)
     }
 }
@@ -152,16 +153,16 @@ pub struct DeviceHeader<C> {
     pub cmd: C,
     pub message_length: u16,
 }
-impl<C: TryFrom<u8>> TryFrom<Sysex> for DeviceMessagePayload<C> {
+impl<C: TryFrom<u8>> TryFrom<SysEx> for DeviceMessagePayload<C> {
     type Error = DeviceStatusParseError;
 
-    fn try_from(value: Sysex) -> Result<DeviceMessagePayload<C>, Self::Error> {
+    fn try_from(value: SysEx) -> Result<DeviceMessagePayload<C>, Self::Error> {
         let header_size = std::mem::size_of::<RawHeader>();
-        if value.payload().len() < header_size {
+        if value.bytes().len() < header_size {
             return Err(DeviceStatusParseError::InvalidHeader);
         }
 
-        let (hb, pb) = &value.payload().split_at(header_size);
+        let (hb, pb) = &value.bytes().split_at(header_size);
 
         let raw_header: RawHeader =
             *bytemuck::try_from_bytes(hb).map_err(|_| DeviceStatusParseError::InvalidHeader)?;
@@ -279,13 +280,11 @@ impl TryFrom<DeviceMessagePayload<DeviceStatusId>> for DeviceStatus {
         }
     }
 }
-impl TryFrom<Sysex> for DeviceStatus {
+impl TryFrom<SysEx> for DeviceStatus {
     type Error = DeviceStatusParseError;
 
-    fn try_from(value: Sysex) -> Result<Self, Self::Error> {
-        let payload: DeviceMessagePayload<DeviceStatusId> =
-            DeviceMessagePayload::try_from(value.clone())
-                .map_err(|_e| DeviceStatusParseError::InvalidHeader)?;
+    fn try_from(value: SysEx) -> Result<Self, Self::Error> {
+        let payload: DeviceMessagePayload<DeviceStatusId> = DeviceMessagePayload::try_from(value)?;
 
         DeviceStatus::try_from(payload)
     }
@@ -328,10 +327,10 @@ impl Preset {
         bytemuck::bytes_of(&raw).to_vec()
     }
 
-    pub fn as_sysex_write(&self) -> Sysex {
+    pub fn as_sysex_write(&self) -> SysEx {
         let preset_bytes = self.as_bytes();
         let header = RawHeader::write_preset();
-        Sysex::from_header_and_body(&header, preset_bytes)
+        from_header_and_body(&header, preset_bytes)
     }
 
     pub fn default_filename(&self) -> String {
@@ -808,7 +807,7 @@ mod tests {
     use crate::midi::NoteSequence;
     use crate::music::generation::PitchPattern;
     use crate::music::generation::ScaleSequence;
-    use crate::sysex::Sysex;
+    use crate::sysex::SysEx;
 
     #[test]
     fn test_pad_repository_direct_mutation() {
@@ -876,7 +875,7 @@ mod tests {
 
     #[test]
     fn test_global_dump_request_format() {
-        let request = dump_global_from_device();
+        let request = dump_global_from_device().to_wire_bytes();
 
         assert_eq!(request.len(), 11);
         assert_eq!(request[0], 0xF0);
@@ -894,7 +893,7 @@ mod tests {
 
     #[test]
     fn test_global_write_param_format() {
-        let msg = write_global_param_to_device(0x02, 50);
+        let msg = write_global_param_to_device(0x02, 50).to_wire_bytes();
 
         assert_eq!(msg.len(), 12);
         assert_eq!(msg[0], 0xF0);
@@ -919,7 +918,7 @@ mod tests {
         assert_eq!(messages.len(), 11);
 
         for msg in &messages {
-            assert_eq!(msg.len(), 12);
+            assert_eq!(msg.to_wire_bytes().len(), 12);
         }
     }
 
@@ -969,7 +968,7 @@ mod tests {
         assert_eq!(preset2.faders.0[0].channel, MidiChannel::A1,);
         assert_eq!(preset2.switches.0[0].channel, MidiChannel::A1,);
 
-        let sysex_bytes = write_preset_to_device(&raw);
+        let sysex_bytes = write_preset_to_device(&raw).to_wire_bytes();
 
         let data_start = 1 + 6;
         let data_end = sysex_bytes.len() - 1;
@@ -1030,7 +1029,7 @@ mod tests {
             0xF0, 0x47, 0x00, 0x35, 0x3C, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0xF7,
         ];
 
-        let sysex = Sysex::try_from(bytes.as_slice()).unwrap();
+        let sysex = SysEx::try_from(bytes.as_slice()).unwrap();
         let status = DeviceStatus::try_from(sysex).unwrap();
 
         let ack = match status {

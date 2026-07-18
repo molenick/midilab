@@ -32,7 +32,7 @@ use midilab::manufacturer::arturia::minilab_mk2::set_pad_live_color_message;
 use midilab::manufacturer::arturia::minilab_mk2::store_memory_message;
 use midilab_io::midi::find_input_port;
 use midilab_io::midi::find_output_port;
-use midilab_io::midi::recv_device_bytes;
+use midilab_io::midi::recv_device;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .expect("failed to init MIDI client");
 
-        let (dev_tx, mut dev_rx) = unbounded_channel::<Vec<u8>>();
+        let (dev_tx, mut dev_rx) = unbounded_channel::<SysEx>();
         let mut output: Option<DestinationConnection> = connect_output(&client).await.ok();
         let mut input = connect_input(&client, dev_tx.clone()).await.ok();
 
@@ -179,7 +179,7 @@ async fn connect_output(client: &Client) -> Result<DestinationConnection, String
         .map_err(|e| format!("Failed to connect to MIDI output: {}", e))
 }
 
-async fn connect_input(client: &Client, tx: UnboundedSender<Vec<u8>>) -> Result<(), String> {
+async fn connect_input(client: &Client, tx: UnboundedSender<SysEx>) -> Result<(), String> {
     let port = find_input_port(client, PORT_NAME)
         .await
         .ok_or_else(|| format!("MiniLab not found (no '{PORT_NAME}' input) - is it connected?"))?;
@@ -191,29 +191,28 @@ async fn connect_input(client: &Client, tx: UnboundedSender<Vec<u8>>) -> Result<
     tokio::spawn(async move {
         let mut sysex = conn.into_sysex();
         while let Some(timed) = sysex.recv().await {
-            let _ = tx.send(timed.payload.to_wire_bytes());
+            let _ = tx.send(timed.payload);
         }
     });
 
     Ok(())
 }
 
-async fn send_bytes(output: &DestinationConnection, bytes: &[u8]) -> Result<(), MidiError> {
-    let sysex = SysEx::try_from(bytes).map_err(|e| MidiError::OutputConnection(e.to_string()))?;
+async fn send(output: &DestinationConnection, sysex: &SysEx) -> Result<(), MidiError> {
     output
-        .send_sysex(&sysex)
+        .send_sysex(sysex)
         .await
         .map_err(|e| MidiError::OutputConnection(e.to_string()))
 }
 
-fn drain(rx: &mut UnboundedReceiver<Vec<u8>>) {
+fn drain(rx: &mut UnboundedReceiver<SysEx>) {
     while rx.try_recv().is_ok() {}
 }
 
 async fn handle_midi_msg(
     msg: DeviceMsg,
     output: &DestinationConnection,
-    rx: &mut UnboundedReceiver<Vec<u8>>,
+    rx: &mut UnboundedReceiver<SysEx>,
 ) -> Result<DeviceEvent, UserError> {
     match msg {
         DeviceMsg::ReadPreset => {
@@ -231,9 +230,7 @@ async fn handle_midi_msg(
         DeviceMsg::WritePreset(preset) => {
             drain(rx);
             for message in preset.send_messages() {
-                send_bytes(output, &message)
-                    .await
-                    .map_err(UserError::Midi)?;
+                send(output, &message).await.map_err(UserError::Midi)?;
                 tokio::time::sleep(WRITE_PACING).await;
             }
             drain(rx);
@@ -254,16 +251,14 @@ async fn handle_midi_msg(
         DeviceMsg::WriteGlobal(global) => {
             drain(rx);
             for message in global.send_messages() {
-                send_bytes(output, &message)
-                    .await
-                    .map_err(UserError::Midi)?;
+                send(output, &message).await.map_err(UserError::Midi)?;
                 tokio::time::sleep(WRITE_PACING).await;
             }
             drain(rx);
             Ok(DeviceEvent::GlobalWritten)
         }
         DeviceMsg::RecallMemory(slot) => {
-            send_bytes(output, &recall_memory_message(slot))
+            send(output, &recall_memory_message(slot))
                 .await
                 .map_err(UserError::Midi)?;
             tokio::time::sleep(MEMORY_OP_SETTLE).await;
@@ -271,7 +266,7 @@ async fn handle_midi_msg(
             Ok(DeviceEvent::MemoryRecalled(slot))
         }
         DeviceMsg::StoreMemory(slot) => {
-            send_bytes(output, &store_memory_message(slot))
+            send(output, &store_memory_message(slot))
                 .await
                 .map_err(UserError::Midi)?;
             tokio::time::sleep(MEMORY_OP_SETTLE).await;
@@ -279,7 +274,7 @@ async fn handle_midi_msg(
             Ok(DeviceEvent::MemoryStored(slot))
         }
         DeviceMsg::SetLivePadColor { pad, color } => {
-            send_bytes(output, &set_pad_live_color_message(pad, color))
+            send(output, &set_pad_live_color_message(pad, color))
                 .await
                 .map_err(UserError::Midi)?;
             Ok(DeviceEvent::LiveColorSent)
@@ -289,12 +284,12 @@ async fn handle_midi_msg(
 
 async fn request_status(
     output: &DestinationConnection,
-    rx: &mut UnboundedReceiver<Vec<u8>>,
-    message: &[u8],
+    rx: &mut UnboundedReceiver<SysEx>,
+    message: &SysEx,
 ) -> Result<DeviceStatus, UserError> {
-    send_bytes(output, message).await.map_err(UserError::Midi)?;
-    let bytes = recv_device_bytes(rx, READ_TIMEOUT)
+    send(output, message).await.map_err(UserError::Midi)?;
+    let sysex = recv_device(rx, READ_TIMEOUT)
         .await
         .map_err(UserError::Midi)?;
-    DeviceStatus::try_from(bytes.as_slice()).map_err(|e| UserError::Parse(e.to_string()))
+    DeviceStatus::try_from(sysex).map_err(|e| UserError::Parse(e.to_string()))
 }

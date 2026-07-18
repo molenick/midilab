@@ -12,24 +12,24 @@ cargo add midilab
 
 ### Examples
 
-Parse raw bytes into a Sysex message:
+Parse raw bytes into a SysEx message:
 ```rust
-use midilab::sysex::Sysex;
+use midilab::sysex::SysEx;
 
 let bytes: &[u8] = &[0xf0, 0x47, 0x00, 0x35, 0xf7];
-let sysex = Sysex::try_from(bytes).unwrap();
-assert_eq!(sysex.payload(), &[0x47, 0x00, 0x35]);
+let sysex = SysEx::try_from(bytes).unwrap();
+assert_eq!(sysex.bytes(), &[0x47, 0x00, 0x35]);
 ```
 
 Deserialize an Akai MPD226 preset acknowledgment:
 ```rust
-use midilab::sysex::Sysex;
+use midilab::sysex::SysEx;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
 
-// Deserialize an Akai Mpd226's raw PresetAck bytes into Sysex
+// Deserialize an Akai Mpd226's raw PresetAck bytes into SysEx
 let bytes: &[u8] = &[0xf0, 0x47, 0x00, 0x35, 0x11, 0x00, 0x01, 0x00, 0x00, 0xf7];
-let sysex = Sysex::try_from(bytes).unwrap();
-// Deserialize the Sysex into a DeviceStatus variant
+let sysex = SysEx::try_from(bytes).unwrap();
+// Deserialize the SysEx into a DeviceStatus variant
 let status = DeviceStatus::try_from(sysex).unwrap();
 ```
 

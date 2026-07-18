@@ -29,7 +29,8 @@ use crate::manufacturer::arturia::minilab_mk2::raw::RawPreset;
 use crate::manufacturer::arturia::minilab_mk2::repository::ButtonRepository;
 use crate::manufacturer::arturia::minilab_mk2::repository::KnobRepository;
 use crate::manufacturer::arturia::minilab_mk2::repository::PadRepository;
-use crate::sysex::Sysex;
+use crate::sysex::SysEx;
+use crate::sysex::sysex;
 
 pub mod control;
 pub mod error;
@@ -86,25 +87,25 @@ pub enum GlobalParamId {
     PadOffBacklight = 0x1E,
 }
 
-fn command_message(body: &[u8]) -> Vec<u8> {
+fn command_message(body: &[u8]) -> SysEx {
     let mut payload = SYSEX_COMMAND_HEADER.to_vec();
     payload.extend_from_slice(body);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn read_param_message(param: ParamId, control: ControlId) -> Vec<u8> {
+pub fn read_param_message(param: ParamId, control: ControlId) -> SysEx {
     command_message(&[OpCode::ReadParam.into(), 0x00, param.into(), control.into()])
 }
 
-pub fn write_param_message(param: ParamId, control: ControlId, value: u8) -> Vec<u8> {
+pub fn write_param_message(param: ParamId, control: ControlId, value: u8) -> SysEx {
     write_value_message(param.into(), control.into(), value)
 }
 
-pub fn write_value_message(param: u8, control: u8, value: u8) -> Vec<u8> {
+pub fn write_value_message(param: u8, control: u8, value: u8) -> SysEx {
     command_message(&[OpCode::WriteParam.into(), 0x00, param, control, value])
 }
 
-pub fn read_global_message(param: GlobalParamId) -> Vec<u8> {
+pub fn read_global_message(param: GlobalParamId) -> SysEx {
     command_message(&[
         OpCode::ReadParam.into(),
         0x00,
@@ -113,31 +114,31 @@ pub fn read_global_message(param: GlobalParamId) -> Vec<u8> {
     ])
 }
 
-pub fn write_global_message(param: GlobalParamId, value: u8) -> Vec<u8> {
+pub fn write_global_message(param: GlobalParamId, value: u8) -> SysEx {
     write_value_message(GLOBAL_PARAM_MARKER, param.into(), value)
 }
 
-pub fn recall_memory_message(slot: MemorySlot) -> Vec<u8> {
+pub fn recall_memory_message(slot: MemorySlot) -> SysEx {
     command_message(&[OpCode::RecallMemory.into(), slot.into()])
 }
 
-pub fn store_memory_message(slot: MemorySlot) -> Vec<u8> {
+pub fn store_memory_message(slot: MemorySlot) -> SysEx {
     command_message(&[OpCode::StoreMemory.into(), slot.into()])
 }
 
-pub fn identity_request_message() -> Vec<u8> {
-    Sysex::new(vec![IDENTITY_HEADER, 0x7F, 0x06, 0x01]).as_bytes()
+pub fn identity_request_message() -> SysEx {
+    sysex([IDENTITY_HEADER, 0x7F, 0x06, 0x01])
 }
 
-pub fn identity_reply_message(firmware: [u8; 4]) -> Vec<u8> {
+pub fn identity_reply_message(firmware: [u8; 4]) -> SysEx {
     let mut payload = vec![IDENTITY_HEADER, 0x00, 0x06, 0x02];
     payload.extend_from_slice(&SYSEX_MANUFACTURER_ID);
     payload.extend_from_slice(&[0x02, 0x00, 0x04, 0x02]);
     payload.extend_from_slice(&firmware);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn set_pad_live_color_message(pad: ControlId, color: PadColor) -> Vec<u8> {
+pub fn set_pad_live_color_message(pad: ControlId, color: PadColor) -> SysEx {
     write_param_message(ParamId::PadColorLive, pad, color.into())
 }
 
@@ -170,16 +171,16 @@ impl TryFrom<&[u8]> for DeviceStatus {
     type Error = DeviceStatusParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let sysex = Sysex::try_from(value)?;
+        let sysex = SysEx::try_from(value)?;
         DeviceStatus::try_from(sysex)
     }
 }
 
-impl TryFrom<Sysex> for DeviceStatus {
+impl TryFrom<SysEx> for DeviceStatus {
     type Error = DeviceStatusParseError;
 
-    fn try_from(value: Sysex) -> Result<Self, Self::Error> {
-        let payload = value.payload();
+    fn try_from(value: SysEx) -> Result<Self, Self::Error> {
+        let payload = value.bytes();
 
         if payload.first() == Some(&IDENTITY_HEADER) {
             return parse_identity_reply(payload);
@@ -389,7 +390,7 @@ impl Preset {
     ];
     const GENERIC_SHIFT_KNOB_CC: [u8; TOTAL_SHIFT_KNOBS] = [118, 119];
 
-    pub fn read_messages() -> Vec<Vec<u8>> {
+    pub fn read_messages() -> Vec<SysEx> {
         let mut messages = Vec::new();
 
         for id in ControlId::KNOBS.iter().chain(ControlId::SHIFT_KNOBS.iter()) {
@@ -425,7 +426,7 @@ impl Preset {
         messages
     }
 
-    pub fn send_messages(&self) -> Vec<Vec<u8>> {
+    pub fn send_messages(&self) -> Vec<SysEx> {
         let mut messages = Vec::new();
 
         for knob in self.knobs.knobs.iter().chain(self.knobs.shift_knobs.iter()) {
@@ -561,11 +562,11 @@ pub struct Global {
 }
 
 impl Global {
-    pub fn read_messages() -> Vec<Vec<u8>> {
+    pub fn read_messages() -> Vec<SysEx> {
         GlobalParamId::iter().map(read_global_message).collect()
     }
 
-    pub fn send_messages(&self) -> Vec<Vec<u8>> {
+    pub fn send_messages(&self) -> Vec<SysEx> {
         let raw = RawGlobal::from(self);
         GlobalParamId::iter()
             .zip(raw.as_bytes())
@@ -658,7 +659,7 @@ mod tests {
 
     #[test]
     fn test_read_param_message_format() {
-        let msg = read_param_message(ParamId::Mode, ControlId::Knob2);
+        let msg = read_param_message(ParamId::Mode, ControlId::Knob2).to_wire_bytes();
 
         assert_eq!(
             msg,
@@ -670,7 +671,8 @@ mod tests {
 
     #[test]
     fn test_write_param_message_format() {
-        let msg = write_param_message(ParamId::PadColor, ControlId::Pad1, PadColor::Yellow.into());
+        let msg = write_param_message(ParamId::PadColor, ControlId::Pad1, PadColor::Yellow.into())
+            .to_wire_bytes();
 
         assert_eq!(
             msg,
@@ -682,7 +684,7 @@ mod tests {
 
     #[test]
     fn test_read_global_message_format() {
-        let msg = read_global_message(GlobalParamId::KeyboardChannel);
+        let msg = read_global_message(GlobalParamId::KeyboardChannel).to_wire_bytes();
 
         assert_eq!(
             msg,
@@ -694,7 +696,7 @@ mod tests {
 
     #[test]
     fn test_write_global_message_format() {
-        let msg = write_global_message(GlobalParamId::KnobAcceleration, 0x02);
+        let msg = write_global_message(GlobalParamId::KnobAcceleration, 0x02).to_wire_bytes();
 
         assert_eq!(
             msg,
@@ -706,7 +708,7 @@ mod tests {
 
     #[test]
     fn test_recall_memory_message_format() {
-        let msg = recall_memory_message(MemorySlot::Slot2);
+        let msg = recall_memory_message(MemorySlot::Slot2).to_wire_bytes();
 
         assert_eq!(
             msg,
@@ -716,7 +718,7 @@ mod tests {
 
     #[test]
     fn test_store_memory_message_format() {
-        let msg = store_memory_message(MemorySlot::Slot8);
+        let msg = store_memory_message(MemorySlot::Slot8).to_wire_bytes();
 
         assert_eq!(
             msg,
@@ -727,14 +729,14 @@ mod tests {
     #[test]
     fn test_identity_request_message_format() {
         assert_eq!(
-            identity_request_message(),
+            identity_request_message().to_wire_bytes(),
             vec![0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]
         );
     }
 
     #[test]
     fn test_set_pad_live_color_message_format() {
-        let msg = set_pad_live_color_message(ControlId::Pad16, PadColor::Cyan);
+        let msg = set_pad_live_color_message(ControlId::Pad16, PadColor::Cyan).to_wire_bytes();
 
         assert_eq!(
             msg,
@@ -801,7 +803,7 @@ mod tests {
         let firmware = [0x01, 0x00, 0x02, 0x05];
         let bytes = identity_reply_message(firmware);
 
-        let status = DeviceStatus::try_from(bytes.as_slice()).unwrap();
+        let status = DeviceStatus::try_from(bytes).unwrap();
         assert_eq!(
             status,
             DeviceStatus::IdentityReply(IdentityReply { firmware })
@@ -865,7 +867,7 @@ mod tests {
 
         let mut store = ParamStore::default();
         for message in preset.send_messages() {
-            let status = DeviceStatus::try_from(message.as_slice()).unwrap();
+            let status = DeviceStatus::try_from(message).unwrap();
             store.apply(&status);
         }
 
@@ -896,7 +898,7 @@ mod tests {
 
         let mut store = ParamStore::default();
         for message in global.send_messages() {
-            let status = DeviceStatus::try_from(message.as_slice()).unwrap();
+            let status = DeviceStatus::try_from(message).unwrap();
             store.apply(&status);
         }
 

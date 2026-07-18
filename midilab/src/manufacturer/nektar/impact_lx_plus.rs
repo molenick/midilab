@@ -47,7 +47,8 @@ use crate::manufacturer::nektar::impact_lx_plus::value_kind::ContinuousKind;
 use crate::manufacturer::nektar::impact_lx_plus::value_kind::ControlChannel;
 use crate::manufacturer::nektar::impact_lx_plus::value_kind::MidiChannel;
 use crate::midi::Value;
-use crate::sysex::Sysex;
+use crate::sysex::SysEx;
+use crate::sysex::sysex;
 
 pub mod control;
 pub mod error;
@@ -154,7 +155,7 @@ pub fn checksum(body: &[u8]) -> u8 {
     !sum & 0x7F
 }
 
-fn command_message(object: ObjectType, section: u8, id: u8, params: &[(u8, u8)]) -> Vec<u8> {
+fn command_message(object: ObjectType, section: u8, id: u8, params: &[(u8, u8)]) -> SysEx {
     let mut body = vec![object.into(), section, id];
     for (index, (param, value)) in params.iter().enumerate() {
         if index > 0 {
@@ -166,7 +167,7 @@ fn command_message(object: ObjectType, section: u8, id: u8, params: &[(u8, u8)])
 
     let mut payload = SYSEX_COMMAND_HEADER.to_vec();
     payload.extend_from_slice(&body);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
 fn control_params(value: &RawControl) -> Vec<(u8, u8)> {
@@ -181,7 +182,7 @@ pub fn preset_control_message(
     preset: PresetId,
     control: PresetControlId,
     value: &RawControl,
-) -> Vec<u8> {
+) -> SysEx {
     command_message(
         ObjectType::PresetControl,
         preset.into(),
@@ -190,7 +191,7 @@ pub fn preset_control_message(
     )
 }
 
-pub fn pad_message(map: PadMapId, pad: PadId, value: &RawPad) -> Vec<u8> {
+pub fn pad_message(map: PadMapId, pad: PadId, value: &RawPad) -> SysEx {
     let params: Vec<(u8, u8)> = PAD_PARAMS
         .into_iter()
         .map(u8::from)
@@ -201,11 +202,11 @@ pub fn pad_message(map: PadMapId, pad: PadId, value: &RawPad) -> Vec<u8> {
 
 /// Global settings are single-TLV messages whose param id is the setting id
 /// itself (message id is always `0x01`).
-pub fn global_setting_message(setting: GlobalSettingId, value: u8) -> Vec<u8> {
+pub fn global_setting_message(setting: GlobalSettingId, value: u8) -> SysEx {
     command_message(ObjectType::Global, 0x00, 0x01, &[(setting.into(), value)])
 }
 
-pub fn global_control_message(control: GlobalControlId, value: &RawControl) -> Vec<u8> {
+pub fn global_control_message(control: GlobalControlId, value: &RawControl) -> SysEx {
     command_message(
         ObjectType::Global,
         0x00,
@@ -237,7 +238,7 @@ pub enum DeviceStatus {
 }
 
 impl DeviceStatus {
-    pub fn message(&self) -> Vec<u8> {
+    pub fn message(&self) -> SysEx {
         match self {
             DeviceStatus::PresetControl {
                 preset,
@@ -314,16 +315,16 @@ impl TryFrom<&[u8]> for DeviceStatus {
     type Error = DeviceStatusParseError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let sysex = Sysex::try_from(value)?;
+        let sysex = SysEx::try_from(value)?;
         DeviceStatus::try_from(sysex)
     }
 }
 
-impl TryFrom<Sysex> for DeviceStatus {
+impl TryFrom<SysEx> for DeviceStatus {
     type Error = DeviceStatusParseError;
 
-    fn try_from(value: Sysex) -> Result<Self, Self::Error> {
-        let payload = value.payload();
+    fn try_from(value: SysEx) -> Result<Self, Self::Error> {
+        let payload = value.bytes();
 
         if !payload.starts_with(&SYSEX_COMMAND_HEADER) {
             return Err(DeviceStatusParseError::InvalidHeader);
@@ -586,7 +587,7 @@ impl Preset {
     ///
     /// The device applies them silently to stored memory; the live state
     /// updates the next time the preset is loaded from the panel.
-    pub fn send_messages(&self, preset: PresetId) -> Vec<Vec<u8>> {
+    pub fn send_messages(&self, preset: PresetId) -> Vec<SysEx> {
         let raw = RawPreset::from(self);
         let mut messages = Vec::with_capacity(TOTAL_PRESET_CONTROLS);
         for (id, value) in PresetControlId::FADERS.iter().zip(raw.faders.iter()) {
@@ -683,7 +684,7 @@ impl PadMap {
     }
 
     /// The 8 stored-memory write messages for this pad map, in dump order.
-    pub fn send_messages(&self, map: PadMapId) -> Vec<Vec<u8>> {
+    pub fn send_messages(&self, map: PadMapId) -> Vec<SysEx> {
         let raw = RawPadMap::from(self);
         PadId::ALL
             .iter()
@@ -737,7 +738,7 @@ pub struct GlobalSettings {
 
 impl GlobalSettings {
     /// Writes to global settings apply to the live device state instantly.
-    pub fn send_messages(&self) -> Vec<Vec<u8>> {
+    pub fn send_messages(&self) -> Vec<SysEx> {
         let raw = RawGlobalSettings::from(self);
         GlobalSettingId::iter()
             .zip(raw.values)
@@ -794,7 +795,7 @@ pub struct GlobalControls {
 
 impl GlobalControls {
     /// Writes to global controls apply to the live device state instantly.
-    pub fn send_messages(&self) -> Vec<Vec<u8>> {
+    pub fn send_messages(&self) -> Vec<SysEx> {
         let raw = RawGlobalControls::from(self);
         let mut messages = Vec::with_capacity(TOTAL_GLOBAL_CONTROLS);
         for (id, value) in GlobalControlId::TRANSPORT.iter().zip(raw.transport.iter()) {
@@ -897,7 +898,7 @@ pub struct Dump {
 impl Dump {
     /// All 182 write messages in canonical dump order. Replaying them to the
     /// device restores its memory byte-perfectly.
-    pub fn to_messages(&self) -> Vec<Vec<u8>> {
+    pub fn to_messages(&self) -> Vec<SysEx> {
         let mut messages = Vec::with_capacity(DUMP_MESSAGE_COUNT);
         for (id, preset) in PresetId::iter().zip(self.presets.iter()) {
             messages.extend(preset.send_messages(id));
@@ -1028,13 +1029,14 @@ mod tests {
             min: 0,
             max: 127,
         };
-        let msg = preset_control_message(PresetId::Preset1, PresetControlId::Fader1, &value);
+        let msg = preset_control_message(PresetId::Preset1, PresetControlId::Fader1, &value)
+            .to_wire_bytes();
         assert_eq!(msg, FACTORY_FADER1);
     }
 
     #[test]
     fn test_global_setting_message_format() {
-        let msg = global_setting_message(GlobalSettingId::MidiChannel, 0x01);
+        let msg = global_setting_message(GlobalSettingId::MidiChannel, 0x01).to_wire_bytes();
         assert_eq!(msg, FACTORY_MIDI_CHANNEL);
     }
 
@@ -1047,7 +1049,7 @@ mod tests {
             min: 0,
             max: 127,
         };
-        let msg = global_control_message(GlobalControlId::ModWheel, &value);
+        let msg = global_control_message(GlobalControlId::ModWheel, &value).to_wire_bytes();
         assert_eq!(msg, FACTORY_MOD_WHEEL);
     }
 
@@ -1061,7 +1063,7 @@ mod tests {
             max: 127,
             note: 36,
         };
-        let msg = pad_message(PadMapId::Map1, PadId::Pad1, &value);
+        let msg = pad_message(PadMapId::Map1, PadId::Pad1, &value).to_wire_bytes();
         assert_eq!(msg, FACTORY_PAD1);
     }
 
@@ -1139,7 +1141,7 @@ mod tests {
     fn test_device_status_message_round_trip() {
         let dump = Dump::default();
         for message in dump.to_messages() {
-            let status = DeviceStatus::try_from(message.as_slice()).unwrap();
+            let status = DeviceStatus::try_from(message.clone()).unwrap();
             assert_eq!(status.message(), message);
         }
     }
@@ -1173,7 +1175,7 @@ mod tests {
         assert!(assembler.is_empty());
 
         for message in dump.to_messages() {
-            let status = DeviceStatus::try_from(message.as_slice()).unwrap();
+            let status = DeviceStatus::try_from(message).unwrap();
             assembler.apply(&status);
         }
 

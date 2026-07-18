@@ -8,7 +8,7 @@ pub mod manufacturer;
 pub mod midi;
 /// Music theory
 pub mod music;
-///  Sysex deserialization
+/// Sysex framing and 7-bit packing utilities
 pub mod sysex;
 
 /// Convienence re-export so consuming crates of our library one can use derived EnumIter features for our types

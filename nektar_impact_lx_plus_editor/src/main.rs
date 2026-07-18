@@ -182,8 +182,7 @@ async fn connect_input(client: &Client, app_tx: UnboundedSender<AppMsg>) -> Resu
         let mut sysex = conn.into_sysex();
         let mut assembler = DumpAssembler::default();
         while let Some(timed) = sysex.recv().await {
-            let bytes = timed.payload.to_wire_bytes();
-            let status = match DeviceStatus::try_from(bytes.as_slice()) {
+            let status = match DeviceStatus::try_from(timed.payload) {
                 Ok(status) => status,
                 Err(e) => {
                     let _ = app_tx.send(AppMsg::UserError(UserError::Parse(e.to_string())));
@@ -214,19 +213,16 @@ async fn connect_input(client: &Client, app_tx: UnboundedSender<AppMsg>) -> Resu
     Ok(())
 }
 
-async fn send_bytes(output: &DestinationConnection, bytes: &[u8]) -> Result<(), MidiError> {
-    let sysex = SysEx::try_from(bytes).map_err(|e| MidiError::OutputConnection(e.to_string()))?;
+async fn send(output: &DestinationConnection, sysex: &SysEx) -> Result<(), MidiError> {
     output
-        .send_sysex(&sysex)
+        .send_sysex(sysex)
         .await
         .map_err(|e| MidiError::OutputConnection(e.to_string()))
 }
 
-async fn send_all(output: &DestinationConnection, messages: Vec<Vec<u8>>) -> Result<(), UserError> {
+async fn send_all(output: &DestinationConnection, messages: Vec<SysEx>) -> Result<(), UserError> {
     for message in messages {
-        send_bytes(output, &message)
-            .await
-            .map_err(UserError::Midi)?;
+        send(output, &message).await.map_err(UserError::Midi)?;
         tokio::time::sleep(WRITE_PACING).await;
     }
     Ok(())

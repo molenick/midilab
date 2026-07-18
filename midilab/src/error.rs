@@ -20,18 +20,11 @@ pub enum MidiError {
     ChannelClosed,
 }
 
-/// Enumerates error states of Sysex deserialization
-#[derive(thiserror::Error, Debug)]
-pub enum SysexParseError {
-    #[error("invalid sysex: {0}")]
-    Codec(#[from] midi_io::SysExError),
-}
-
 /// Enumerates error states of DeviceStatus deserialization
 #[derive(Debug, thiserror::Error)]
 pub enum DeviceStatusParseError {
     #[error("invalid sysex: {0}")]
-    InvalidSysex(#[from] SysexParseError),
+    InvalidSysex(#[from] midi_io::SysExError),
     #[error("invalid msg")]
     InvalidMsg,
     #[error("invalid header")]

@@ -1,6 +1,7 @@
 use super::parameter_change_message;
 use super::raw::RawParameterChange;
 use super::wrappers::*;
+use crate::sysex::SysEx;
 use crate::sysex::unpack_u14;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,7 +23,7 @@ pub struct LiveParam {
 }
 
 impl LiveParam {
-    pub fn to_sysex(&self, channel: u8) -> Vec<u8> {
+    pub fn to_sysex(&self, channel: u8) -> SysEx {
         parameter_change_message(channel, self.addr.id, self.addr.sub, self.value)
     }
 }
@@ -885,7 +886,7 @@ mod tests {
             addr: ParamAddr::new(0x10, 0x32),
             value: 99,
         };
-        let msg = lp.to_sysex(0x00);
+        let msg = lp.to_sysex(0x00).to_wire_bytes();
         assert_eq!(&msg[0..5], &[0xF0, 0x42, 0x30, 0x7D, 0x41]);
         assert_eq!(&msg[5..11], &[0x10, 0x00, 0x32, 0x00, 0x63, 0x00]);
         assert_eq!(*msg.last().unwrap(), 0xF7);
@@ -902,7 +903,7 @@ mod tests {
             .find(|c| c.addr == ParamAddr::new(0x60, 0x00))
             .unwrap();
         assert_eq!(c.value, 200);
-        let msg = c.to_sysex(0);
+        let msg = c.to_sysex(0).to_wire_bytes();
         assert_eq!(&msg[9..11], &[0x48, 0x01]);
     }
 
@@ -922,7 +923,7 @@ mod tests {
 
         for lp in program_params(&src) {
             let bytes = lp.to_sysex(0x00);
-            let parsed = KorgR3Message::try_from(bytes.as_slice()).expect("valid sysex");
+            let parsed = KorgR3Message::try_from(&bytes).expect("valid sysex");
             let raw = match parsed {
                 KorgR3Message::ParameterChange(r) => r,
                 other => panic!("expected ParameterChange, got {other:?}"),
@@ -948,12 +949,11 @@ mod tests {
     fn unmapped_address_is_ignored() {
         let mut p = prog();
         let raw = match crate::manufacturer::korg::r3::KorgR3Message::try_from(
-            LiveParam {
+            &LiveParam {
                 addr: ParamAddr::new(0x7F, 0x7F),
                 value: 1,
             }
-            .to_sysex(0)
-            .as_slice(),
+            .to_sysex(0),
         )
         .unwrap()
         {

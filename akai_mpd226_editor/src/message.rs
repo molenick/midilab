@@ -3,7 +3,6 @@ use std::time::Instant;
 
 use midilab::error::DeviceStatusParseError;
 use midilab::error::MidiError;
-use midilab::error::SysexParseError;
 use midilab::manufacturer::akai::mpd226::DeviceStatus;
 use midilab::manufacturer::akai::mpd226::Global;
 use midilab::manufacturer::akai::mpd226::Preset;
@@ -21,7 +20,6 @@ pub enum AppMsg {
 
 pub enum UserError {
     Midi(MidiError),
-    SysexParse(SysexParseError),
     DeviceStatusParse(DeviceStatusParseError),
 }
 
