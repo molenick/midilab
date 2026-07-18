@@ -1,13 +1,5 @@
 [workspace]
-members = [
-    "midilab",
-    "akai_mpd226_editor",
-    "arturia_minilab_mk2_editor",
-    "io",
-    "sim",
-    "korg_r3_editor",
-    "nektar_impact_lx_plus_editor",
-]
+members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
@@ -21,9 +13,9 @@ shared-version = true
 tag-name = "v{{version}}"
 
 [workspace.dependencies]
-midilab = { version = "0.2.6", path = "midilab" }
-midilab-io = { version = "0.2.6", path = "io" }
-midilab-sim = { version = "0.2.6", path = "sim" }
+midilab = { version = "0.2.6", path = "crates/midilab" }
+midilab-io = { version = "0.2.6", path = "crates/io" }
+midilab-sim = { version = "0.2.6", path = "crates/sim" }
 bytemuck = { version = "1.24.0", features = ["derive", "impl_core_error"] }
 dirs = "6.0"
 eframe = "0.35"
