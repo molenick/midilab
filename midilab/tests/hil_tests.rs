@@ -19,7 +19,7 @@ use tokio::time::timeout;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
-async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>>) {
+async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<SysEx>) {
     let client = Client::new("mpd226").await.unwrap();
 
     let out_port = client
@@ -40,11 +40,11 @@ async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>
         .unwrap();
     let conn_in = client.connect_source(&in_port).await.unwrap();
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<SysEx>();
     tokio::spawn(async move {
         let mut sysex = conn_in.into_sysex();
         while let Some(timed) = sysex.recv().await {
-            let _ = tx.send(timed.payload.to_wire_bytes());
+            let _ = tx.send(timed.payload);
         }
     });
 
@@ -54,12 +54,11 @@ async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>
     (conn_out, rx)
 }
 
-async fn send_bytes(conn: &DestinationConnection, bytes: &[u8]) {
-    let sysex = SysEx::try_from(bytes).unwrap();
-    conn.send_sysex(&sysex).await.unwrap();
+async fn send(conn: &DestinationConnection, sysex: &SysEx) {
+    conn.send_sysex(sysex).await.unwrap();
 }
 
-async fn recv_bytes(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<u8> {
+async fn recv_bytes(rx: &mut mpsc::UnboundedReceiver<SysEx>) -> SysEx {
     timeout(TIMEOUT, rx.recv()).await.unwrap().unwrap()
 }
 
@@ -69,10 +68,10 @@ async fn preset_round_trip() {
     let (conn, mut rx) = midi_setup().await;
 
     let original = {
-        send_bytes(&conn, &dump_preset_from_device(0x00)).await;
+        send(&conn, &dump_preset_from_device(0x00)).await;
         let res = {
             let data = recv_bytes(&mut rx).await;
-            DeviceStatus::try_from(data.as_slice()).unwrap()
+            DeviceStatus::try_from(data).unwrap()
         };
         match res {
             DeviceStatus::PresetData(p) => *p,
@@ -94,10 +93,10 @@ async fn preset_round_trip() {
     {
         let preset: &Preset = &mutated;
         let raw = RawPreset::from(preset);
-        send_bytes(&conn, &write_preset_to_device(&raw)).await;
+        send(&conn, &write_preset_to_device(&raw)).await;
         let res = {
             let data = recv_bytes(&mut rx).await;
-            DeviceStatus::try_from(data.as_slice()).unwrap()
+            DeviceStatus::try_from(data).unwrap()
         };
         match res {
             DeviceStatus::ReceivedPresetAck(_) => {}
@@ -105,10 +104,10 @@ async fn preset_round_trip() {
         }
     };
     let loaded = {
-        send_bytes(&conn, &dump_preset_from_device(0x00)).await;
+        send(&conn, &dump_preset_from_device(0x00)).await;
         let res = {
             let data = recv_bytes(&mut rx).await;
-            DeviceStatus::try_from(data.as_slice()).unwrap()
+            DeviceStatus::try_from(data).unwrap()
         };
         match res {
             DeviceStatus::PresetData(p) => *p,
@@ -129,10 +128,10 @@ async fn preset_round_trip() {
     {
         let preset: &Preset = &original;
         let raw = RawPreset::from(preset);
-        send_bytes(&conn, &write_preset_to_device(&raw)).await;
+        send(&conn, &write_preset_to_device(&raw)).await;
         let res = {
             let data = recv_bytes(&mut rx).await;
-            DeviceStatus::try_from(data.as_slice()).unwrap()
+            DeviceStatus::try_from(data).unwrap()
         };
         match res {
             DeviceStatus::ReceivedPresetAck(_) => {}
@@ -140,10 +139,10 @@ async fn preset_round_trip() {
         }
     };
     let restored = {
-        send_bytes(&conn, &dump_preset_from_device(0x00)).await;
+        send(&conn, &dump_preset_from_device(0x00)).await;
         let res = {
             let data = recv_bytes(&mut rx).await;
-            DeviceStatus::try_from(data.as_slice()).unwrap()
+            DeviceStatus::try_from(data).unwrap()
         };
         match res {
             DeviceStatus::PresetData(p) => *p,
@@ -160,14 +159,14 @@ async fn preset_round_trip() {
 
 async fn send_global(
     conn: &DestinationConnection,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: &mut mpsc::UnboundedReceiver<SysEx>,
     global: &Global,
 ) {
     let raw = RawGlobal::from(global);
     for msg in raw.global_send_messages() {
-        send_bytes(conn, &msg).await;
+        send(conn, &msg).await;
         let data = recv_bytes(rx).await;
-        let res = DeviceStatus::try_from(data.as_slice()).unwrap();
+        let res = DeviceStatus::try_from(data).unwrap();
         match res {
             DeviceStatus::GlobalParamAck(_) => {}
             _ => panic!("wrong variant"),
@@ -177,11 +176,11 @@ async fn send_global(
 
 async fn read_global(
     conn: &DestinationConnection,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: &mut mpsc::UnboundedReceiver<SysEx>,
 ) -> Global {
-    send_bytes(conn, &dump_global_from_device()).await;
+    send(conn, &dump_global_from_device()).await;
     let data = recv_bytes(rx).await;
-    let res = DeviceStatus::try_from(data.as_slice()).unwrap();
+    let res = DeviceStatus::try_from(data).unwrap();
     match res {
         DeviceStatus::GlobalData(g) => *g,
         _ => panic!("wrong variant"),

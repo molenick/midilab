@@ -33,7 +33,7 @@ use midilab::manufacturer::akai::mpd226::raw::RawPreset;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab_io::midi::find_input_port;
 use midilab_io::midi::find_output_port;
-use midilab_io::midi::recv_device_bytes;
+use midilab_io::midi::recv_device;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -89,10 +89,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("failed to init MIDI client");
 
         while let Some(msg) = midi_rx.recv().await {
-            let result: Result<Vec<u8>, MidiError> = handle_midi_msg(&client, msg).await;
+            let result: Result<SysEx, MidiError> = handle_midi_msg(&client, msg).await;
 
             let msg = match result {
-                Ok(bytes) => match DeviceStatus::try_from(bytes.as_slice()) {
+                Ok(sysex) => match DeviceStatus::try_from(sysex) {
                     Ok(msg) => AppMsg::Device(msg),
                     Err(e) => AppMsg::UserError(UserError::DeviceStatusParse(e)),
                 },
@@ -165,7 +165,7 @@ async fn connect_midi_output(client: &Client) -> Result<DestinationConnection, S
         .map_err(|e| format!("Failed to connect to MIDI output: {}", e))
 }
 
-async fn connect_midi_input(client: &Client, tx: UnboundedSender<Vec<u8>>) -> Result<(), String> {
+async fn connect_midi_input(client: &Client, tx: UnboundedSender<SysEx>) -> Result<(), String> {
     let port = find_input_port(client, PORT_NAME)
         .await
         .ok_or_else(|| "MPD226 not found - make sure device is connected".to_string())?;
@@ -177,24 +177,23 @@ async fn connect_midi_input(client: &Client, tx: UnboundedSender<Vec<u8>>) -> Re
     tokio::spawn(async move {
         let mut sysex = conn.into_sysex();
         while let Some(timed) = sysex.recv().await {
-            let _ = tx.send(timed.payload.to_wire_bytes());
+            let _ = tx.send(timed.payload);
         }
     });
 
     Ok(())
 }
 
-async fn send_bytes(output: &DestinationConnection, bytes: &[u8]) -> Result<(), ()> {
-    let sysex = SysEx::try_from(bytes).map_err(|_| ())?;
-    output.send_sysex(&sysex).await.map_err(|_| ())
+async fn send(output: &DestinationConnection, sysex: &SysEx) -> Result<(), ()> {
+    output.send_sysex(sysex).await.map_err(|_| ())
 }
 
-async fn handle_midi_msg(client: &Client, msg: DeviceMsg) -> Result<Vec<u8>, MidiError> {
+async fn handle_midi_msg(client: &Client, msg: DeviceMsg) -> Result<SysEx, MidiError> {
     let output = connect_midi_output(client)
         .await
         .map_err(MidiError::OutputConnection)?;
 
-    let (tx, mut rx) = unbounded_channel::<Vec<u8>>();
+    let (tx, mut rx) = unbounded_channel::<SysEx>();
     connect_midi_input(client, tx)
         .await
         .map_err(MidiError::InputConnection)?;
@@ -202,48 +201,46 @@ async fn handle_midi_msg(client: &Client, msg: DeviceMsg) -> Result<Vec<u8>, Mid
     match msg {
         DeviceMsg::DumpPreset(slot) => {
             let request = dump_preset_from_device(slot as u8);
-            send_bytes(&output, &request)
+            send(&output, &request)
                 .await
                 .map_err(|_| MidiError::DumpPreset)?;
 
-            let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
-            Ok(bytes)
+            Ok(recv_device(&mut rx, Duration::from_secs(2)).await?)
         }
         DeviceMsg::WritePreset(preset) => {
             let raw_preset = RawPreset::from(preset.as_ref());
-            let bytes = write_preset_to_device(&raw_preset);
-            send_bytes(&output, &bytes)
+            send(&output, &write_preset_to_device(&raw_preset))
                 .await
                 .map_err(|_| MidiError::WritePreset)?;
 
-            let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
-            Ok(bytes)
+            Ok(recv_device(&mut rx, Duration::from_secs(2)).await?)
         }
         DeviceMsg::DumpGlobal => {
             let request = dump_global_from_device();
-            send_bytes(&output, &request)
+            send(&output, &request)
                 .await
                 .map_err(|_| MidiError::DumpPreset)?;
 
-            let bytes = recv_device_bytes(&mut rx, Duration::from_secs(2)).await?;
-            Ok(bytes)
+            Ok(recv_device(&mut rx, Duration::from_secs(2)).await?)
         }
         DeviceMsg::WriteGlobal(global) => {
             let raw_global = RawGlobal::from(global.as_ref());
             let messages = raw_global.global_send_messages();
 
-            let mut bytes = vec![];
+            let mut ack = None;
 
             for msg in messages {
-                send_bytes(&output, &msg)
+                send(&output, &msg)
                     .await
                     .map_err(|_| MidiError::WritePreset)?;
-                bytes = recv_device_bytes(&mut rx, Duration::from_millis(500))
-                    .await
-                    .unwrap();
+                ack = Some(
+                    recv_device(&mut rx, Duration::from_millis(500))
+                        .await
+                        .unwrap(),
+                );
             }
 
-            Ok(bytes)
+            Ok(ack.expect("global_send_messages is never empty"))
         }
     }
 }

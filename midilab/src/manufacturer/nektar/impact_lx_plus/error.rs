@@ -1,6 +1,6 @@
+use midi_io::SysExError;
 use num_enum::TryFromPrimitiveError;
 
-use crate::error::SysexParseError;
 use crate::manufacturer::nektar::impact_lx_plus::value_kind::ButtonKind;
 use crate::manufacturer::nektar::impact_lx_plus::value_kind::ContinuousKind;
 use crate::manufacturer::nektar::impact_lx_plus::value_kind::ControlChannel;
@@ -9,7 +9,7 @@ use crate::manufacturer::nektar::impact_lx_plus::value_kind::MidiChannel;
 #[derive(Debug, thiserror::Error)]
 pub enum DeviceStatusParseError {
     #[error("invalid sysex: {0}")]
-    InvalidSysex(#[from] SysexParseError),
+    InvalidSysex(#[from] SysExError),
     #[error("invalid header")]
     InvalidHeader,
     #[error("invalid length: {0}")]

@@ -256,11 +256,6 @@ impl AppState {
                     received_at: Instant::now(),
                     kind: UserMsgKind::Error,
                 }))],
-                UserError::SysexParse(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                    msg: e.to_string(),
-                    received_at: Instant::now(),
-                    kind: UserMsgKind::Error,
-                }))],
                 UserError::DeviceStatusParse(e) => {
                     vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                         msg: e.to_string(),
@@ -277,7 +272,6 @@ impl AppState {
 mod tests {
     use midilab::error::DeviceStatusParseError;
     use midilab::error::MidiError;
-    use midilab::error::SysexParseError;
     use midilab::manufacturer::akai::mpd226::GlobalParamAck;
     use midilab::manufacturer::akai::mpd226::GlobalParamCmdId;
     use midilab::manufacturer::akai::mpd226::PresetAck;
@@ -375,26 +369,6 @@ mod tests {
 
         let effects = app.update(AppMsg::UserError(UserError::Midi(
             MidiError::ResponseTimeout,
-        )));
-
-        assert_eq!(app.preset.settings.slot, original_slot);
-        let effect = effects.into_iter().next().unwrap();
-        assert!(matches!(
-            effect,
-            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                kind: UserMsgKind::Error,
-                ..
-            }))
-        ));
-    }
-
-    #[test]
-    fn sysex_parse_error() {
-        let mut app = AppState::new(AppConfig::default());
-        let original_slot = app.preset.settings.slot;
-
-        let effects = app.update(AppMsg::UserError(UserError::SysexParse(
-            SysexParseError::Codec(midi_io::SysExError::MissingStart),
         )));
 
         assert_eq!(app.preset.settings.slot, original_slot);

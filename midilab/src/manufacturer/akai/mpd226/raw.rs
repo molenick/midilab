@@ -7,7 +7,8 @@ use crate::manufacturer::akai::mpd226::DeviceCommandId;
 use crate::manufacturer::akai::mpd226::DeviceHeader;
 use crate::manufacturer::akai::mpd226::GLOBAL_VALUE_MAGIC;
 use crate::manufacturer::akai::mpd226::TOTAL_PADS;
-use crate::sysex::Sysex;
+use crate::sysex::SysEx;
+use crate::sysex::from_header_and_body;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -213,14 +214,14 @@ impl RawGlobal {
 
     /// Send all global parameters to device (as individual writes)
     /// Returns Vec of sysex messages, one per parameter
-    pub fn global_send_messages(&self) -> Vec<Vec<u8>> {
+    pub fn global_send_messages(&self) -> Vec<SysEx> {
         self.param_pairs()
             .into_iter()
             .map(|(addr, value)| Self::global_write_param(addr, value))
             .collect()
     }
 
-    fn global_write_param(addr: u8, value: u8) -> Vec<u8> {
+    fn global_write_param(addr: u8, value: u8) -> SysEx {
         let length = u16::from_le_bytes([0x00, 0x04]).to_le_bytes();
         let header = RawHeader {
             mfg_id: SYSEX_MANUFACTURER_ID,
@@ -229,7 +230,7 @@ impl RawGlobal {
             cmd: DeviceCommandId::WriteGlobal as u8,
             length,
         };
-        Sysex::from_header_and_body_as_bytes(
+        from_header_and_body(
             &header,
             [GLOBAL_VALUE_MAGIC[0], GLOBAL_VALUE_MAGIC[1], addr, value],
         )
@@ -343,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_preset_dump_request_ram() {
-        let request = dump_preset_from_device(0x00);
+        let request = dump_preset_from_device(0x00).to_wire_bytes();
 
         assert_eq!(request.len(), 9);
         assert_eq!(request[0], 0xF0);
@@ -359,7 +360,7 @@ mod tests {
 
     #[test]
     fn test_preset_dump_request_slot_0() {
-        let request = dump_preset_from_device(0x00);
+        let request = dump_preset_from_device(0x00).to_wire_bytes();
 
         assert_eq!(request.len(), 9);
         assert_eq!(request[7], 0x00);

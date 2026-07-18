@@ -25,10 +25,10 @@ pub async fn find_input_port(client: &Client, name: &str) -> Option<Source> {
         .find(|p| p.name() == name)
 }
 
-pub async fn recv_device_bytes(
-    rx: &mut UnboundedReceiver<Vec<u8>>,
+pub async fn recv_device<T>(
+    rx: &mut UnboundedReceiver<T>,
     timeout_duration: Duration,
-) -> Result<Vec<u8>, MidiError> {
+) -> Result<T, MidiError> {
     match timeout(timeout_duration, rx.recv()).await {
         Ok(Some(bytes)) => Ok(bytes),
         Ok(None) => Err(MidiError::ChannelClosed),

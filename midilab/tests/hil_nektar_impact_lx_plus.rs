@@ -27,7 +27,7 @@ const DUMP_START_TIMEOUT: Duration = Duration::from_secs(120);
 const DUMP_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 const WRITE_PACING: Duration = Duration::from_millis(2);
 
-async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>>) {
+async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<SysEx>) {
     let client = Client::new("impact_lx_plus").await.unwrap();
 
     let destinations = client.destinations().await.unwrap();
@@ -52,11 +52,11 @@ async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>
     println!("matched source port: {:?}", in_port.name());
     let conn_in = client.connect_source(in_port).await.unwrap();
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<SysEx>();
     tokio::spawn(async move {
         let mut sysex = conn_in.into_sysex();
         while let Some(timed) = sysex.recv().await {
-            let _ = tx.send(timed.payload.to_wire_bytes());
+            let _ = tx.send(timed.payload);
         }
     });
 
@@ -66,12 +66,11 @@ async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>
     (conn_out, rx)
 }
 
-async fn send_bytes(conn: &DestinationConnection, bytes: &[u8]) {
-    let sysex = SysEx::try_from(bytes).unwrap();
-    conn.send_sysex(&sysex).await.unwrap();
+async fn send(conn: &DestinationConnection, sysex: &SysEx) {
+    conn.send_sysex(sysex).await.unwrap();
 }
 
-async fn capture_dump(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<Vec<u8>> {
+async fn capture_dump(rx: &mut mpsc::UnboundedReceiver<SysEx>) -> Vec<SysEx> {
     println!();
     println!(">>> On the keyboard: press [Setup], then the key labeled *Memory Dump* (G2).");
     println!(">>> The display reads SYS while the dump is sent.");
@@ -100,10 +99,10 @@ async fn capture_dump(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<Vec<u8>>
     messages
 }
 
-fn assemble(messages: &[Vec<u8>]) -> Dump {
+fn assemble(messages: &[SysEx]) -> Dump {
     let mut assembler = DumpAssembler::default();
     for message in messages {
-        let status = DeviceStatus::try_from(message.as_slice()).unwrap();
+        let status = DeviceStatus::try_from(message.clone()).unwrap();
         assembler.apply(&status);
     }
     assert!(assembler.is_complete());
@@ -121,7 +120,7 @@ async fn dump_model_round_trip() {
     let captured = capture_dump(&mut rx).await;
 
     for (index, message) in captured.iter().enumerate() {
-        let status = DeviceStatus::try_from(message.as_slice()).unwrap();
+        let status = DeviceStatus::try_from(message.clone()).unwrap();
         assert_eq!(
             &status.message(),
             message,
@@ -150,7 +149,7 @@ async fn dump_restore_round_trip() {
         original.len()
     );
     for message in dump.to_messages() {
-        send_bytes(&conn, &message).await;
+        send(&conn, &message).await;
         tokio::time::sleep(WRITE_PACING).await;
     }
     while rx.try_recv().is_ok() {}

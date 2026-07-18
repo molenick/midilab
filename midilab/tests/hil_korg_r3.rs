@@ -29,7 +29,7 @@ use tokio::time::timeout;
 const TIMEOUT: Duration = Duration::from_secs(5);
 const CHANNEL: u8 = 0x00;
 
-async fn connect(name: &str) -> (DestinationConnection, mpsc::UnboundedReceiver<Vec<u8>>) {
+async fn connect(name: &str) -> (DestinationConnection, mpsc::UnboundedReceiver<SysEx>) {
     let client = Client::new(name).await.unwrap();
 
     let sound_port = client
@@ -50,40 +50,39 @@ async fn connect(name: &str) -> (DestinationConnection, mpsc::UnboundedReceiver<
         .expect("no R3 KBD/KNOB");
     let conn_in = client.connect_source(&kbd_port).await.unwrap();
 
-    let (tx, rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (tx, rx) = mpsc::unbounded_channel::<SysEx>();
     tokio::spawn(async move {
         let mut sysex = conn_in.into_sysex();
         while let Some(timed) = sysex.recv().await {
-            let _ = tx.send(timed.payload.to_wire_bytes());
+            let _ = tx.send(timed.payload);
         }
     });
 
     (conn, rx)
 }
 
-async fn send_bytes(conn: &DestinationConnection, bytes: &[u8]) {
-    let sysex = SysEx::try_from(bytes).unwrap();
-    conn.send_sysex(&sysex).await.unwrap();
+async fn send(conn: &DestinationConnection, sysex: &SysEx) {
+    conn.send_sysex(sysex).await.unwrap();
 }
 
-async fn recv(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>, dur: Duration) -> Vec<u8> {
+async fn recv(rx: &mut mpsc::UnboundedReceiver<SysEx>, dur: Duration) -> SysEx {
     timeout(dur, rx.recv())
         .await
         .expect("timed out waiting for sysex response")
         .expect("channel closed")
 }
 
-async fn try_recv(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>, dur: Duration) -> Option<Vec<u8>> {
+async fn try_recv(rx: &mut mpsc::UnboundedReceiver<SysEx>, dur: Duration) -> Option<SysEx> {
     timeout(dur, rx.recv()).await.ok().flatten()
 }
 
 async fn read_global(
     conn: &DestinationConnection,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: &mut mpsc::UnboundedReceiver<SysEx>,
 ) -> RawGlobal {
-    send_bytes(conn, &global_dump_request(CHANNEL)).await;
+    send(conn, &global_dump_request(CHANNEL)).await;
     let data = recv(rx, TIMEOUT).await;
-    match KorgR3Message::try_from(data.as_slice()).expect("parse global dump") {
+    match KorgR3Message::try_from(&data).expect("parse global dump") {
         KorgR3Message::GlobalDump(g) => *g,
         other => panic!("expected GlobalDump, got {other:?}"),
     }
@@ -91,11 +90,11 @@ async fn read_global(
 
 async fn read_current_program(
     conn: &DestinationConnection,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: &mut mpsc::UnboundedReceiver<SysEx>,
 ) -> RawProgram {
-    send_bytes(conn, &current_program_dump_request(CHANNEL)).await;
+    send(conn, &current_program_dump_request(CHANNEL)).await;
     let data = recv(rx, TIMEOUT).await;
-    match KorgR3Message::try_from(data.as_slice()).expect("parse program dump") {
+    match KorgR3Message::try_from(&data).expect("parse program dump") {
         KorgR3Message::CurrentProgramDump(p) => *p,
         other => panic!("expected CurrentProgramDump, got {other:?}"),
     }
@@ -103,12 +102,12 @@ async fn read_current_program(
 
 async fn read_slot(
     conn: &DestinationConnection,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: &mut mpsc::UnboundedReceiver<SysEx>,
     slot: u16,
 ) -> RawProgram {
-    send_bytes(conn, &program_dump_request(CHANNEL, slot)).await;
+    send(conn, &program_dump_request(CHANNEL, slot)).await;
     let data = recv(rx, TIMEOUT).await;
-    match KorgR3Message::try_from(data.as_slice()).expect("parse slot dump") {
+    match KorgR3Message::try_from(&data).expect("parse slot dump") {
         KorgR3Message::ProgramDump {
             program_no,
             program,
@@ -122,13 +121,13 @@ async fn read_slot(
 
 async fn read_motion(
     conn: &DestinationConnection,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: &mut mpsc::UnboundedReceiver<SysEx>,
     motion_no: u8,
 ) -> (u16, Vec<RawFormantStep>) {
-    send_bytes(conn, &formant_motion_dump_request(CHANNEL, motion_no)).await;
+    send(conn, &formant_motion_dump_request(CHANNEL, motion_no)).await;
     loop {
         let data = recv(rx, TIMEOUT).await;
-        match KorgR3Message::try_from(data.as_slice()).expect("parse motion dump") {
+        match KorgR3Message::try_from(&data).expect("parse motion dump") {
             KorgR3Message::FormantMotionDump {
                 motion_no: n,
                 size,
@@ -145,20 +144,20 @@ async fn read_motion(
 
 async fn write_motion(
     conn: &DestinationConnection,
-    rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    rx: &mut mpsc::UnboundedReceiver<SysEx>,
     motion_no: u8,
     steps: &[RawFormantStep],
 ) {
-    send_bytes(conn, &current_formant_motion_dump_message(CHANNEL, steps)).await;
+    send(conn, &current_formant_motion_dump_message(CHANNEL, steps)).await;
     expect_data_load_completed(rx).await;
-    send_bytes(conn, &formant_motion_write_request(CHANNEL, motion_no)).await;
+    send(conn, &formant_motion_write_request(CHANNEL, motion_no)).await;
     expect_data_load_completed(rx).await;
 }
 
-async fn expect_data_load_completed(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) {
+async fn expect_data_load_completed(rx: &mut mpsc::UnboundedReceiver<SysEx>) {
     loop {
         let data = recv(rx, TIMEOUT).await;
-        match KorgR3Message::try_from(data.as_slice()).expect("parse ack") {
+        match KorgR3Message::try_from(&data).expect("parse ack") {
             KorgR3Message::DataLoadCompleted | KorgR3Message::WriteCompleted => return,
             KorgR3Message::ParameterChange(_) => continue,
             other => panic!("expected DataLoadCompleted, got {other:?}"),
@@ -174,7 +173,7 @@ async fn global_dump_discovery() {
     eprintln!("Scanning channels 0-15...");
     let mut found_ch: Option<u8> = None;
     for try_ch in 0u8..=15 {
-        send_bytes(&conn, &global_dump_request(try_ch)).await;
+        send(&conn, &global_dump_request(try_ch)).await;
         if let Some(data) = try_recv(&mut rx, Duration::from_secs(5)).await {
             eprintln!(
                 "  *** RESPONSE ch={try_ch}: {} bytes {:02X?} ***",
@@ -194,11 +193,11 @@ async fn global_dump_discovery() {
     }
 
     let ch = found_ch.unwrap_or(ch);
-    send_bytes(&conn, &global_dump_request(ch)).await;
+    send(&conn, &global_dump_request(ch)).await;
     let data = recv(&mut rx, TIMEOUT).await;
     eprintln!("Raw: {} bytes", data.len());
 
-    match KorgR3Message::try_from(data.as_slice()).expect("parse global") {
+    match KorgR3Message::try_from(&data).expect("parse global") {
         KorgR3Message::GlobalDump(g) => {
             eprintln!("master_tune = {}", g.master_tune);
             assert!(g.master_tune <= 100);
@@ -212,11 +211,11 @@ async fn global_dump_discovery() {
 async fn current_program_dump_discovery() {
     let (conn, mut rx) = connect("r3-pd").await;
 
-    send_bytes(&conn, &current_program_dump_request(CHANNEL)).await;
+    send(&conn, &current_program_dump_request(CHANNEL)).await;
     let data = recv(&mut rx, TIMEOUT).await;
     eprintln!("Raw: {} bytes", data.len());
 
-    match KorgR3Message::try_from(data.as_slice()).expect("parse program") {
+    match KorgR3Message::try_from(&data).expect("parse program") {
         KorgR3Message::CurrentProgramDump(p) => {
             let name = std::str::from_utf8(&p.name).unwrap_or("<non-utf8>");
             eprintln!("name = {:?}", name);
@@ -248,13 +247,13 @@ async fn global_round_trip() {
     let mut modified = original;
     modified.master_tune = new_tune;
 
-    send_bytes(&conn, &global_dump_message(CHANNEL, &modified)).await;
+    send(&conn, &global_dump_message(CHANNEL, &modified)).await;
     expect_data_load_completed(&mut rx).await;
 
     let readback = read_global(&conn, &mut rx).await;
     assert_eq!(readback.master_tune, new_tune);
 
-    send_bytes(&conn, &global_dump_message(CHANNEL, &original)).await;
+    send(&conn, &global_dump_message(CHANNEL, &original)).await;
     expect_data_load_completed(&mut rx).await;
 
     let restored = read_global(&conn, &mut rx).await;
@@ -276,13 +275,13 @@ async fn program_round_trip() {
     let mut modified = original;
     modified.name = *b"HILTEST ";
 
-    send_bytes(&conn, &current_program_dump_message(CHANNEL, &modified)).await;
+    send(&conn, &current_program_dump_message(CHANNEL, &modified)).await;
     expect_data_load_completed(&mut rx).await;
 
     let readback = read_current_program(&conn, &mut rx).await;
     assert_eq!(&readback.name, b"HILTEST ");
 
-    send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+    send(&conn, &current_program_dump_message(CHANNEL, &original)).await;
     expect_data_load_completed(&mut rx).await;
 
     let restored = read_current_program(&conn, &mut rx).await;
@@ -299,7 +298,7 @@ async fn parameter_change_program() {
     let orig_name0 = original.name[0];
 
     let new_name0: u8 = if orig_name0 != b'Z' { b'Z' } else { b'Y' };
-    send_bytes(
+    send(
         &conn,
         &parameter_change_message(CHANNEL, 0x00, 0x00, new_name0 as u16),
     )
@@ -312,7 +311,7 @@ async fn parameter_change_program() {
         "parameter change did not update current program name[0]"
     );
 
-    send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+    send(&conn, &current_program_dump_message(CHANNEL, &original)).await;
     expect_data_load_completed(&mut rx).await;
     let restored = read_current_program(&conn, &mut rx).await;
     assert_eq!(bytemuck::bytes_of(&restored), bytemuck::bytes_of(&original));
@@ -325,11 +324,11 @@ async fn program_dump_slot() {
     let (conn, mut rx) = connect("r3-sl").await;
 
     for slot in [0, 1, 32, 64] {
-        send_bytes(&conn, &program_dump_request(CHANNEL, slot)).await;
+        send(&conn, &program_dump_request(CHANNEL, slot)).await;
         let data = recv(&mut rx, TIMEOUT).await;
         eprintln!("Slot {slot}: {} bytes", data.len());
 
-        match KorgR3Message::try_from(data.as_slice()).expect("parse slot dump") {
+        match KorgR3Message::try_from(&data).expect("parse slot dump") {
             KorgR3Message::ProgramDump {
                 program_no,
                 program: p,
@@ -360,21 +359,18 @@ async fn program_write_slot() {
     let mut modified = original;
     modified.name = *b"WRITESL ";
 
-    send_bytes(&conn, &current_program_dump_message(CHANNEL, &modified)).await;
+    send(&conn, &current_program_dump_message(CHANNEL, &modified)).await;
     expect_data_load_completed(&mut rx).await;
 
     let target_slot: u16 = 0;
-    send_bytes(&conn, &program_write_request(CHANNEL, target_slot)).await;
+    send(&conn, &program_write_request(CHANNEL, target_slot)).await;
 
-    match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice()).expect("parse write ack")
-    {
+    match KorgR3Message::try_from(&recv(&mut rx, TIMEOUT).await).expect("parse write ack") {
         KorgR3Message::DataLoadCompleted | KorgR3Message::WriteCompleted => {
             eprintln!("write to slot {target_slot} succeeded");
 
-            send_bytes(&conn, &program_dump_request(CHANNEL, target_slot)).await;
-            match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice())
-                .expect("read back")
-            {
+            send(&conn, &program_dump_request(CHANNEL, target_slot)).await;
+            match KorgR3Message::try_from(&recv(&mut rx, TIMEOUT).await).expect("read back") {
                 KorgR3Message::ProgramDump {
                     program_no,
                     program: p,
@@ -385,15 +381,13 @@ async fn program_write_slot() {
                 other => panic!("expected ProgramDump on read-back, got {other:?}"),
             }
 
-            send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+            send(&conn, &current_program_dump_message(CHANNEL, &original)).await;
             expect_data_load_completed(&mut rx).await;
-            send_bytes(&conn, &program_write_request(CHANNEL, target_slot)).await;
+            send(&conn, &program_write_request(CHANNEL, target_slot)).await;
             expect_data_load_completed(&mut rx).await;
 
-            send_bytes(&conn, &program_dump_request(CHANNEL, target_slot)).await;
-            match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice())
-                .expect("read restored")
-            {
+            send(&conn, &program_dump_request(CHANNEL, target_slot)).await;
+            match KorgR3Message::try_from(&recv(&mut rx, TIMEOUT).await).expect("read restored") {
                 KorgR3Message::ProgramDump {
                     program: restored, ..
                 } => {
@@ -454,7 +448,7 @@ async fn program_model_round_trip() {
         diffs.len()
     );
 
-    send_bytes(&conn, &current_program_dump_message(CHANNEL, &raw2)).await;
+    send(&conn, &current_program_dump_message(CHANNEL, &raw2)).await;
     expect_data_load_completed(&mut rx).await;
     let readback = read_current_program(&conn, &mut rx).await;
     let prog_rb = Program::try_from(readback).expect("decode device readback");
@@ -464,7 +458,7 @@ async fn program_model_round_trip() {
         "modeled parameters did not survive a real device round-trip"
     );
 
-    send_bytes(&conn, &current_program_dump_message(CHANNEL, &original)).await;
+    send(&conn, &current_program_dump_message(CHANNEL, &original)).await;
     expect_data_load_completed(&mut rx).await;
     let restored = read_current_program(&conn, &mut rx).await;
     assert_eq!(bytemuck::bytes_of(&restored), orig_bytes.as_slice());
@@ -506,7 +500,7 @@ async fn global_model_round_trip() {
         return;
     }
     let raw2: RawGlobal = *bytemuck::from_bytes(&encoded);
-    send_bytes(&conn, &global_dump_message(CHANNEL, &raw2)).await;
+    send(&conn, &global_dump_message(CHANNEL, &raw2)).await;
     expect_data_load_completed(&mut rx).await;
     let readback = read_global(&conn, &mut rx).await;
     assert_eq!(
@@ -514,7 +508,7 @@ async fn global_model_round_trip() {
         encoded.as_slice(),
         "global did not survive device round-trip"
     );
-    send_bytes(&conn, &global_dump_message(CHANNEL, &original)).await;
+    send(&conn, &global_dump_message(CHANNEL, &original)).await;
     expect_data_load_completed(&mut rx).await;
     eprintln!("Global model round-trip OK");
 }
@@ -525,9 +519,9 @@ async fn tempo_encoding_probe() {
     let (conn, mut rx) = connect("r3-tp").await;
 
     for slot in [0u16, 1, 16, 32, 64, 99, 127] {
-        send_bytes(&conn, &program_dump_request(CHANNEL, slot)).await;
+        send(&conn, &program_dump_request(CHANNEL, slot)).await;
         let data = recv(&mut rx, TIMEOUT).await;
-        match KorgR3Message::try_from(data.as_slice()).expect("parse slot dump") {
+        match KorgR3Message::try_from(&data).expect("parse slot dump") {
             KorgR3Message::ProgramDump { program: p, .. } => {
                 let raw = bytemuck::bytes_of(&*p);
                 let lsb = raw[444] as u16;
@@ -552,11 +546,11 @@ async fn tempo_encoding_probe() {
 async fn formant_motion_dump() {
     let (conn, mut rx) = connect("r3-mo").await;
 
-    send_bytes(&conn, &current_formant_motion_dump_request(CHANNEL)).await;
+    send(&conn, &current_formant_motion_dump_request(CHANNEL)).await;
     let data = recv(&mut rx, TIMEOUT).await;
     eprintln!("current formant motion: {} bytes", data.len());
 
-    match KorgR3Message::try_from(data.as_slice()).expect("parse formant") {
+    match KorgR3Message::try_from(&data).expect("parse formant") {
         KorgR3Message::CurrentFormantMotionDump { size, steps } => {
             eprintln!(
                 "  SIZE={size}  steps={}  ~{:.2}s",
@@ -656,11 +650,10 @@ async fn editor_write_path_fix_slot0_name() {
         "typed encode changed bytes other than the name"
     );
 
-    send_bytes(&conn, &current_program_dump_message(CHANNEL, &fixed)).await;
+    send(&conn, &current_program_dump_message(CHANNEL, &fixed)).await;
     expect_data_load_completed(&mut rx).await;
-    send_bytes(&conn, &program_write_request(CHANNEL, 0)).await;
-    match KorgR3Message::try_from(recv(&mut rx, TIMEOUT).await.as_slice()).expect("parse write ack")
-    {
+    send(&conn, &program_write_request(CHANNEL, 0)).await;
+    match KorgR3Message::try_from(&recv(&mut rx, TIMEOUT).await).expect("parse write ack") {
         KorgR3Message::DataLoadCompleted | KorgR3Message::WriteCompleted => {}
         KorgR3Message::DataLoadError => panic!("write REJECTED — memory protect is ON"),
         other => panic!("expected write ack, got {other:?}"),

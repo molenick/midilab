@@ -10,9 +10,10 @@ use raw::RawParameterChange;
 use raw::RawProgram;
 
 use crate::manufacturer::korg::SYSEX_MANUFACTURER_ID;
-use crate::sysex::Sysex;
+use crate::sysex::SysEx;
 use crate::sysex::pack_u7;
 use crate::sysex::pack_u14;
+use crate::sysex::sysex;
 use crate::sysex::unpack_u7;
 use crate::sysex::unpack_u14;
 
@@ -81,7 +82,7 @@ pub enum KorgR3Message {
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
     #[error("invalid sysex wrapper: {0}")]
-    Sysex(#[from] crate::error::SysexParseError),
+    Sysex(#[from] midi_io::SysExError),
     #[error("message too short: {0} bytes")]
     TooShort(usize),
     #[error("invalid manufacturer id: 0x{0:02X}")]
@@ -109,81 +110,81 @@ fn sysex_header(channel: u8, func_id: u8) -> Vec<u8> {
     ]
 }
 
-pub fn current_program_dump_request(channel: u8) -> Vec<u8> {
+pub fn current_program_dump_request(channel: u8) -> SysEx {
     let payload = sysex_header(channel, DeviceCommandId::CurrentProgramDumpRequest.into());
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn program_dump_request(channel: u8, program_no: u16) -> Vec<u8> {
+pub fn program_dump_request(channel: u8, program_no: u16) -> SysEx {
     let mut payload = sysex_header(channel, DeviceCommandId::ProgramDumpRequest.into());
     let [msb, lsb] = pack_u14(program_no);
     payload.push(lsb);
     payload.push(msb);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn current_formant_motion_dump_request(channel: u8) -> Vec<u8> {
+pub fn current_formant_motion_dump_request(channel: u8) -> SysEx {
     let payload = sysex_header(
         channel,
         DeviceCommandId::CurrentFormantMotionDumpRequest.into(),
     );
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn formant_motion_dump_request(channel: u8, motion_no: u8) -> Vec<u8> {
+pub fn formant_motion_dump_request(channel: u8, motion_no: u8) -> SysEx {
     let mut payload = sysex_header(channel, DeviceCommandId::FormantMotionDumpRequest.into());
     let [msb, lsb] = pack_u14(motion_no.into());
     payload.push(lsb);
     payload.push(msb);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn global_dump_request(channel: u8) -> Vec<u8> {
+pub fn global_dump_request(channel: u8) -> SysEx {
     let payload = sysex_header(channel, DeviceCommandId::GlobalDumpRequest.into());
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn program_write_request(channel: u8, dest_program_no: u16) -> Vec<u8> {
+pub fn program_write_request(channel: u8, dest_program_no: u16) -> SysEx {
     let mut payload = sysex_header(channel, DeviceCommandId::ProgramWriteRequest.into());
     let [msb, lsb] = pack_u14(dest_program_no);
     payload.push(lsb);
     payload.push(msb);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn formant_motion_write_request(channel: u8, dest_motion_no: u8) -> Vec<u8> {
+pub fn formant_motion_write_request(channel: u8, dest_motion_no: u8) -> SysEx {
     let mut payload = sysex_header(channel, DeviceCommandId::FormantMotionWriteRequest.into());
     let [msb, lsb] = pack_u14(dest_motion_no.into());
     payload.push(lsb);
     payload.push(msb);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn current_program_dump_message(channel: u8, program: &RawProgram) -> Vec<u8> {
+pub fn current_program_dump_message(channel: u8, program: &RawProgram) -> SysEx {
     let mut payload = sysex_header(channel, DeviceStatusId::CurrentProgramDump.into());
     let packed = pack_u7(bytemuck::bytes_of(program));
     payload.extend_from_slice(&packed);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn program_dump_message(channel: u8, program_no: u16, program: &RawProgram) -> Vec<u8> {
+pub fn program_dump_message(channel: u8, program_no: u16, program: &RawProgram) -> SysEx {
     let mut payload = sysex_header(channel, DeviceStatusId::ProgramDump.into());
     let [msb, lsb] = pack_u14(program_no);
     payload.push(lsb);
     payload.push(msb);
     let packed = pack_u7(bytemuck::bytes_of(program));
     payload.extend_from_slice(&packed);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn global_dump_message(channel: u8, global: &RawGlobal) -> Vec<u8> {
+pub fn global_dump_message(channel: u8, global: &RawGlobal) -> SysEx {
     let mut payload = sysex_header(channel, DeviceStatusId::GlobalDump.into());
     let packed = pack_u7(bytemuck::bytes_of(global));
     payload.extend_from_slice(&packed);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn current_formant_motion_dump_message(channel: u8, steps: &[RawFormantStep]) -> Vec<u8> {
+pub fn current_formant_motion_dump_message(channel: u8, steps: &[RawFormantStep]) -> SysEx {
     let mut payload = sysex_header(channel, DeviceStatusId::CurrentFormantMotionDump.into());
     let size = steps.len() as u16;
     let [size_hi, size_lo] = pack_u14(size);
@@ -193,14 +194,10 @@ pub fn current_formant_motion_dump_message(channel: u8, steps: &[RawFormantStep]
     payload.push(0x00);
     let packed = pack_u7(bytemuck::cast_slice(steps));
     payload.extend_from_slice(&packed);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn formant_motion_dump_message(
-    channel: u8,
-    motion_no: u8,
-    steps: &[RawFormantStep],
-) -> Vec<u8> {
+pub fn formant_motion_dump_message(channel: u8, motion_no: u8, steps: &[RawFormantStep]) -> SysEx {
     let mut payload = sysex_header(channel, DeviceStatusId::FormantMotionDump.into());
     let size = steps.len() as u16;
     let [size_hi, size_lo] = pack_u14(size);
@@ -210,29 +207,36 @@ pub fn formant_motion_dump_message(
     payload.push(0x00);
     let packed = pack_u7(bytemuck::cast_slice(steps));
     payload.extend_from_slice(&packed);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
-pub fn parameter_change_message(channel: u8, param_id: u16, sub_id: u16, value: u16) -> Vec<u8> {
+pub fn parameter_change_message(channel: u8, param_id: u16, sub_id: u16, value: u16) -> SysEx {
     let mut payload = sysex_header(channel, DeviceStatusId::ParameterChange.into());
     let [pp_msb, pp_lsb] = pack_u14(param_id);
     let [qq_msb, qq_lsb] = pack_u14(sub_id);
     let [vv_msb, vv_lsb] = pack_u14(value);
     payload.extend_from_slice(&[pp_lsb, pp_msb, qq_lsb, qq_msb, vv_lsb, vv_msb]);
-    Sysex::new(payload).as_bytes()
+    sysex(payload)
 }
 
 impl TryFrom<&[u8]> for KorgR3Message {
     type Error = ParseError;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        parse_sysex_impl(data)
+        KorgR3Message::try_from(&SysEx::try_from(data)?)
     }
 }
 
-fn parse_sysex_impl(data: &[u8]) -> Result<KorgR3Message, ParseError> {
-    let sysex = Sysex::try_from(data)?;
-    let payload = sysex.payload();
+impl TryFrom<&SysEx> for KorgR3Message {
+    type Error = ParseError;
+
+    fn try_from(sysex: &SysEx) -> Result<Self, Self::Error> {
+        parse_sysex_impl(sysex)
+    }
+}
+
+fn parse_sysex_impl(sysex: &SysEx) -> Result<KorgR3Message, ParseError> {
+    let payload = sysex.bytes();
 
     if payload.len() < 4 {
         return Err(ParseError::TooShort(payload.len()));
@@ -365,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_current_program_dump_request_format() {
-        let msg = current_program_dump_request(0x00);
+        let msg = current_program_dump_request(0x00).to_wire_bytes();
         assert_eq!(msg[0], 0xF0);
         assert_eq!(msg[1], 0x42);
         assert_eq!(msg[2], 0x30);
@@ -377,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_program_dump_request_format() {
-        let msg = program_dump_request(0x00, 0);
+        let msg = program_dump_request(0x00, 0).to_wire_bytes();
         assert_eq!(msg[0], 0xF0);
         assert_eq!(msg[1], 0x42);
         assert_eq!(msg[2], 0x30);
@@ -390,14 +394,14 @@ mod tests {
 
     #[test]
     fn test_program_dump_request_program_number() {
-        let msg = program_dump_request(0x00, 128);
+        let msg = program_dump_request(0x00, 128).to_wire_bytes();
         assert_eq!(msg[5], 0x00);
         assert_eq!(msg[6], 0x01);
     }
 
     #[test]
     fn test_global_dump_request_format() {
-        let msg = global_dump_request(0x00);
+        let msg = global_dump_request(0x00).to_wire_bytes();
         assert_eq!(msg[0], 0xF0);
         assert_eq!(msg[1], 0x42);
         assert_eq!(msg[2], 0x30);
@@ -408,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_formant_motion_dump_request_format() {
-        let msg = formant_motion_dump_request(0x00, 3);
+        let msg = formant_motion_dump_request(0x00, 3).to_wire_bytes();
         assert_eq!(msg[0], 0xF0);
         assert_eq!(msg[1], 0x42);
         assert_eq!(msg[2], 0x30);
@@ -421,7 +425,7 @@ mod tests {
 
     #[test]
     fn test_program_write_request_format() {
-        let msg = program_write_request(0x00, 5);
+        let msg = program_write_request(0x00, 5).to_wire_bytes();
         assert_eq!(msg[0], 0xF0);
         assert_eq!(msg[1], 0x42);
         assert_eq!(msg[2], 0x30);
@@ -434,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_parameter_change_message_format() {
-        let msg = parameter_change_message(0x00, 0x01, 0x02, 0x03);
+        let msg = parameter_change_message(0x00, 0x01, 0x02, 0x03).to_wire_bytes();
         assert_eq!(msg[0], 0xF0);
         assert_eq!(msg[1], 0x42);
         assert_eq!(msg[2], 0x30);
@@ -452,7 +456,7 @@ mod tests {
     #[test]
     fn test_current_program_dump_message_starts_correctly() {
         let program = RawProgram::zeroed();
-        let msg = current_program_dump_message(0x00, &program);
+        let msg = current_program_dump_message(0x00, &program).to_wire_bytes();
 
         assert_eq!(msg[0], 0xF0);
         assert_eq!(msg[1], 0x42);
@@ -549,7 +553,7 @@ mod tests {
         program.name = *b"ParseTst";
 
         let msg = current_program_dump_message(0x00, &program);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
 
         match parsed {
             KorgR3Message::CurrentProgramDump(p) => {
@@ -565,7 +569,7 @@ mod tests {
         program.name = *b"SlotTest";
 
         let msg = program_dump_message(0x00, 42, &program);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
 
         match parsed {
             KorgR3Message::ProgramDump {
@@ -586,7 +590,7 @@ mod tests {
         global.transpose = 12;
 
         let msg = global_dump_message(0x00, &global);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
 
         match parsed {
             KorgR3Message::GlobalDump(g) => {
@@ -600,7 +604,7 @@ mod tests {
     #[test]
     fn test_parse_parameter_change() {
         let msg = parameter_change_message(0x00, 0x100, 0x02, 0x7F);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
 
         match parsed {
             KorgR3Message::ParameterChange(raw) => {
@@ -625,8 +629,8 @@ mod tests {
             (DeviceStatusId::DataFormatError, "DataFormatError"),
         ] {
             let payload = sysex_header(0x00, func_id.into());
-            let msg = Sysex::new(payload).as_bytes();
-            let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+            let msg = sysex(payload);
+            let parsed = KorgR3Message::try_from(&msg).unwrap();
 
             let name = format!("{parsed:?}");
             assert!(
@@ -667,8 +671,8 @@ mod tests {
     #[test]
     fn test_parse_empty_formant_dump_no_panic() {
         let payload = sysex_header(0x00, DeviceStatusId::CurrentFormantMotionDump.into());
-        let msg = Sysex::new(payload).as_bytes();
-        match KorgR3Message::try_from(msg.as_slice()).unwrap() {
+        let msg = sysex(payload);
+        match KorgR3Message::try_from(&msg).unwrap() {
             KorgR3Message::CurrentFormantMotionDump { steps, .. } => assert!(steps.is_empty()),
             other => panic!("expected CurrentFormantMotionDump, got {other:?}"),
         }
@@ -693,9 +697,9 @@ mod tests {
 
         let msg = current_program_dump_message(0x05, &program);
 
-        assert_eq!(msg[1], 0x42);
-        assert_eq!(msg[2], 0x35);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        assert_eq!(msg.bytes()[0], 0x42);
+        assert_eq!(msg.bytes()[1], 0x35);
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
         match parsed {
             KorgR3Message::CurrentProgramDump(p) => {
                 assert_eq!(p.name, *b"FullTrip");
@@ -723,9 +727,9 @@ mod tests {
 
         let msg = global_dump_message(0x0A, &global);
 
-        assert_eq!(msg[1], 0x42);
-        assert_eq!(msg[2], 0x3A);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        assert_eq!(msg.bytes()[0], 0x42);
+        assert_eq!(msg.bytes()[1], 0x3A);
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
         match parsed {
             KorgR3Message::GlobalDump(g) => {
                 assert_eq!(g.master_tune, 64);
@@ -749,7 +753,7 @@ mod tests {
         steps[2].bands[15] = 0x7F;
 
         let msg = current_formant_motion_dump_message(0x00, &steps);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
 
         match parsed {
             KorgR3Message::CurrentFormantMotionDump { size, steps: out } => {
@@ -771,7 +775,7 @@ mod tests {
         steps[2].bands[15] = 0x7F;
 
         let msg = formant_motion_dump_message(0x00, 5, &steps);
-        let parsed = KorgR3Message::try_from(msg.as_slice()).unwrap();
+        let parsed = KorgR3Message::try_from(&msg).unwrap();
 
         match parsed {
             KorgR3Message::FormantMotionDump {
