@@ -15,13 +15,10 @@ Software for programming midi controllers via Sysex messages
 ## Crate Overview
 | Crate | Directory | Description |
 |-|-|-|
-| **[midilab](./midilab)** | `midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
-| **[akai_mpd226_editor](./akai_mpd226_editor)** | `akai_mpd226_editor` | An application for programming the Akai MPD226 |
-| **[arturia_minilab_mk2_editor](./arturia_minilab_mk2_editor)** | `arturia_minilab_mk2_editor` | An application for programming the Arturia MiniLab mkII |
-| **[korg_r3_editor](./korg_r3_editor)** | `korg_r3_editor` | An application for programming the Korg R3 |
-| **[nektar_impact_lx_plus_editor](./nektar_impact_lx_plus_editor)** | `nektar_impact_lx_plus_editor` | An application for programming Nektar Impact LX+ controllers |
-| **[midilab-io](./io)** | `io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for the midilab editors |
-| **[midilab-sim](./sim)** | `sim` | Hardware device simulations for the midilab editors |
+| **[midilab](./crates/midilab)** | `crates/midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
+| **[midilab-editor](./crates/midilab-editor)** | `crates/midilab-editor` | GUI applications for programming supported devices — one binary per device (`akai_mpd226_editor`, `arturia_minilab_mk2_editor`, `korg_r3_editor`, `nektar_impact_lx_plus_editor`) |
+| **[midilab-io](./crates/io)** | `crates/io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for the midilab editors |
+| **[midilab-sim](./crates/sim)** | `crates/sim` | Hardware device simulations for the midilab editors |
 
 ## Supported devices
 
