@@ -32,7 +32,7 @@ Nektar Impact LX+ series (LX25+/49+/61+/88+)
 
 ## Credits
 
-Thanks to [mpd-utils](https://github.com/mungewell/mpd-utils) for providing a starting point for understanding the Sysex payload deserialization.
+Thanks to [mpd-utils](https://github.com/mungewell/mpd-utils) for providing a starting point for understanding the Akai MPD226 Sysex payload deserialization.
 
 ## License
 
