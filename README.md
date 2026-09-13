@@ -1,5 +1,5 @@
 # MidiLab
-Software for programming midi controllers via Sysex messages
+A framework for editing and serializing MIDI controller Sysex
 
 [![Crates.io][crates-badge]][crates-url]
 [![License][license-badge]][license-url]
@@ -15,24 +15,21 @@ Software for programming midi controllers via Sysex messages
 ## Crate Overview
 | Crate | Directory | Description |
 |-|-|-|
-| **[midilab](./crates/midilab)** | `crates/midilab` | Device definitions by manufacturer and APIs for sysex message de/serialiation |
-| **[midilab-editor](./crates/midilab-editor)** | `crates/midilab-editor` | GUI applications for programming supported devices — one binary per device (`akai_mpd226_editor`, `arturia_minilab_mk2_editor`, `korg_r3_editor`, `nektar_impact_lx_plus_editor`) |
-| **[midilab-io](./crates/io)** | `crates/io` | Mediates access to I/O resources such as sending and receiving SysEx to MIDI ports for the midilab editors |
-| **[midilab-sim](./crates/sim)** | `crates/sim` | Hardware device simulations for the midilab editors |
+| **[midilab](./crates/midilab)** | `crates/midilab` | Manufacturer device definitions |
+| **[midilab-editor](./crates/midilab-editor)** | `crates/midilab-editor` | Editor applications (`akai_mpd226_editor`, `arturia_minilab_mk2_editor`, `korg_r3_editor`, `nektar_impact_lx_plus_editor`) |
+| **[midilab-io](./crates/io)** | `crates/io` | State machines for i/o management |
+| **[midilab-sim](./crates/sim)** | `crates/sim` | Hardware device simulations |
 
 ## Supported devices
 
-Akai Mpd226 (work in progress)
-
-Arturia MiniLab mkII (work in progress)
-
-Korg R3 (work in progress)
-
-Nektar Impact LX+ series (LX25+/49+/61+/88+)
+- Akai Mpd226 
+- Korg R3
+- Nektar Impact LX+ series (LX25+/49+/61+/88+)
+- Arturia MiniLab mkII
 
 ## Credits
 
-Thanks to [mpd-utils](https://github.com/mungewell/mpd-utils) for providing a starting point for understanding the Sysex payload deserialization.
+Thanks to [mpd-utils](https://github.com/mungewell/mpd-utils) for providing a starting point for understanding the Akai MPD226 Sysex payload deserialization.
 
 ## License
 
