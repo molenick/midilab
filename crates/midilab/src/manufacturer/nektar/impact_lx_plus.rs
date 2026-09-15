@@ -90,6 +90,17 @@ pub fn is_sysex_port(name: &str) -> bool {
     name.contains("Impact LX") && name.contains("MIDI1")
 }
 
+/// Returns true if `sysex` carries an Impact LX+ sysex header, i.e. it
+/// plausibly comes from an Impact LX+ device.
+///
+/// Used to filter incoming sysex when the editor is communicating through a
+/// hub and messages from other devices on the bus are interleaved with the
+/// LX+'s. A `true` result does not guarantee the message parses; the full
+/// `DeviceStatus` parse is still required.
+pub fn is_impact_lx_plus_sysex(sysex: &SysEx) -> bool {
+    sysex.bytes().starts_with(&SYSEX_COMMAND_HEADER)
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 pub enum ObjectType {
@@ -1238,5 +1249,23 @@ mod tests {
         assert!(is_sysex_port("Impact LX49+ MIDI1"));
         assert!(!is_sysex_port("Impact LX61+ MIDI2"));
         assert!(!is_sysex_port("Arturia MiniLab mkII"));
+    }
+
+    #[test]
+    fn test_is_impact_lx_plus_sysex_matches_device_messages() {
+        let fader1 = SysEx::try_from(&FACTORY_FADER1[..]).unwrap();
+        let midi_channel = SysEx::try_from(&FACTORY_MIDI_CHANNEL[..]).unwrap();
+
+        assert!(is_impact_lx_plus_sysex(&fader1));
+        assert!(is_impact_lx_plus_sysex(&midi_channel));
+    }
+
+    #[test]
+    fn test_is_impact_lx_plus_sysex_rejects_other_manufacturers() {
+        let other_manufacturer = SysEx::new(&[0x47, 0x00, 0x35, 0x10, 0x00, 0x01]).unwrap();
+        let too_short = SysEx::new(&[0x00, 0x01, 0x77]).unwrap();
+
+        assert!(!is_impact_lx_plus_sysex(&other_manufacturer));
+        assert!(!is_impact_lx_plus_sysex(&too_short));
     }
 }

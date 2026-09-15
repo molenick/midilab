@@ -56,6 +56,7 @@ impl AppState {
                 UserError::Midi(e) => vec![error(format!("MIDI error: {e}"))],
                 UserError::Parse(e) => vec![error(format!("Parse error: {e}"))],
             },
+            AppMsg::MidiStatus(msg) => vec![status(msg)],
             AppMsg::Io(effect) => self.update_io(*effect),
         }
     }
@@ -273,6 +274,23 @@ mod tests {
         assert!(matches!(
             effects[1],
             AppEffect::Device(DeviceMsg::ReadGlobal)
+        ));
+    }
+
+    #[test]
+    fn test_midi_status_produces_status_effect() {
+        let mut state = AppState::new(AppConfig::default());
+
+        let effects = state.update(AppMsg::MidiStatus("no response from device".to_string()));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            &effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Status,
+                msg,
+                ..
+            })) if msg.contains("no response")
         ));
     }
 }
