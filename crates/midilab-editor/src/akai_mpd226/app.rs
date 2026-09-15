@@ -135,13 +135,6 @@ impl AppState {
                         })),
                     ]
                 }
-                DeviceStatus::ReceivedPresetAck(ack) => {
-                    vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                        msg: format!("Sent to device preset slot {}", ack.slot),
-                        kind: UserMsgKind::Status,
-                        received_at: Instant::now(),
-                    }))]
-                }
                 DeviceStatus::GlobalData(global) => {
                     self.global = *global.clone();
 
@@ -154,23 +147,8 @@ impl AppState {
                         })),
                     ]
                 }
-                DeviceStatus::GlobalParamAck(ack) => {
-                    if ack.status == 0 {
-                        vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                            msg: "Wrote global settings to device".to_string(),
-                            kind: UserMsgKind::Status,
-                            received_at: Instant::now(),
-                        }))]
-                    } else {
-                        let addr = ack.addr as u8;
-                        let status = ack.status;
-                        vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                            msg: format!("Global param {addr:#04x} write failed: status {status}"),
-                            kind: UserMsgKind::Error,
-                            received_at: Instant::now(),
-                        }))]
-                    }
-                }
+                // Writes are confirmed when sent; acks are not shown.
+                DeviceStatus::ReceivedPresetAck(_) | DeviceStatus::GlobalParamAck(_) => vec![],
             },
             AppMsg::Io(io_effect) => match *io_effect {
                 IoEffect::PresetSaveResult(result) => match result {
@@ -250,6 +228,11 @@ impl AppState {
                     }))],
                 },
             },
+            AppMsg::MidiStatus(msg) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                msg,
+                kind: UserMsgKind::Status,
+                received_at: Instant::now(),
+            }))],
             AppMsg::UserError(e) => match e {
                 UserError::Midi(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                     msg: e.to_string(),
@@ -343,23 +326,16 @@ mod tests {
     }
 
     #[test]
-    fn device_received_preset_ack() {
+    fn device_received_preset_ack_is_silent() {
         let mut app = AppState::new(AppConfig::default());
-        let original_slot = app.preset.settings.slot;
 
+        // Ack confirmation is reported when the write is sent, so a
+        // spontaneous ack produces no user-visible effect.
         let effects = app.update(AppMsg::Device(DeviceStatus::ReceivedPresetAck(PresetAck {
             slot: PresetSlot::Slot7,
         })));
 
-        assert_eq!(app.preset.settings.slot, original_slot);
-        let effect = effects.into_iter().next().unwrap();
-        assert!(matches!(
-            effect,
-            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                kind: UserMsgKind::Status,
-                ..
-            }))
-        ));
+        assert!(effects.is_empty());
     }
 
     #[test]
@@ -367,9 +343,9 @@ mod tests {
         let mut app = AppState::new(AppConfig::default());
         let original_slot = app.preset.settings.slot;
 
-        let effects = app.update(AppMsg::UserError(UserError::Midi(
-            MidiError::ResponseTimeout,
-        )));
+        let effects = app.update(AppMsg::UserError(UserError::Midi(MidiError::Send(
+            "connection died".to_string(),
+        ))));
 
         assert_eq!(app.preset.settings.slot, original_slot);
         let effect = effects.into_iter().next().unwrap();
@@ -379,6 +355,23 @@ mod tests {
                 kind: UserMsgKind::Error,
                 ..
             }))
+        ));
+    }
+
+    #[test]
+    fn midi_status() {
+        let mut app = AppState::new(AppConfig::default());
+
+        let effects = app.update(AppMsg::MidiStatus("no response from device".to_string()));
+
+        let effect = effects.into_iter().next().unwrap();
+        assert!(matches!(
+            effect,
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Status,
+                msg: ref m,
+                ..
+            })) if m.contains("no response")
         ));
     }
 
@@ -460,47 +453,19 @@ mod tests {
     }
 
     #[test]
-    fn device_global_param_ack_success() {
+    fn device_global_param_ack_success_is_silent() {
         let mut app = AppState::new(AppConfig::default());
 
-        let mut effects = app.update(AppMsg::Device(DeviceStatus::GlobalParamAck(
+        // Ack success duplicates the send-time confirmation, so it is not
+        // shown again.
+        let effects = app.update(AppMsg::Device(DeviceStatus::GlobalParamAck(
             GlobalParamAck {
                 addr: GlobalParamCmdId::try_from(0x02_u8).unwrap(),
                 status: 0,
             },
         )));
 
-        assert_eq!(effects.len(), 1);
-        let effect = effects.pop().unwrap();
-
-        assert!(matches!(
-            effect,
-            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                kind: UserMsgKind::Status,
-                ..
-            }))
-        ));
-    }
-
-    #[test]
-    fn device_global_param_ack_failure() {
-        let mut app = AppState::new(AppConfig::default());
-
-        let effects = app.update(AppMsg::Device(DeviceStatus::GlobalParamAck(
-            GlobalParamAck {
-                addr: GlobalParamCmdId::try_from(0x02_u8).unwrap(),
-                status: 1,
-            },
-        )));
-
-        let effect = effects.into_iter().next().unwrap();
-        assert!(matches!(
-            effect,
-            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                kind: UserMsgKind::Error,
-                ..
-            }))
-        ));
+        assert!(effects.is_empty());
     }
 
     #[test]

@@ -55,10 +55,6 @@ pub mod error;
 pub mod raw;
 pub mod value_kind;
 
-/// Sysex I/O port of the LX61+ model. Other LX+ models substitute their key
-/// count. The `MIDI2` port is the DAW-integration port and carries no sysex.
-pub const PORT_NAME: &str = "Impact LX61+ MIDI1";
-
 pub const TOTAL_FADERS: usize = 9;
 pub const TOTAL_POTS: usize = 8;
 pub const TOTAL_FADER_BUTTONS: usize = 9;
@@ -84,10 +80,15 @@ pub const SYSEX_COMMAND_HEADER: [u8; 5] = [
     0x01,
 ];
 
-/// Returns whether a CoreMIDI port name is the sysex port of an Impact LX+
-/// device (any model), as opposed to its DAW-integration `MIDI2` port.
-pub fn is_sysex_port(name: &str) -> bool {
-    name.contains("Impact LX") && name.contains("MIDI1")
+/// Returns true if `sysex` carries an Impact LX+ sysex header, i.e. it
+/// plausibly comes from an Impact LX+ device.
+///
+/// Used to filter incoming sysex when the editor is communicating through a
+/// hub and messages from other devices on the bus are interleaved with the
+/// LX+'s. A `true` result does not guarantee the message parses; the full
+/// `DeviceStatus` parse is still required.
+pub fn is_impact_lx_plus_sysex(sysex: &SysEx) -> bool {
+    sysex.bytes().starts_with(&SYSEX_COMMAND_HEADER)
 }
 
 #[repr(u8)]
@@ -1233,10 +1234,20 @@ mod tests {
     }
 
     #[test]
-    fn test_is_sysex_port() {
-        assert!(is_sysex_port("Impact LX61+ MIDI1"));
-        assert!(is_sysex_port("Impact LX49+ MIDI1"));
-        assert!(!is_sysex_port("Impact LX61+ MIDI2"));
-        assert!(!is_sysex_port("Arturia MiniLab mkII"));
+    fn test_is_impact_lx_plus_sysex_matches_device_messages() {
+        let fader1 = SysEx::try_from(&FACTORY_FADER1[..]).unwrap();
+        let midi_channel = SysEx::try_from(&FACTORY_MIDI_CHANNEL[..]).unwrap();
+
+        assert!(is_impact_lx_plus_sysex(&fader1));
+        assert!(is_impact_lx_plus_sysex(&midi_channel));
+    }
+
+    #[test]
+    fn test_is_impact_lx_plus_sysex_rejects_other_manufacturers() {
+        let other_manufacturer = SysEx::new(&[0x47, 0x00, 0x35, 0x10, 0x00, 0x01]).unwrap();
+        let too_short = SysEx::new(&[0x00, 0x01, 0x77]).unwrap();
+
+        assert!(!is_impact_lx_plus_sysex(&other_manufacturer));
+        assert!(!is_impact_lx_plus_sysex(&too_short));
     }
 }

@@ -37,7 +37,6 @@ pub mod error;
 pub mod raw;
 pub mod repository;
 
-pub const PORT_NAME: &str = "Arturia MiniLab mkII";
 pub const TOTAL_KNOBS: usize = 16;
 pub const TOTAL_SHIFT_KNOBS: usize = 2;
 pub const TOTAL_PADS: usize = 16;
@@ -140,6 +139,35 @@ pub fn identity_reply_message(firmware: [u8; 4]) -> SysEx {
 
 pub fn set_pad_live_color_message(pad: ControlId, color: PadColor) -> SysEx {
     write_param_message(ParamId::PadColorLive, pad, color.into())
+}
+
+/// Parses `reply` and returns it only if it answers `request`, a read built
+/// by [`read_param_message`] or [`read_global_message`]: the value of the
+/// same parameter (and control).
+///
+/// Everything else on the bus (other devices, other parameters, echoed
+/// requests, unparseable sysex) is `None`.
+pub fn reply_to(request: &SysEx, reply: SysEx) -> Option<DeviceStatus> {
+    let body = request.bytes().strip_prefix(&SYSEX_COMMAND_HEADER[..])?;
+    let [op, _, param, control] = body else {
+        return None;
+    };
+    if *op != u8::from(OpCode::ReadParam) {
+        return None;
+    }
+
+    let status = DeviceStatus::try_from(reply).ok()?;
+    let answers = match status {
+        DeviceStatus::ParamValue(value) => {
+            u8::from(value.param) == *param && u8::from(value.control) == *control
+        }
+        DeviceStatus::GlobalValue(value) => {
+            *param == GLOBAL_PARAM_MARKER && u8::from(value.param) == *control
+        }
+        DeviceStatus::IdentityReply(_) => false,
+    };
+
+    answers.then_some(status)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -921,5 +949,61 @@ mod tests {
         assert_eq!(params[0], GlobalParamId::KeyboardChannel);
         assert_eq!(params[5], GlobalParamId::PadOffBacklight);
         assert_eq!(raw.as_bytes(), [0, 1, 2, 2, 0x7F, 0]);
+    }
+
+    #[test]
+    fn test_reply_to_matches_param_and_control() {
+        let request = read_param_message(ParamId::Mode, ControlId::Knob1);
+
+        assert!(matches!(
+            reply_to(
+                &request,
+                write_param_message(ParamId::Mode, ControlId::Knob1, 1)
+            ),
+            Some(DeviceStatus::ParamValue(_))
+        ));
+        assert!(
+            reply_to(
+                &request,
+                write_param_message(ParamId::Mode, ControlId::Knob2, 1)
+            )
+            .is_none()
+        );
+        assert!(
+            reply_to(
+                &request,
+                write_param_message(ParamId::Channel, ControlId::Knob1, 1)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_reply_to_matches_global_param() {
+        let request = read_global_message(GlobalParamId::KeyboardChannel);
+
+        assert!(matches!(
+            reply_to(
+                &request,
+                write_global_message(GlobalParamId::KeyboardChannel, 3)
+            ),
+            Some(DeviceStatus::GlobalValue(_))
+        ));
+        assert!(
+            reply_to(
+                &request,
+                write_global_message(GlobalParamId::PadVelocityCurve, 3)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_reply_to_skips_echo_and_noise() {
+        let request = read_param_message(ParamId::Mode, ControlId::Knob1);
+        let identity = identity_reply_message([0x02, 0x00, 0x04, 0x02]);
+
+        assert!(reply_to(&request, request.clone()).is_none());
+        assert!(reply_to(&request, identity).is_none());
     }
 }

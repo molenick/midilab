@@ -16,6 +16,11 @@ pub enum AppMsg {
     Ui(UiEffect),
     UserError(UserError),
     Io(Box<IoEffect>),
+    /// Informational notice about the MIDI link (e.g. no output ports, or
+    /// the device did not answer), or a
+    /// confirmation that a fire-and-forget write was delivered to the
+    /// outputs. Statuses, not errors: degraded states are reported here.
+    MidiStatus(String),
 }
 
 pub enum DeviceEvent {

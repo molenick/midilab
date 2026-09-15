@@ -1,5 +1,6 @@
-use midilab::manufacturer::arturia::minilab_mk2::PORT_NAME;
 use midilab_sim::manufacturer::arturia::arturia_minilab_mk2::SimRunner;
+
+const PORT_NAME: &str = "Arturia MiniLab mkII";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

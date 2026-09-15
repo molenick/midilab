@@ -2,12 +2,10 @@ use std::time::Duration;
 
 use eframe::egui::ViewportBuilder;
 use midi_io::Client;
-use midi_io::DestinationConnection;
 use midi_io::SysEx;
-use midilab::error::MidiError;
 use midilab::manufacturer::nektar::impact_lx_plus::DeviceStatus;
 use midilab::manufacturer::nektar::impact_lx_plus::DumpAssembler;
-use midilab::manufacturer::nektar::impact_lx_plus::is_sysex_port;
+use midilab::manufacturer::nektar::impact_lx_plus::is_impact_lx_plus_sysex;
 use midilab_editor::nektar_impact_lx_plus::ImpactLxPlusEditor;
 use midilab_editor::nektar_impact_lx_plus::app::AppState;
 use midilab_editor::nektar_impact_lx_plus::config::AppConfig;
@@ -22,6 +20,7 @@ use midilab_editor::nektar_impact_lx_plus::message::DeviceMsg;
 use midilab_editor::nektar_impact_lx_plus::message::IoEffect;
 use midilab_editor::nektar_impact_lx_plus::message::IoMsg;
 use midilab_editor::nektar_impact_lx_plus::message::UserError;
+use midilab_io::midi::Listener;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -64,30 +63,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .expect("failed to init MIDI client");
 
-        let mut output: Option<DestinationConnection> = connect_output(&client).await.ok();
-        let mut input_connected = connect_input(&client, midi_app_tx.clone()).await.is_ok();
+        let mut listener = listen_for_dumps(&client, &midi_app_tx).await;
 
         while let Some(msg) = midi_rx.recv().await {
-            if output.is_none() {
-                match connect_output(&client).await {
-                    Ok(o) => output = Some(o),
-                    Err(e) => {
-                        let _ = midi_app_tx.send(AppMsg::UserError(UserError::Midi(
-                            MidiError::OutputConnection(e),
-                        )));
-                        continue;
-                    }
-                }
+            if matches!(msg, DeviceMsg::Reconnect) {
+                listener.close().await;
+                listener = listen_for_dumps(&client, &midi_app_tx).await;
             }
-            if !input_connected {
-                input_connected = connect_input(&client, midi_app_tx.clone()).await.is_ok();
-            }
-            let out = output.as_ref().unwrap();
 
-            let msg = match handle_midi_msg(msg, out).await {
-                Ok(event) => AppMsg::Device(event),
-                Err(e) => AppMsg::UserError(e),
-            };
+            let msg = handle_midi_msg(msg, &client, &listener).await;
             let _ = midi_app_tx.send(msg);
         }
     });
@@ -141,53 +125,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn connect_output(client: &Client) -> Result<DestinationConnection, String> {
-    let destinations = client
-        .destinations()
-        .await
-        .map_err(|e| format!("Failed to list MIDI outputs: {e}"))?;
-    let port = destinations
-        .into_iter()
-        .find(|p| is_sysex_port(p.name()))
-        .ok_or_else(|| {
-            "Impact LX+ not found (no 'Impact LX... MIDI1' output) - is it connected?".to_string()
-        })?;
-    client
-        .connect_destination(&port)
-        .await
-        .map_err(|e| format!("Failed to connect to MIDI output: {e}"))
-}
-
-/// Connects the sysex input and spawns a listener that assembles
-/// panel-triggered memory dumps. The LX+ has no dump-request sysex, so every
-/// incoming message is folded into a [`DumpAssembler`]; when all 182 messages
-/// have arrived, the assembled dump is delivered to the app.
-async fn connect_input(client: &Client, app_tx: UnboundedSender<AppMsg>) -> Result<(), String> {
-    let sources = client
-        .sources()
-        .await
-        .map_err(|e| format!("Failed to list MIDI inputs: {e}"))?;
-    let port = sources
-        .into_iter()
-        .find(|p| is_sysex_port(p.name()))
-        .ok_or_else(|| {
-            "Impact LX+ not found (no 'Impact LX... MIDI1' input) - is it connected?".to_string()
-        })?;
-    let conn = client
-        .connect_source(&port)
-        .await
-        .map_err(|e| format!("Failed to connect to MIDI input: {e}"))?;
-
-    tokio::spawn(async move {
-        let mut sysex = conn.into_sysex();
+/// Listens on every source for panel-triggered memory dumps.
+///
+/// The LX+ has no dump-request sysex, so every incoming message is folded
+/// into a [`DumpAssembler`] per port; when all 182 messages have arrived, the
+/// assembled dump is delivered to the app. Sysex from other devices on the
+/// bus is skipped.
+async fn listen_for_dumps(client: &Client, app_tx: &UnboundedSender<AppMsg>) -> Listener {
+    Listener::open(client, || {
+        let app_tx = app_tx.clone();
         let mut assembler = DumpAssembler::default();
-        while let Some(timed) = sysex.recv().await {
-            let status = match DeviceStatus::try_from(timed.payload) {
-                Ok(status) => status,
-                Err(e) => {
-                    let _ = app_tx.send(AppMsg::UserError(UserError::Parse(e.to_string())));
-                    continue;
-                }
+        move |payload: SysEx| {
+            if !is_impact_lx_plus_sysex(&payload) {
+                return;
+            }
+            let Ok(status) = DeviceStatus::try_from(payload) else {
+                return;
             };
 
             if assembler.is_empty() {
@@ -196,7 +149,7 @@ async fn connect_input(client: &Client, app_tx: UnboundedSender<AppMsg>) -> Resu
             assembler.apply(&status);
 
             if assembler.is_complete() {
-                match assembler.try_into_dump() {
+                match std::mem::take(&mut assembler).try_into_dump() {
                     Ok(dump) => {
                         let _ =
                             app_tx.send(AppMsg::Device(DeviceEvent::DumpReceived(Box::new(dump))));
@@ -205,54 +158,41 @@ async fn connect_input(client: &Client, app_tx: UnboundedSender<AppMsg>) -> Resu
                         let _ = app_tx.send(AppMsg::UserError(UserError::Parse(e.to_string())));
                     }
                 }
-                assembler = DumpAssembler::default();
             }
         }
-    });
-
-    Ok(())
+    })
+    .await
 }
 
-async fn send(output: &DestinationConnection, sysex: &SysEx) -> Result<(), MidiError> {
-    output
-        .send_sysex(sysex)
-        .await
-        .map_err(|e| MidiError::OutputConnection(e.to_string()))
-}
-
-async fn send_all(output: &DestinationConnection, messages: Vec<SysEx>) -> Result<(), UserError> {
-    for message in messages {
-        send(output, &message).await.map_err(UserError::Midi)?;
-        tokio::time::sleep(WRITE_PACING).await;
-    }
-    Ok(())
-}
-
-async fn handle_midi_msg(
-    msg: DeviceMsg,
-    output: &DestinationConnection,
-) -> Result<DeviceEvent, UserError> {
-    match msg {
-        DeviceMsg::WriteDump(dump) => {
-            send_all(output, dump.to_messages()).await?;
-            Ok(DeviceEvent::DumpWritten)
-        }
+/// Handles a device message, sending writes over a [`Link`] opened for it
+/// and returning the app message to report.
+///
+/// Writes report success when delivered to the outputs.
+async fn handle_midi_msg(msg: DeviceMsg, client: &Client, listener: &Listener) -> AppMsg {
+    let (messages, written) = match msg {
+        DeviceMsg::WriteDump(dump) => (dump.to_messages(), DeviceEvent::DumpWritten),
         DeviceMsg::WritePreset { id, preset } => {
-            send_all(output, preset.send_messages(id)).await?;
-            Ok(DeviceEvent::PresetWritten(id))
+            (preset.send_messages(id), DeviceEvent::PresetWritten(id))
         }
         DeviceMsg::WritePadMap { id, map } => {
-            send_all(output, map.send_messages(id)).await?;
-            Ok(DeviceEvent::PadMapWritten(id))
+            (map.send_messages(id), DeviceEvent::PadMapWritten(id))
         }
         DeviceMsg::WriteGlobalSettings(settings) => {
-            send_all(output, settings.send_messages()).await?;
-            Ok(DeviceEvent::GlobalSettingsWritten)
+            (settings.send_messages(), DeviceEvent::GlobalSettingsWritten)
         }
         DeviceMsg::WriteGlobalControls(controls) => {
-            send_all(output, controls.send_messages()).await?;
-            Ok(DeviceEvent::GlobalControlsWritten)
+            (controls.send_messages(), DeviceEvent::GlobalControlsWritten)
         }
-        DeviceMsg::Reconnect => Ok(DeviceEvent::Reconnected),
+        DeviceMsg::Reconnect => return AppMsg::Device(DeviceEvent::Reconnected),
+    };
+
+    let link = listener.link(client).await;
+    if link.output_count() == 0 {
+        return AppMsg::MidiStatus("no MIDI output ports - not sent".to_string());
+    }
+
+    match link.send_paced(messages, WRITE_PACING).await {
+        Ok(()) => AppMsg::Device(written),
+        Err(e) => AppMsg::UserError(UserError::Midi(e)),
     }
 }

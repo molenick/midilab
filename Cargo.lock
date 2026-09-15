@@ -2110,6 +2110,7 @@ dependencies = [
 name = "midilab-io"
 version = "0.2.6"
 dependencies = [
+ "bytemuck",
  "midi-io",
  "midilab",
  "tokio",

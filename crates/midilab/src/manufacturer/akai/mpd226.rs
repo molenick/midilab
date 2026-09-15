@@ -52,7 +52,6 @@ pub mod raw;
 pub mod repository;
 
 pub const DEVICE_ID: u8 = 0x35;
-pub const PORT_NAME: &str = "MPD226 Remote";
 const TOTAL_PADS: usize = 64;
 
 pub(crate) const PRESET_FOOTER_MAGIC_LEN: usize = 12;
@@ -133,6 +132,21 @@ pub fn write_global_param_to_device(addr: u8, value: u8) -> SysEx {
         &header,
         [GLOBAL_VALUE_MAGIC[0], GLOBAL_VALUE_MAGIC[1], addr, value],
     )
+}
+
+/// Parses `reply` and returns it only if it answers `request`, a dump
+/// request built by [`dump_preset_from_device`] or [`dump_global_from_device`].
+///
+/// Everything else on the bus (other devices, acks, echoed requests,
+/// unparseable sysex) is `None`.
+pub fn reply_to(request: &SysEx, reply: SysEx) -> Option<DeviceStatus> {
+    let cmd = DeviceCommandId::try_from(*request.bytes().get(3)?).ok()?;
+    let status = DeviceStatus::try_from(reply).ok()?;
+    match (cmd, &status) {
+        (DeviceCommandId::DumpPreset, DeviceStatus::PresetData(_))
+        | (DeviceCommandId::DumpGlobal, DeviceStatus::GlobalData(_)) => Some(status),
+        _ => None,
+    }
 }
 
 pub struct DeviceMessagePayload<C> {
@@ -1076,5 +1090,27 @@ mod tests {
             payload.header.message_length as usize,
             std::mem::size_of::<RawPreset>()
         );
+    }
+
+    #[test]
+    fn test_reply_to_matches_dump_kind() {
+        let preset_request = dump_preset_from_device(0x00);
+        let global_request = dump_global_from_device();
+        let preset_reply = write_preset_to_device(&RawPreset::from(&Preset::default()));
+
+        assert!(matches!(
+            reply_to(&preset_request, preset_reply.clone()),
+            Some(DeviceStatus::PresetData(_))
+        ));
+        assert!(reply_to(&global_request, preset_reply).is_none());
+    }
+
+    #[test]
+    fn test_reply_to_skips_echo_and_noise() {
+        let request = dump_preset_from_device(0x00);
+        let noise = SysEx::new(&[0x42, 0x30, 0x7D, 0x23]).unwrap();
+
+        assert!(reply_to(&request, request.clone()).is_none());
+        assert!(reply_to(&request, noise).is_none());
     }
 }

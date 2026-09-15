@@ -5,21 +5,19 @@
 //! prints instructions and waits for the dump, so run them interactively:
 //!
 //! ```sh
-//! cargo test -p midilab --test hil_nektar_impact_lx_plus -- --ignored --nocapture --test-threads=1
+//! cargo test -p midilab-io --test hil_nektar_impact_lx_plus -- --ignored --nocapture --test-threads=1
 //! ```
 
 use std::time::Duration;
 
 use midi_io::Client;
-use midi_io::DestinationConnection;
 use midi_io::SysEx;
 use midilab::manufacturer::nektar::impact_lx_plus::DUMP_MESSAGE_COUNT;
 use midilab::manufacturer::nektar::impact_lx_plus::DeviceStatus;
 use midilab::manufacturer::nektar::impact_lx_plus::Dump;
 use midilab::manufacturer::nektar::impact_lx_plus::DumpAssembler;
-use midilab::manufacturer::nektar::impact_lx_plus::is_sysex_port;
-use tokio::sync::mpsc;
-use tokio::time::timeout;
+use midilab::manufacturer::nektar::impact_lx_plus::is_impact_lx_plus_sysex;
+use midilab_io::midi::Link;
 
 /// Long enough for the user to walk to the device and trigger the dump.
 const DUMP_START_TIMEOUT: Duration = Duration::from_secs(120);
@@ -27,72 +25,37 @@ const DUMP_START_TIMEOUT: Duration = Duration::from_secs(120);
 const DUMP_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 const WRITE_PACING: Duration = Duration::from_millis(2);
 
-async fn midi_setup() -> (DestinationConnection, mpsc::UnboundedReceiver<SysEx>) {
-    let client = Client::new("impact_lx_plus").await.unwrap();
-
-    let destinations = client.destinations().await.unwrap();
-    let out_port = destinations
-        .iter()
-        .find(|p| is_sysex_port(p.name()))
-        .unwrap_or_else(|| {
-            let names: Vec<&str> = destinations.iter().map(|p| p.name()).collect();
-            panic!("no Impact LX+ sysex destination found, available: {names:?}");
-        });
-    println!("matched destination port: {:?}", out_port.name());
-    let conn_out = client.connect_destination(out_port).await.unwrap();
-
-    let sources = client.sources().await.unwrap();
-    let in_port = sources
-        .iter()
-        .find(|p| is_sysex_port(p.name()))
-        .unwrap_or_else(|| {
-            let names: Vec<&str> = sources.iter().map(|p| p.name()).collect();
-            panic!("no Impact LX+ sysex source found, available: {names:?}");
-        });
-    println!("matched source port: {:?}", in_port.name());
-    let conn_in = client.connect_source(in_port).await.unwrap();
-
-    let (tx, mut rx) = mpsc::unbounded_channel::<SysEx>();
-    tokio::spawn(async move {
-        let mut sysex = conn_in.into_sysex();
-        while let Some(timed) = sysex.recv().await {
-            let _ = tx.send(timed.payload);
-        }
-    });
-
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    while rx.try_recv().is_ok() {}
-
-    (conn_out, rx)
+async fn midi_setup() -> Client {
+    Client::new("impact_lx_plus").await.unwrap()
 }
 
-async fn send(conn: &DestinationConnection, sysex: &SysEx) {
-    conn.send_sysex(sysex).await.unwrap();
+async fn next_lx_plus_sysex(link: &mut Link, wait: Duration) -> Option<SysEx> {
+    link.recv(wait, |s| is_impact_lx_plus_sysex(&s).then_some(s))
+        .await
 }
 
-async fn capture_dump(rx: &mut mpsc::UnboundedReceiver<SysEx>) -> Vec<SysEx> {
+async fn capture_dump(client: &Client) -> Vec<SysEx> {
+    let mut link = Link::open(client).await;
     println!();
     println!(">>> On the keyboard: press [Setup], then the key labeled *Memory Dump* (G2).");
     println!(">>> The display reads SYS while the dump is sent.");
     println!();
 
     let mut messages = Vec::with_capacity(DUMP_MESSAGE_COUNT);
-    let first = timeout(DUMP_START_TIMEOUT, rx.recv())
+    let first = next_lx_plus_sysex(&mut link, DUMP_START_TIMEOUT)
         .await
-        .expect("timed out waiting for the memory dump to start")
-        .unwrap();
+        .expect("timed out waiting for the memory dump to start");
     messages.push(first);
 
     while messages.len() < DUMP_MESSAGE_COUNT {
-        let message = timeout(DUMP_MESSAGE_TIMEOUT, rx.recv())
+        let message = next_lx_plus_sysex(&mut link, DUMP_MESSAGE_TIMEOUT)
             .await
-            .unwrap_or_else(|_| {
+            .unwrap_or_else(|| {
                 panic!(
                     "dump stalled after {} of {DUMP_MESSAGE_COUNT} messages",
                     messages.len()
                 )
-            })
-            .unwrap();
+            });
         messages.push(message);
     }
     println!("captured {} messages", messages.len());
@@ -115,9 +78,9 @@ fn assemble(messages: &[SysEx]) -> Dump {
 #[ignore = "requires connected Impact LX+ and a panel-triggered memory dump"]
 #[tokio::test]
 async fn dump_model_round_trip() {
-    let (_conn, mut rx) = midi_setup().await;
+    let client = midi_setup().await;
 
-    let captured = capture_dump(&mut rx).await;
+    let captured = capture_dump(&client).await;
 
     for (index, message) in captured.iter().enumerate() {
         let status = DeviceStatus::try_from(message.clone()).unwrap();
@@ -138,23 +101,23 @@ async fn dump_model_round_trip() {
 #[ignore = "requires connected Impact LX+ and two panel-triggered memory dumps"]
 #[tokio::test]
 async fn dump_restore_round_trip() {
-    let (conn, mut rx) = midi_setup().await;
+    let client = midi_setup().await;
 
     println!("first capture:");
-    let original = capture_dump(&mut rx).await;
+    let original = capture_dump(&client).await;
     let dump = assemble(&original);
 
     println!(
         "replaying {} messages back to the device...",
         original.len()
     );
-    for message in dump.to_messages() {
-        send(&conn, &message).await;
-        tokio::time::sleep(WRITE_PACING).await;
-    }
-    while rx.try_recv().is_ok() {}
+    Link::open(&client)
+        .await
+        .send_paced(dump.to_messages(), WRITE_PACING)
+        .await
+        .unwrap();
 
     println!("second capture (verifies the replay):");
-    let restored = capture_dump(&mut rx).await;
+    let restored = capture_dump(&client).await;
     assert_eq!(original, restored);
 }

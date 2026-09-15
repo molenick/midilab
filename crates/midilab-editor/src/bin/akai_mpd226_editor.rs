@@ -2,15 +2,12 @@ use std::time::Duration;
 
 use eframe::egui::ViewportBuilder;
 use midi_io::Client;
-use midi_io::DestinationConnection;
 use midi_io::SysEx;
-use midilab::error::MidiError;
-use midilab::manufacturer::akai::mpd226::DeviceStatus;
-use midilab::manufacturer::akai::mpd226::PORT_NAME;
 use midilab::manufacturer::akai::mpd226::dump_global_from_device;
 use midilab::manufacturer::akai::mpd226::dump_preset_from_device;
 use midilab::manufacturer::akai::mpd226::raw::RawGlobal;
 use midilab::manufacturer::akai::mpd226::raw::RawPreset;
+use midilab::manufacturer::akai::mpd226::reply_to;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab_editor::akai_mpd226::APP_DIMENSIONS;
 use midilab_editor::akai_mpd226::AkaiMpd226Editor;
@@ -31,11 +28,15 @@ use midilab_editor::akai_mpd226::message::IoMsg;
 use midilab_editor::akai_mpd226::message::UiEffect;
 use midilab_editor::akai_mpd226::message::UiMsg;
 use midilab_editor::akai_mpd226::message::UserError;
-use midilab_io::midi::find_input_port;
-use midilab_io::midi::find_output_port;
-use midilab_io::midi::recv_device;
-use tokio::sync::mpsc::UnboundedSender;
+use midilab_io::midi::Link;
 use tokio::sync::mpsc::unbounded_channel;
+
+/// Pace between messages of a multi-message write. Devices consume sysex
+/// serially; small gaps keep a burst from outrunning the device's parser.
+const MPD226_WRITE_PACING: Duration = Duration::from_millis(2);
+
+/// How long to wait for a response to a request (dump) after sending it.
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -89,18 +90,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("failed to init MIDI client");
 
         while let Some(msg) = midi_rx.recv().await {
-            let result: Result<SysEx, MidiError> = handle_midi_msg(&client, msg).await;
-
-            let msg = match result {
-                Ok(sysex) => match DeviceStatus::try_from(sysex) {
-                    Ok(msg) => AppMsg::Device(msg),
-                    Err(e) => AppMsg::UserError(UserError::DeviceStatusParse(e)),
-                },
-
-                Err(e) => AppMsg::UserError(UserError::Midi(e)),
-            };
-
-            midi_app_tx.send(msg).unwrap();
+            let msg = handle_midi_msg(msg, &client).await;
+            let _ = midi_app_tx.send(msg);
         }
     });
 
@@ -155,92 +146,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn connect_midi_output(client: &Client) -> Result<DestinationConnection, String> {
-    let port = find_output_port(client, PORT_NAME)
-        .await
-        .ok_or_else(|| "MPD226 not found - make sure device is connected".to_string())?;
-    client
-        .connect_destination(&port)
-        .await
-        .map_err(|e| format!("Failed to connect to MIDI output: {}", e))
+/// Sends a dump request and waits for the reply that answers it.
+///
+/// Silence is a status, not an error.
+async fn request_device_data(link: &mut Link, request: SysEx) -> AppMsg {
+    if let Err(e) = link.send(&request).await {
+        return AppMsg::UserError(UserError::Midi(e));
+    }
+
+    match link.recv(RESPONSE_TIMEOUT, |s| reply_to(&request, s)).await {
+        Some(status) => AppMsg::Device(status),
+        None => AppMsg::MidiStatus("no response from device".to_string()),
+    }
 }
 
-async fn connect_midi_input(client: &Client, tx: UnboundedSender<SysEx>) -> Result<(), String> {
-    let port = find_input_port(client, PORT_NAME)
-        .await
-        .ok_or_else(|| "MPD226 not found - make sure device is connected".to_string())?;
-    let conn = client
-        .connect_source(&port)
-        .await
-        .map_err(|e| format!("Failed to connect to MIDI input: {}", e))?;
-
-    tokio::spawn(async move {
-        let mut sysex = conn.into_sysex();
-        while let Some(timed) = sysex.recv().await {
-            let _ = tx.send(timed.payload);
-        }
-    });
-
-    Ok(())
-}
-
-async fn send(output: &DestinationConnection, sysex: &SysEx) -> Result<(), ()> {
-    output.send_sysex(sysex).await.map_err(|_| ())
-}
-
-async fn handle_midi_msg(client: &Client, msg: DeviceMsg) -> Result<SysEx, MidiError> {
-    let output = connect_midi_output(client)
-        .await
-        .map_err(MidiError::OutputConnection)?;
-
-    let (tx, mut rx) = unbounded_channel::<SysEx>();
-    connect_midi_input(client, tx)
-        .await
-        .map_err(MidiError::InputConnection)?;
+/// Handles a device message over a [`Link`] opened for it, returning the
+/// app message to report.
+///
+/// Writes report success when delivered to the outputs, and dumps report a
+/// status when the device does not answer.
+async fn handle_midi_msg(msg: DeviceMsg, client: &Client) -> AppMsg {
+    let mut link = Link::open(client).await;
+    if link.output_count() == 0 {
+        return AppMsg::MidiStatus("no MIDI output ports - not sent".to_string());
+    }
 
     match msg {
         DeviceMsg::DumpPreset(slot) => {
-            let request = dump_preset_from_device(slot as u8);
-            send(&output, &request)
-                .await
-                .map_err(|_| MidiError::DumpPreset)?;
-
-            Ok(recv_device(&mut rx, Duration::from_secs(2)).await?)
+            request_device_data(&mut link, dump_preset_from_device(slot as u8)).await
         }
+        DeviceMsg::DumpGlobal => request_device_data(&mut link, dump_global_from_device()).await,
         DeviceMsg::WritePreset(preset) => {
+            let slot = preset.settings.slot;
             let raw_preset = RawPreset::from(preset.as_ref());
-            send(&output, &write_preset_to_device(&raw_preset))
-                .await
-                .map_err(|_| MidiError::WritePreset)?;
-
-            Ok(recv_device(&mut rx, Duration::from_secs(2)).await?)
-        }
-        DeviceMsg::DumpGlobal => {
-            let request = dump_global_from_device();
-            send(&output, &request)
-                .await
-                .map_err(|_| MidiError::DumpPreset)?;
-
-            Ok(recv_device(&mut rx, Duration::from_secs(2)).await?)
+            match link.send(&write_preset_to_device(&raw_preset)).await {
+                Ok(()) => AppMsg::MidiStatus(format!("Sent preset to slot {slot}")),
+                Err(e) => AppMsg::UserError(UserError::Midi(e)),
+            }
         }
         DeviceMsg::WriteGlobal(global) => {
             let raw_global = RawGlobal::from(global.as_ref());
             let messages = raw_global.global_send_messages();
-
-            let mut ack = None;
-
-            for msg in messages {
-                send(&output, &msg)
-                    .await
-                    .map_err(|_| MidiError::WritePreset)?;
-                ack = Some(
-                    recv_device(&mut rx, Duration::from_millis(500))
-                        .await
-                        .unwrap(),
-                );
+            match link.send_paced(messages, MPD226_WRITE_PACING).await {
+                Ok(()) => AppMsg::MidiStatus("Sent global settings".to_string()),
+                Err(e) => AppMsg::UserError(UserError::Midi(e)),
             }
-
-            Ok(ack.expect("global_send_messages is never empty"))
         }
     }
 }

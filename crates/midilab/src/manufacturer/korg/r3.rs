@@ -18,10 +18,6 @@ use crate::sysex::unpack_u7;
 use crate::sysex::unpack_u14;
 
 pub const DEVICE_ID: u8 = 0x7D;
-pub const PORT_MIDI_IN: &str = "R3 MIDI IN";
-pub const PORT_MIDI_OUT: &str = "R3 MIDI OUT";
-pub const PORT_SOUND: &str = "R3 SOUND";
-pub const PORT_KBD_KNOB: &str = "R3 KBD/KNOB";
 
 const RAW_PROGRAM_SIZE: usize = std::mem::size_of::<RawProgram>();
 const RAW_GLOBAL_SIZE: usize = std::mem::size_of::<RawGlobal>();
@@ -108,6 +104,57 @@ fn sysex_header(channel: u8, func_id: u8) -> Vec<u8> {
         DEVICE_ID,
         func_id,
     ]
+}
+
+/// Parses `reply` and returns it only if it answers `request`.
+///
+/// A dump request is answered by the matching dump (a program dump also by
+/// program number), a write request by WRITE COMPLETED / WRITE ERROR, and a
+/// data dump sent to the R3 by DATA LOAD COMPLETED / DATA LOAD ERROR.
+/// Everything else on the bus (other devices, echoed requests, unparseable
+/// sysex) is `None`.
+pub fn reply_to(request: &SysEx, reply: SysEx) -> Option<KorgR3Message> {
+    let bytes = request.bytes();
+    let func = *bytes.get(3)?;
+    let msg = KorgR3Message::try_from(&reply).ok()?;
+
+    let answers = match DeviceCommandId::try_from(func) {
+        Ok(DeviceCommandId::CurrentProgramDumpRequest) => {
+            matches!(msg, KorgR3Message::CurrentProgramDump(_))
+        }
+        Ok(DeviceCommandId::ProgramDumpRequest) => {
+            let requested = unpack_u14([*bytes.get(5)?, *bytes.get(4)?]);
+            matches!(msg, KorgR3Message::ProgramDump { program_no, .. } if program_no == requested)
+        }
+        Ok(DeviceCommandId::CurrentFormantMotionDumpRequest) => {
+            matches!(msg, KorgR3Message::CurrentFormantMotionDump { .. })
+        }
+        Ok(DeviceCommandId::FormantMotionDumpRequest) => {
+            matches!(msg, KorgR3Message::FormantMotionDump { .. })
+        }
+        Ok(DeviceCommandId::GlobalDumpRequest) => matches!(msg, KorgR3Message::GlobalDump(_)),
+        Ok(DeviceCommandId::ProgramWriteRequest | DeviceCommandId::FormantMotionWriteRequest) => {
+            matches!(
+                msg,
+                KorgR3Message::WriteCompleted | KorgR3Message::WriteError
+            )
+        }
+        Err(_) => {
+            matches!(
+                DeviceStatusId::try_from(func),
+                Ok(DeviceStatusId::CurrentProgramDump
+                    | DeviceStatusId::ProgramDump
+                    | DeviceStatusId::CurrentFormantMotionDump
+                    | DeviceStatusId::FormantMotionDump
+                    | DeviceStatusId::GlobalDump)
+            ) && matches!(
+                msg,
+                KorgR3Message::DataLoadCompleted | KorgR3Message::DataLoadError
+            )
+        }
+    };
+
+    answers.then_some(msg)
 }
 
 pub fn current_program_dump_request(channel: u8) -> SysEx {
@@ -792,5 +839,67 @@ mod tests {
             }
             _ => panic!("expected FormantMotionDump"),
         }
+    }
+
+    fn status(func: DeviceStatusId) -> SysEx {
+        sysex(sysex_header(0x00, func.into()))
+    }
+
+    #[test]
+    fn test_reply_to_matches_dump_kind() {
+        let raw = RawProgram::zeroed();
+        let current = current_program_dump_message(0x00, &raw);
+
+        assert!(matches!(
+            reply_to(&current_program_dump_request(0x00), current.clone()),
+            Some(KorgR3Message::CurrentProgramDump(_))
+        ));
+        assert!(reply_to(&global_dump_request(0x00), current).is_none());
+    }
+
+    #[test]
+    fn test_reply_to_matches_program_number() {
+        let raw = RawProgram::zeroed();
+        let request = program_dump_request(0x00, 300);
+
+        assert!(reply_to(&request, program_dump_message(0x00, 300, &raw)).is_some());
+        assert!(reply_to(&request, program_dump_message(0x00, 301, &raw)).is_none());
+    }
+
+    #[test]
+    fn test_reply_to_matches_load_and_write_results() {
+        let data = current_program_dump_message(0x00, &RawProgram::zeroed());
+        let write = program_write_request(0x00, 5);
+
+        assert!(matches!(
+            reply_to(&data, status(DeviceStatusId::DataLoadCompleted)),
+            Some(KorgR3Message::DataLoadCompleted)
+        ));
+        assert!(matches!(
+            reply_to(&data, status(DeviceStatusId::DataLoadError)),
+            Some(KorgR3Message::DataLoadError)
+        ));
+        assert!(reply_to(&data, status(DeviceStatusId::WriteCompleted)).is_none());
+        assert!(matches!(
+            reply_to(&write, status(DeviceStatusId::WriteError)),
+            Some(KorgR3Message::WriteError)
+        ));
+        assert!(reply_to(&write, status(DeviceStatusId::DataLoadCompleted)).is_none());
+        assert!(
+            reply_to(
+                &global_dump_request(0x00),
+                status(DeviceStatusId::DataLoadCompleted)
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn test_reply_to_skips_echo_and_noise() {
+        let request = global_dump_request(0x00);
+        let noise = SysEx::new(&[0x47, 0x00, 0x35, 0x12]).unwrap();
+
+        assert!(reply_to(&request, request.clone()).is_none());
+        assert!(reply_to(&request, noise).is_none());
     }
 }

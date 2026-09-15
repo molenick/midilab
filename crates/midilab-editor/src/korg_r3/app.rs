@@ -387,6 +387,11 @@ impl AppState {
                     }))],
                 },
             },
+            AppMsg::MidiStatus(msg) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                msg,
+                kind: UserMsgKind::Status,
+                received_at: Instant::now(),
+            }))],
             AppMsg::UserError(e) => match e {
                 UserError::Midi(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                     msg: e.to_string(),
@@ -395,6 +400,11 @@ impl AppState {
                 }))],
                 UserError::Parse(e) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
                     msg: e.to_string(),
+                    received_at: Instant::now(),
+                    kind: UserMsgKind::Error,
+                }))],
+                UserError::Rejected(msg) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                    msg,
                     received_at: Instant::now(),
                     kind: UserMsgKind::Error,
                 }))],
@@ -488,6 +498,41 @@ mod tests {
         assert!(matches!(
             &effects[1],
             AppEffect::Device(DeviceMsg::DumpGlobal)
+        ));
+    }
+
+    #[test]
+    fn device_rejection_emits_error_message() {
+        let mut app = AppState::new(AppConfig::default());
+
+        let effects = app.update(AppMsg::UserError(UserError::Rejected(
+            "R3 write failed (memory protect?)".to_string(),
+        )));
+
+        assert!(matches!(
+            effects.as_slice(),
+            [AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Error,
+                msg,
+                ..
+            }))] if msg.contains("memory protect")
+        ));
+    }
+
+    #[test]
+    fn midi_status_emits_status_message() {
+        let mut app = AppState::new(AppConfig::default());
+
+        let effects = app.update(AppMsg::MidiStatus("no response from device".to_string()));
+
+        assert_eq!(effects.len(), 1);
+        assert!(matches!(
+            &effects[0],
+            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Status,
+                msg,
+                ..
+            })) if msg.contains("no response")
         ));
     }
 }
