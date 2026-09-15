@@ -224,6 +224,7 @@ mod tests {
 
     use super::*;
 
+    #[ignore = "requires a MIDI sequencer"]
     #[tokio::test]
     async fn link_sends_and_receives_on_every_port() {
         let client = Client::new("link-ports").await.unwrap();
@@ -280,6 +281,7 @@ mod tests {
             .unwrap();
     }
 
+    #[ignore = "requires a MIDI sequencer"]
     #[tokio::test]
     async fn listener_shares_sources_with_its_links() {
         let client = Client::new("listener-links").await.unwrap();

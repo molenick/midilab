@@ -18,6 +18,7 @@ use midilab::manufacturer::akai::mpd226::reply_to;
 use midilab::manufacturer::akai::mpd226::write_preset_to_device;
 use midilab_io::midi::Link;
 
+#[ignore = "requires a MIDI sequencer"]
 #[tokio::test]
 async fn mpd226_dump_through_hub() {
     let client = Client::new("mpd226-hub-test").await.unwrap();
