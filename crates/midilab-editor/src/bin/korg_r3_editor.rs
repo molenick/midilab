@@ -116,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         loop {
             if flush_at.is_some_and(|at| Instant::now() >= at) {
-                let link = Link::open(&client).await;
+                let link = listener.link(&client).await;
                 for ((id, sub), value) in pending.drain() {
                     let lp = LiveParam {
                         addr: ParamAddr { id, sub },
@@ -145,13 +145,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
 
-            let mut link = Link::open(&client).await;
             // Pick up sources that appeared (device or hub plugged in)
             // since the panel listener was opened.
-            if link.input_count() != listener.port_count() {
-                drop(listener);
+            let source_count = client.sources().await.map_or(0, |s| s.len());
+            if source_count != listener.port_count() {
+                listener.close().await;
                 listener = listen_for_panel(&client, &midi_app_tx).await;
             }
+            let mut link = listener.link(&client).await;
 
             let Some(msg) = handle_midi_msg(msg, &mut link).await else {
                 continue;

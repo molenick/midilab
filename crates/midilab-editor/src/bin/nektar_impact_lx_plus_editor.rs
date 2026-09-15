@@ -20,7 +20,6 @@ use midilab_editor::nektar_impact_lx_plus::message::DeviceMsg;
 use midilab_editor::nektar_impact_lx_plus::message::IoEffect;
 use midilab_editor::nektar_impact_lx_plus::message::IoMsg;
 use midilab_editor::nektar_impact_lx_plus::message::UserError;
-use midilab_io::midi::Link;
 use midilab_io::midi::Listener;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
@@ -68,11 +67,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         while let Some(msg) = midi_rx.recv().await {
             if matches!(msg, DeviceMsg::Reconnect) {
-                drop(listener);
+                listener.close().await;
                 listener = listen_for_dumps(&client, &midi_app_tx).await;
             }
 
-            let msg = handle_midi_msg(msg, &client).await;
+            let msg = handle_midi_msg(msg, &client, &listener).await;
             let _ = midi_app_tx.send(msg);
         }
     });
@@ -169,7 +168,7 @@ async fn listen_for_dumps(client: &Client, app_tx: &UnboundedSender<AppMsg>) -> 
 /// and returning the app message to report.
 ///
 /// Writes report success when delivered to the outputs.
-async fn handle_midi_msg(msg: DeviceMsg, client: &Client) -> AppMsg {
+async fn handle_midi_msg(msg: DeviceMsg, client: &Client, listener: &Listener) -> AppMsg {
     let (messages, written) = match msg {
         DeviceMsg::WriteDump(dump) => (dump.to_messages(), DeviceEvent::DumpWritten),
         DeviceMsg::WritePreset { id, preset } => {
@@ -187,7 +186,7 @@ async fn handle_midi_msg(msg: DeviceMsg, client: &Client) -> AppMsg {
         DeviceMsg::Reconnect => return AppMsg::Device(DeviceEvent::Reconnected),
     };
 
-    let link = Link::open(client).await;
+    let link = listener.link(client).await;
     if link.output_count() == 0 {
         return AppMsg::MidiStatus("no MIDI output ports - not sent".to_string());
     }

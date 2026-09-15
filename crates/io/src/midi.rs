@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use midi_io::Client;
@@ -5,16 +7,24 @@ use midi_io::DestinationConnection;
 use midi_io::SysEx;
 use midilab::error::MidiError;
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio::time::timeout_at;
 
-/// Every MIDI source, each feeding received sysex to its own handler.
+type Taps = Arc<Mutex<Vec<UnboundedSender<SysEx>>>>;
+
+/// Every MIDI source, each feeding received sysex to its own handler and to
+/// every [`Link`] opened from it.
 ///
-/// Dropping the `Listener` disconnects every source.
+/// A source can be connected only once per [`Client`], so a long-lived
+/// `Listener` shares its sources with the links opened through
+/// [`Listener::link`]. Dropping the `Listener` disconnects every source once
+/// its tasks wind down; use [`Listener::close`] to wait for that.
 pub struct Listener {
     tasks: Vec<JoinHandle<()>>,
+    taps: Taps,
 }
 
 impl Listener {
@@ -31,6 +41,7 @@ impl Listener {
             Vec::new()
         });
 
+        let taps: Taps = Arc::default();
         let mut tasks = Vec::with_capacity(sources.len());
         for port in &sources {
             let connection = match client.connect_source(port).await {
@@ -41,20 +52,65 @@ impl Listener {
                 }
             };
             let mut handle = handler();
+            let taps = taps.clone();
             tasks.push(tokio::spawn(async move {
                 let mut sysex = connection.into_sysex();
                 while let Some(timed) = sysex.recv().await {
+                    taps.lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .retain(|tap| tap.send(timed.payload.clone()).is_ok());
                     handle(timed.payload);
                 }
             }));
         }
 
-        Listener { tasks }
+        Listener { tasks, taps }
     }
 
     pub fn port_count(&self) -> usize {
         self.tasks.len()
     }
+
+    /// Opens a [`Link`] that receives from this listener's sources and sends
+    /// to every destination.
+    pub async fn link(&self, client: &Client) -> Link {
+        let (tx, rx) = unbounded_channel();
+        self.taps.lock().unwrap_or_else(|e| e.into_inner()).push(tx);
+
+        Link {
+            outputs: connect_destinations(client).await,
+            input_count: self.port_count(),
+            rx,
+            _inputs: None,
+        }
+    }
+
+    /// Disconnects every source and waits until they are released, so the
+    /// same client can connect them again.
+    pub async fn close(mut self) {
+        let tasks = std::mem::take(&mut self.tasks);
+        for task in &tasks {
+            task.abort();
+        }
+        for task in tasks {
+            let _ = task.await;
+        }
+    }
+}
+
+async fn connect_destinations(client: &Client) -> Vec<DestinationConnection> {
+    let destinations = client.destinations().await.unwrap_or_else(|e| {
+        eprintln!("failed to list midi output ports: {e}");
+        Vec::new()
+    });
+    let mut outputs = Vec::with_capacity(destinations.len());
+    for port in &destinations {
+        match client.connect_destination(port).await {
+            Ok(connection) => outputs.push(connection),
+            Err(e) => eprintln!("midi output connect failed: {} - {e}", port.name()),
+        }
+    }
+    outputs
 }
 
 impl Drop for Listener {
@@ -71,46 +127,26 @@ impl Drop for Listener {
 /// recognised by the replies it sends, not by port name. Inputs are
 /// connected before anything is sent, so no reply is missed, and each
 /// `Link` has its own channel, so replies to earlier operations never leak
-/// in. Dropping the `Link` disconnects every port.
+/// in. Dropping the `Link` disconnects the ports it opened.
 pub struct Link {
     outputs: Vec<DestinationConnection>,
-    inputs: Listener,
+    input_count: usize,
     rx: UnboundedReceiver<SysEx>,
+    _inputs: Option<Listener>,
 }
 
 impl Link {
     /// Connects every source, then every destination. Ports that fail to
     /// list or connect are skipped: absence of a transport is reported
     /// through [`Link::output_count`] and [`Link::input_count`].
+    ///
+    /// A client that keeps a [`Listener`] open must use [`Listener::link`]
+    /// instead, since its sources are already connected.
     pub async fn open(client: &Client) -> Link {
-        let (tx, rx) = unbounded_channel();
-
-        let inputs = Listener::open(client, || {
-            let tx = tx.clone();
-            move |sysex| {
-                let _ = tx.send(sysex);
-            }
-        })
-        .await;
-        drop(tx);
-
-        let destinations = client.destinations().await.unwrap_or_else(|e| {
-            eprintln!("failed to list midi output ports: {e}");
-            Vec::new()
-        });
-        let mut outputs = Vec::with_capacity(destinations.len());
-        for port in &destinations {
-            match client.connect_destination(port).await {
-                Ok(connection) => outputs.push(connection),
-                Err(e) => eprintln!("midi output connect failed: {} - {e}", port.name()),
-            }
-        }
-
-        Link {
-            outputs,
-            inputs,
-            rx,
-        }
+        let inputs = Listener::open(client, || |_: SysEx| {}).await;
+        let mut link = inputs.link(client).await;
+        link._inputs = Some(inputs);
+        link
     }
 
     pub fn output_count(&self) -> usize {
@@ -118,7 +154,7 @@ impl Link {
     }
 
     pub fn input_count(&self) -> usize {
-        self.inputs.port_count()
+        self.input_count
     }
 
     /// Sends `sysex` to every output. Sending to zero outputs is a no-op;
@@ -234,12 +270,61 @@ mod tests {
         let (_tx, rx) = unbounded_channel();
         let link = Link {
             outputs: Vec::new(),
-            inputs: Listener { tasks: Vec::new() },
+            input_count: 0,
             rx,
+            _inputs: None,
         };
 
         link.send(&SysEx::new(&[0x7D, 0x01, 0x02]).unwrap())
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn listener_shares_sources_with_its_links() {
+        let client = Client::new("listener-links").await.unwrap();
+        let device_out = client
+            .create_virtual_source("Listener Device Out")
+            .await
+            .unwrap();
+
+        let (heard_tx, mut heard) = unbounded_channel();
+        let listener = Listener::open(&client, || {
+            let heard_tx = heard_tx.clone();
+            move |sysex| {
+                let _ = heard_tx.send(sysex);
+            }
+        })
+        .await;
+        assert!(listener.port_count() >= 1);
+
+        let mut first = listener.link(&client).await;
+        let mut second = listener.link(&client).await;
+        assert_eq!(first.input_count(), listener.port_count());
+
+        let reply = SysEx::new(&[0x7D, 0x0A, 0x0B]).unwrap();
+        device_out.send_sysex(&reply).await.unwrap();
+
+        let wait = Duration::from_secs(5);
+        let matched = |s: SysEx| (s == reply).then_some(s);
+        assert_eq!(first.recv(wait, matched).await, Some(reply.clone()));
+        assert_eq!(second.recv(wait, matched).await, Some(reply.clone()));
+        let heard_reply = timeout(wait, async {
+            while let Some(s) = heard.recv().await {
+                if s == reply {
+                    return s;
+                }
+            }
+            unreachable!()
+        })
+        .await
+        .unwrap();
+        assert_eq!(heard_reply, reply);
+
+        listener.close().await;
+        let reopened = Listener::open(&client, || |_: SysEx| {}).await;
+        let mut after_reopen = reopened.link(&client).await;
+        device_out.send_sysex(&reply).await.unwrap();
+        assert_eq!(after_reopen.recv(wait, matched).await, Some(reply.clone()));
     }
 }
