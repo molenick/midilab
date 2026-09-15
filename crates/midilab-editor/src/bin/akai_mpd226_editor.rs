@@ -33,7 +33,7 @@ use tokio::sync::mpsc::unbounded_channel;
 
 /// Pace between messages of a multi-message write. Devices consume sysex
 /// serially; small gaps keep a burst from outrunning the device's parser.
-const WRITE_PACING: Duration = Duration::from_millis(2);
+const MPD226_WRITE_PACING: Duration = Duration::from_millis(2);
 
 /// How long to wait for a response to a request (dump) after sending it.
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -179,19 +179,16 @@ async fn handle_midi_msg(msg: DeviceMsg, client: &Client) -> AppMsg {
         DeviceMsg::WritePreset(preset) => {
             let slot = preset.settings.slot;
             let raw_preset = RawPreset::from(preset.as_ref());
-            match link
-                .send_paced([write_preset_to_device(&raw_preset)], WRITE_PACING)
-                .await
-            {
-                Ok(()) => AppMsg::MidiStatus(format!("Sent to device preset slot {slot}")),
+            match link.send(&write_preset_to_device(&raw_preset)).await {
+                Ok(()) => AppMsg::MidiStatus(format!("Sent preset to slot {slot}")),
                 Err(e) => AppMsg::UserError(UserError::Midi(e)),
             }
         }
         DeviceMsg::WriteGlobal(global) => {
             let raw_global = RawGlobal::from(global.as_ref());
             let messages = raw_global.global_send_messages();
-            match link.send_paced(messages, WRITE_PACING).await {
-                Ok(()) => AppMsg::MidiStatus("Wrote global settings to device".to_string()),
+            match link.send_paced(messages, MPD226_WRITE_PACING).await {
+                Ok(()) => AppMsg::MidiStatus("Sent global settings".to_string()),
                 Err(e) => AppMsg::UserError(UserError::Midi(e)),
             }
         }

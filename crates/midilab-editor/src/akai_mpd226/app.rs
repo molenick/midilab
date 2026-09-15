@@ -135,11 +135,6 @@ impl AppState {
                         })),
                     ]
                 }
-                DeviceStatus::ReceivedPresetAck(_ack) => {
-                    // The write was already confirmed when it was sent
-                    // (fire-and-forget); the ack itself is not shown.
-                    vec![]
-                }
                 DeviceStatus::GlobalData(global) => {
                     self.global = *global.clone();
 
@@ -152,21 +147,8 @@ impl AppState {
                         })),
                     ]
                 }
-                DeviceStatus::GlobalParamAck(ack) => {
-                    // Ack success duplicates the send-time confirmation, so
-                    // only a device-reported failure is surfaced.
-                    if ack.status == 0 {
-                        vec![]
-                    } else {
-                        let addr = ack.addr as u8;
-                        let status = ack.status;
-                        vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                            msg: format!("Global param {addr:#04x} write failed: status {status}"),
-                            kind: UserMsgKind::Error,
-                            received_at: Instant::now(),
-                        }))]
-                    }
-                }
+                // Writes are confirmed when sent; acks are not shown.
+                DeviceStatus::ReceivedPresetAck(_) | DeviceStatus::GlobalParamAck(_) => vec![],
             },
             AppMsg::Io(io_effect) => match *io_effect {
                 IoEffect::PresetSaveResult(result) => match result {
@@ -484,27 +466,6 @@ mod tests {
         )));
 
         assert!(effects.is_empty());
-    }
-
-    #[test]
-    fn device_global_param_ack_failure() {
-        let mut app = AppState::new(AppConfig::default());
-
-        let effects = app.update(AppMsg::Device(DeviceStatus::GlobalParamAck(
-            GlobalParamAck {
-                addr: GlobalParamCmdId::try_from(0x02_u8).unwrap(),
-                status: 1,
-            },
-        )));
-
-        let effect = effects.into_iter().next().unwrap();
-        assert!(matches!(
-            effect,
-            AppEffect::Ui(UiMsg::UserMsg(UserMsg {
-                kind: UserMsgKind::Error,
-                ..
-            }))
-        ));
     }
 
     #[test]
