@@ -28,6 +28,8 @@ pub enum AppMsg {
 pub enum UserError {
     Midi(MidiError),
     Parse(ParseError),
+    /// The R3 answered with DATA LOAD ERROR or WRITE ERROR.
+    Rejected(String),
 }
 
 pub enum IoMsg {

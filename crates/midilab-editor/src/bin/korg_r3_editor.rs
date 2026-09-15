@@ -42,10 +42,6 @@ use tokio::sync::mpsc::unbounded_channel;
 /// How long to wait for a response to a dump request after sending it.
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// Pace between messages of a multi-message write. Devices consume sysex
-/// serially; small gaps keep a burst from outrunning the device's parser.
-const WRITE_PACING: Duration = Duration::from_millis(2);
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (app_tx, mut app_rx) = unbounded_channel();
@@ -236,11 +232,51 @@ async fn request_dump(link: &mut Link, request: SysEx) -> AppMsg {
     }
 }
 
+/// Loads `data` into the R3's edit buffer, then sends `write` to store it.
+///
+/// The write request is sent only once the R3 confirms the load, since it
+/// would otherwise store whatever the edit buffer held. DATA LOAD ERROR and
+/// WRITE ERROR are errors; a missing WRITE COMPLETED is a status, because
+/// the data did reach the device.
+async fn write_to_device(
+    link: &mut Link,
+    data: SysEx,
+    write: SysEx,
+    written: String,
+    unconfirmed: String,
+) -> AppMsg {
+    if let Err(e) = link.send(&data).await {
+        return AppMsg::UserError(UserError::Midi(e));
+    }
+    match link.recv(RESPONSE_TIMEOUT, |s| reply_to(&data, s)).await {
+        Some(KorgR3Message::DataLoadCompleted) => {}
+        Some(_) => {
+            return AppMsg::UserError(UserError::Rejected(
+                "R3 rejected data load (memory protect?)".to_string(),
+            ));
+        }
+        None => {
+            return AppMsg::MidiStatus("R3 did not confirm load - not written".to_string());
+        }
+    }
+
+    if let Err(e) = link.send(&write).await {
+        return AppMsg::UserError(UserError::Midi(e));
+    }
+    match link.recv(RESPONSE_TIMEOUT, |s| reply_to(&write, s)).await {
+        Some(KorgR3Message::WriteCompleted) => AppMsg::MidiStatus(written),
+        Some(_) => AppMsg::UserError(UserError::Rejected(
+            "R3 write failed (memory protect?)".to_string(),
+        )),
+        None => AppMsg::MidiStatus(unconfirmed),
+    }
+}
+
 /// Handles a device message over a [`Link`] opened for it, returning the
 /// app message to report (or `None` when there is nothing to report).
 ///
-/// Writes report success when delivered to the outputs, and dumps report a
-/// status when the device does not answer.
+/// Dumps report a status when the device does not answer; writes follow
+/// [`write_to_device`].
 async fn handle_midi_msg(msg: DeviceMsg, link: &mut Link) -> Option<AppMsg> {
     if link.output_count() == 0 {
         return Some(AppMsg::MidiStatus(
@@ -271,38 +307,40 @@ async fn handle_midi_msg(msg: DeviceMsg, link: &mut Link) -> Option<AppMsg> {
         }
         DeviceMsg::WriteProgram { program, slot } => {
             let raw: RawProgram = (&*program).into();
-            let messages = [
-                current_program_dump_message(0x00, &raw),
-                program_write_request(0x00, slot as u16),
-            ];
-            match link.send_paced(messages, WRITE_PACING).await {
-                Ok(()) => Some(AppMsg::MidiStatus(format!("Program sent to slot {slot}"))),
-                Err(e) => Some(AppMsg::UserError(UserError::Midi(e))),
-            }
+            Some(
+                write_to_device(
+                    link,
+                    current_program_dump_message(0x00, &raw),
+                    program_write_request(0x00, slot as u16),
+                    format!("Program written to slot {slot}"),
+                    format!("Program sent to slot {slot}, write not confirmed"),
+                )
+                .await,
+            )
         }
         DeviceMsg::WriteSelectedProgram { program, slot } => {
             let raw: RawProgram = (&*program).into();
-            let messages = [
-                current_program_dump_message(0x00, &raw),
-                program_write_request(0x00, slot.as_u16()),
-            ];
-            match link.send_paced(messages, WRITE_PACING).await {
-                Ok(()) => Some(AppMsg::MidiStatus(format!("Program sent to slot {slot}"))),
-                Err(e) => Some(AppMsg::UserError(UserError::Midi(e))),
-            }
+            Some(
+                write_to_device(
+                    link,
+                    current_program_dump_message(0x00, &raw),
+                    program_write_request(0x00, slot.as_u16()),
+                    format!("Program written to slot {slot}"),
+                    format!("Program sent to slot {slot}, write not confirmed"),
+                )
+                .await,
+            )
         }
-        DeviceMsg::WriteFormantMotion { motion, motion_no } => {
-            let messages = [
+        DeviceMsg::WriteFormantMotion { motion, motion_no } => Some(
+            write_to_device(
+                link,
                 current_formant_motion_dump_message(0x00, &motion.to_raw()),
                 formant_motion_write_request(0x00, motion_no),
-            ];
-            match link.send_paced(messages, WRITE_PACING).await {
-                Ok(()) => Some(AppMsg::MidiStatus(format!(
-                    "Formant motion {motion_no} sent"
-                ))),
-                Err(e) => Some(AppMsg::UserError(UserError::Midi(e))),
-            }
-        }
+                format!("Formant motion {motion_no} written"),
+                format!("Formant motion {motion_no} sent, write not confirmed"),
+            )
+            .await,
+        ),
         DeviceMsg::LiveParams(_) => None,
     }
 }

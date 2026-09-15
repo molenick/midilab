@@ -403,6 +403,11 @@ impl AppState {
                     received_at: Instant::now(),
                     kind: UserMsgKind::Error,
                 }))],
+                UserError::Rejected(msg) => vec![AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                    msg,
+                    received_at: Instant::now(),
+                    kind: UserMsgKind::Error,
+                }))],
             },
         }
     }
@@ -493,6 +498,24 @@ mod tests {
         assert!(matches!(
             &effects[1],
             AppEffect::Device(DeviceMsg::DumpGlobal)
+        ));
+    }
+
+    #[test]
+    fn device_rejection_emits_error_message() {
+        let mut app = AppState::new(AppConfig::default());
+
+        let effects = app.update(AppMsg::UserError(UserError::Rejected(
+            "R3 write failed (memory protect?)".to_string(),
+        )));
+
+        assert!(matches!(
+            effects.as_slice(),
+            [AppEffect::Ui(UiMsg::UserMsg(UserMsg {
+                kind: UserMsgKind::Error,
+                msg,
+                ..
+            }))] if msg.contains("memory protect")
         ));
     }
 
