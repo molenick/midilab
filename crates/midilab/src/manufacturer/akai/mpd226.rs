@@ -52,7 +52,6 @@ pub mod raw;
 pub mod repository;
 
 pub const DEVICE_ID: u8 = 0x35;
-pub const PORT_NAME: &str = "MPD226 Remote";
 const TOTAL_PADS: usize = 64;
 
 pub(crate) const PRESET_FOOTER_MAGIC_LEN: usize = 12;

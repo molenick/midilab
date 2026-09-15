@@ -37,7 +37,6 @@ pub mod error;
 pub mod raw;
 pub mod repository;
 
-pub const PORT_NAME: &str = "Arturia MiniLab mkII";
 pub const TOTAL_KNOBS: usize = 16;
 pub const TOTAL_SHIFT_KNOBS: usize = 2;
 pub const TOTAL_PADS: usize = 16;

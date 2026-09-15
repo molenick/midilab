@@ -55,10 +55,6 @@ pub mod error;
 pub mod raw;
 pub mod value_kind;
 
-/// Sysex I/O port of the LX61+ model. Other LX+ models substitute their key
-/// count. The `MIDI2` port is the DAW-integration port and carries no sysex.
-pub const PORT_NAME: &str = "Impact LX61+ MIDI1";
-
 pub const TOTAL_FADERS: usize = 9;
 pub const TOTAL_POTS: usize = 8;
 pub const TOTAL_FADER_BUTTONS: usize = 9;
@@ -83,12 +79,6 @@ pub const SYSEX_COMMAND_HEADER: [u8; 5] = [
     0x7F,
     0x01,
 ];
-
-/// Returns whether a CoreMIDI port name is the sysex port of an Impact LX+
-/// device (any model), as opposed to its DAW-integration `MIDI2` port.
-pub fn is_sysex_port(name: &str) -> bool {
-    name.contains("Impact LX") && name.contains("MIDI1")
-}
 
 /// Returns true if `sysex` carries an Impact LX+ sysex header, i.e. it
 /// plausibly comes from an Impact LX+ device.
@@ -1241,14 +1231,6 @@ mod tests {
                 0x01, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x0F
             ]
         );
-    }
-
-    #[test]
-    fn test_is_sysex_port() {
-        assert!(is_sysex_port("Impact LX61+ MIDI1"));
-        assert!(is_sysex_port("Impact LX49+ MIDI1"));
-        assert!(!is_sysex_port("Impact LX61+ MIDI2"));
-        assert!(!is_sysex_port("Arturia MiniLab mkII"));
     }
 
     #[test]

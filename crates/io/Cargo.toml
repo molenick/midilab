@@ -10,3 +10,6 @@ repository.workspace = true
 midilab.workspace = true
 midi-io = { workspace = true, features = ["io"] }
 tokio.workspace = true
+
+[dev-dependencies]
+bytemuck.workspace = true

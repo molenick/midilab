@@ -18,10 +18,6 @@ use crate::sysex::unpack_u7;
 use crate::sysex::unpack_u14;
 
 pub const DEVICE_ID: u8 = 0x7D;
-pub const PORT_MIDI_IN: &str = "R3 MIDI IN";
-pub const PORT_MIDI_OUT: &str = "R3 MIDI OUT";
-pub const PORT_SOUND: &str = "R3 SOUND";
-pub const PORT_KBD_KNOB: &str = "R3 KBD/KNOB";
 
 const RAW_PROGRAM_SIZE: usize = std::mem::size_of::<RawProgram>();
 const RAW_GLOBAL_SIZE: usize = std::mem::size_of::<RawGlobal>();
