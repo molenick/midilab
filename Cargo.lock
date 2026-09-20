@@ -2059,9 +2059,9 @@ dependencies = [
 
 [[package]]
 name = "midi-io"
-version = "0.1.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e057bf8f10848862ec6a1215979a87e8cde5d1be3b94b3b50b6ec665aab1c714"
+checksum = "a3ca6e3535dcd841eef3f63c9250ebb29a66450ba2b6b92b56385be264f4037e"
 dependencies = [
  "alsa",
  "core-foundation 0.10.1",
@@ -2069,8 +2069,13 @@ dependencies = [
  "coremidi-sys",
  "futures-channel",
  "futures-util",
+ "js-sys",
  "libc",
  "thiserror 2.0.18",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
 ]
 
 [[package]]
