@@ -2059,9 +2059,9 @@ dependencies = [
 
 [[package]]
 name = "midi-io"
-version = "0.2.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3ca6e3535dcd841eef3f63c9250ebb29a66450ba2b6b92b56385be264f4037e"
+checksum = "c275dacf91c15aa65089d0057556b352df3f0dda7ceb2220ea10dec1825c0e1a"
 dependencies = [
  "alsa",
  "core-foundation 0.10.1",
